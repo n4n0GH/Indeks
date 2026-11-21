@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 n4n0
+    SPDX-License-Identifier: CC0-1.0
+-->
+<component type="desktop-application">
+  <id>io.github.n4n0gh.indeks</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <name>Indeks</name>
+  <summary>Find, organize and annotate documents wherever they are stored</summary>
+  <description>
+    <p>Indeks keeps track of your documents without taking them away from where they are. It indexes folders on this computer, on external drives and on servers, and makes their files findable by name, by the text inside them and by the text recognized in images and scans.</p>
+    <p>Features:</p>
+    <ul>
+      <li>Search file names, document text, notes and text recognized by OCR, with filters for tags, groups, types, dates and more</li>
+      <li>An inbox for documents that still need to be filed, plus groups, tags, saved searches and rules to keep order</li>
+      <li>Previews for plain and formatted text, PDF documents, images, exported e-mails and Obsidian canvases</li>
+      <li>Notes on every document and freehand drawing on images and PDF pages</li>
+      <li>Originals are never modified: editing and drawing happen on a copy kept by Indeks</li>
+      <li>Documents on unplugged drives and unreachable servers stay searchable</li>
+      <li>Every function is available from the command bar with Ctrl+Alt+I</li>
+      <li>“Send to Indeks” in the context menu of the Dolphin file manager</li>
+    </ul>
+  </description>
+  <url type="homepage">https://github.com/n4n0gh</url>
+  <launchable type="desktop-id">io.github.n4n0gh.indeks.desktop</launchable>
+  <developer id="io.github.n4n0gh">
+    <name>n4n0</name>
+  </developer>
+  <provides>
+    <binary>indeks</binary>
+  </provides>
+  <categories>
+    <category>Office</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-20">
+      <description>
+        <p>First version.</p>
+      </description>
+    </release>
+  </releases>
+</component>

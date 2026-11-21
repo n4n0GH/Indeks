@@ -1,0 +1,1186 @@
+// SPDX-FileCopyrightText: 2026 n4n0
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#include "app.h"
+
+#include "databasefolder.h"
+#include "indekssettings.h"
+#include "office.h"
+#include "paths.h"
+#include "store.h"
+
+#include <KApplicationTrader>
+#include <KIO/ApplicationLauncherJob>
+#include <KIconLoader>
+#include <KIO/JobUiDelegateFactory>
+#include <KIO/OpenFileManagerWindowJob>
+#include <KIO/OpenUrlJob>
+#include <KJobWindows>
+#include <KLocalizedString>
+#include <KService>
+#include <KStandardActions>
+
+#include <QAction>
+#include <QClipboard>
+#include <QCommandLineParser>
+#include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QIcon>
+#include <QJSEngine>
+#include <QSet>
+#include <QStandardPaths>
+#include <QTimer>
+#include <QWindow>
+
+using namespace Indeks;
+using namespace Qt::StringLiterals;
+
+static App *s_instance = nullptr;
+
+namespace
+{
+// Why the database the user works with could not be opened at start, to be told once the
+// window is there.
+Q_GLOBAL_STATIC(QString, s_startupProblem)
+
+/** Picks the database to open, before the library opens anything. */
+Library *createLibrary(QObject *parent)
+{
+    const QString wanted = Config::self()->activeDatabase();
+    if (!wanted.isEmpty()) {
+        const QString problem = Library::databaseProblem(wanted, false);
+        if (problem.isEmpty()) {
+            Paths::setDatabaseDir(wanted);
+        } else {
+            // The setting stays: the share may well be back the next time.
+            *s_startupProblem() = problem;
+        }
+    }
+    return new Library(parent);
+}
+
+// What the actions that run one script each are called, followed by the script's file name.
+const QLatin1StringView scriptActionPrefix("run_script_");
+// Actions that have their fixed place in the bar above the preview, where what they do is
+// seen, and are not offered for the toolbar: editing or drawing on the document, and noting.
+const QStringList previewBarActions = {QStringLiteral("doc_edit"), QStringLiteral("doc_note")};
+// A script that keeps failing for a rule is not complained about more often than this.
+constexpr qint64 ScriptComplaintIntervalSecs = 60;
+
+QString cleanedPath(const QString &path)
+{
+    return path.isEmpty() ? QString() : QDir::cleanPath(path);
+}
+}
+
+App::App(QObject *parent)
+    : AbstractKirigamiApplication(parent)
+    , m_library(createLibrary(this))
+    , m_documents(new DocumentModel(m_library, this))
+    , m_sidebar(new SidebarModel(m_library, this))
+    , m_activity(new ActivityModel(m_library, this))
+{
+    s_instance = this;
+
+    Config *config = Config::self();
+    // Editing and taking notes have their place in the bar above the preview now. A toolbar
+    // that was put together before still names them: they are taken out of it, and with
+    // them the dividing lines that would stand side by side or at an end for it.
+    {
+        QStringList toolbar;
+        const QStringList chosen = config->toolbarActions();
+        for (const QString &name : chosen) {
+            if (previewBarActions.contains(name) || (name == "separator"_L1 && (toolbar.isEmpty() || toolbar.constLast() == "separator"_L1))) {
+                continue;
+            }
+            toolbar.append(name);
+        }
+        while (!toolbar.isEmpty() && toolbar.constLast() == "separator"_L1) {
+            toolbar.removeLast();
+        }
+        if (toolbar != chosen) {
+            config->setToolbarActions(toolbar);
+            config->save();
+        }
+    }
+    m_documents->setSortColumn(config->sortColumn());
+    m_documents->setSortDescending(config->sortDescending());
+    m_sidebar->setCollapsedSections(config->collapsedSections());
+
+    connect(m_sidebar, &SidebarModel::currentChanged, this, [this] {
+        m_documents->setScope(m_sidebar->currentQuery());
+        updateActions();
+    });
+    m_documents->setScope(m_sidebar->currentQuery());
+    m_documents->reload();
+
+    connect(m_documents, &DocumentModel::sortChanged, this, [this, config] {
+        config->setSortColumn(m_documents->sortColumn());
+        config->setSortDescending(m_documents->sortDescending());
+        config->save();
+    });
+    connect(m_sidebar, &SidebarModel::collapsedSectionsChanged, this, [this, config] {
+        config->setCollapsedSections(m_sidebar->collapsedSections());
+        config->save();
+    });
+    connect(m_library, &Library::message, this, &App::passiveMessage);
+    connect(m_library, &Library::documentCreated, this, [this](qint64 id) {
+        // Show what was just made: go to the inbox if the document is not in the current list.
+        m_documents->reload();
+        if (m_documents->rowOf(id) < 0) {
+            m_sidebar->setCurrentKey(u"place:inbox"_s);
+            m_documents->setFilter(QString());
+        }
+        m_documents->selectId(id);
+    });
+
+    connect(m_library, &Library::databaseChanged, this, [this] {
+        // Nothing that was selected or looked at exists in the other database.
+        setAnnotating(false);
+        m_documents->clearSelection();
+        m_documents->setFilter(QString());
+        m_documents->setCriteria(QString());
+        m_sidebar->setCurrentKey(u"place:inbox"_s);
+        Q_EMIT databasesChanged();
+    });
+    connect(m_library, &Library::databaseLost, this, [this] {
+        const QString lost = databaseName();
+        m_library->switchDatabase(QString());
+        Q_EMIT passiveMessage(i18nc("@info", "The database “%1” can no longer be reached. Indeks went back to the local database.", lost));
+    });
+    if (!s_startupProblem()->isEmpty()) {
+        QTimer::singleShot(1500, this, [this] {
+            Q_EMIT passiveMessage(i18nc("@info", "%1 Indeks opened the local database instead.", *s_startupProblem()));
+        });
+    }
+
+    setupActions();
+    syncScriptActions();
+    connect(m_library, &Library::scriptsChanged, this, &App::syncScriptActions);
+    connect(m_library, &Library::scriptsRunningChanged, this, &App::updateActions);
+    connect(m_library, &Library::scriptFinished, this, &App::reportScript);
+    connect(m_documents, &DocumentModel::selectionChanged, this, &App::updateActions);
+    connect(m_documents, &DocumentModel::filterChanged, this, &App::updateActions);
+    connect(m_documents, &DocumentModel::currentChanged, this, &App::updateActions);
+    connect(m_library, &Library::changed, this, &App::updateActions);
+    connect(m_library, &Library::sourcesChanged, this, &App::updateActions);
+    connect(m_library, &Library::todosChanged, this, &App::updateActions);
+    updateActions();
+
+    applySettings();
+    m_library->start(config->rescanOnStart());
+}
+
+App::~App()
+{
+    Config::self()->save();
+    s_instance = nullptr;
+}
+
+App *App::instance()
+{
+    return s_instance;
+}
+
+App *App::create(QQmlEngine *, QJSEngine *)
+{
+    Q_ASSERT(s_instance);
+    QJSEngine::setObjectOwnership(s_instance, QJSEngine::CppOwnership);
+    return s_instance;
+}
+
+QVariantList App::selection() const
+{
+    return m_documents->selectedIds();
+}
+
+QAction *App::addAction(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut, const std::function<void()> &handler)
+{
+    auto action = new QAction(this);
+    action->setText(text);
+    action->setIcon(QIcon::fromTheme(icon));
+    connect(action, &QAction::triggered, this, handler);
+    mainCollection()->addAction(name, action);
+    if (!shortcut.isEmpty()) {
+        mainCollection()->setDefaultShortcut(action, shortcut);
+    }
+    return action;
+}
+
+QAction *App::addRequest(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut)
+{
+    return addAction(name, text, icon, shortcut, [this, name] {
+        Q_EMIT request(name);
+    });
+}
+
+QAction *App::addToggle(const QString &name,
+                        const QString &text,
+                        const QString &icon,
+                        const QKeySequence &shortcut,
+                        bool checked,
+                        const std::function<void(bool)> &handler)
+{
+    auto action = new QAction(this);
+    action->setText(text);
+    action->setIcon(QIcon::fromTheme(icon));
+    action->setCheckable(true);
+    action->setChecked(checked);
+    connect(action, &QAction::toggled, this, handler);
+    mainCollection()->addAction(name, action);
+    if (!shortcut.isEmpty()) {
+        mainCollection()->setDefaultShortcut(action, shortcut);
+    }
+    return action;
+}
+
+void App::setupActions()
+{
+    AbstractKirigamiApplication::setupActions();
+    Config *config = Config::self();
+
+    // Adding and creating
+    addRequest(u"add_files"_s, i18nc("@action", "Add Files…"), u"document-open"_s, QKeySequence::Open);
+    addRequest(u"add_folder"_s, i18nc("@action", "Add Indexed Folder…"), u"folder-add"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_O);
+    addRequest(u"add_remote"_s, i18nc("@action", "Add Remote Location…"), u"folder-remote"_s);
+    addRequest(u"new_text"_s, i18nc("@action", "New Plain Text Document…"), u"document-new"_s, QKeySequence::New);
+    addRequest(u"new_markdown"_s, i18nc("@action", "New Markdown Document…"), u"text-markdown"_s);
+    addRequest(u"new_richtext"_s, i18nc("@action", "New Formatted Document…"), u"x-office-document"_s);
+    addRequest(u"db_manage"_s, i18nc("@action", "Databases…"), u"server-database"_s);
+    addRequest(u"db_add"_s, i18nc("@action", "Add Database…"), u"folder-new"_s);
+    addRequest(u"db_rename"_s, i18nc("@action", "Rename Database…"), u"edit-rename"_s);
+    addAction(u"rescan"_s, i18nc("@action", "Update Index"), u"view-refresh"_s, QKeySequence::Refresh, [this] {
+        m_library->rescanAll();
+        Q_EMIT passiveMessage(i18nc("@info", "Looking for changes in all indexed locations."));
+    });
+
+    // Acting on the selected documents
+    addAction(u"doc_open"_s, i18nc("@action", "Open File"), u"document-open-symbolic"_s, Qt::CTRL | Qt::Key_Return, [this] {
+        const QList<qint64> ids = m_documents->selection();
+        for (qint64 id : ids) {
+            openExternally(id);
+        }
+    });
+    addAction(u"doc_open_with"_s, i18nc("@action", "Open With…"), u"document-open"_s, {}, [this] {
+        openWith(selection());
+    });
+    addAction(u"doc_show"_s, i18nc("@action", "Show in File Manager"), u"system-file-manager"_s, {}, [this] {
+        showInFileManager(m_documents->currentId());
+    });
+    addAction(u"doc_copy_location"_s, i18nc("@action", "Copy Location"), u"edit-copy-path"_s, Qt::CTRL | Qt::ALT | Qt::Key_C, [this] {
+        const QVariantMap info = m_library->documentInfo(m_documents->currentId());
+        copyText(info.value(u"displayUrl"_s).toString());
+    });
+    addRequest(u"doc_rename"_s, i18nc("@action", "Rename…"), u"edit-rename"_s, Qt::Key_F2);
+    addRequest(u"doc_tag"_s, i18nc("@action", "Add Tag…"), u"tag-new"_s, Qt::CTRL | Qt::Key_T);
+    addRequest(u"doc_group"_s, i18nc("@action", "Add to Group…"), u"folder-new"_s, Qt::CTRL | Qt::Key_G);
+    addRequest(u"doc_note"_s, i18nc("@action", "Add Note…"), u"note"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_M);
+    // One action for working on the document itself. What that means depends on the document:
+    // text is edited, pages and pictures are drawn on. It stays checked while that goes on.
+    addToggle(u"doc_edit"_s, i18nc("@action", "Edit"), u"document-edit"_s, Qt::CTRL | Qt::Key_E, false, [this](bool checked) {
+        if (checked == (m_annotating || m_textEditing)) {
+            return; // the action only follows what already happened
+        }
+        if (m_editMode == EditMode::Draw) {
+            setAnnotating(checked);
+        } else if (m_editMode == EditMode::Text) {
+            Q_EMIT request(checked ? u"doc_edit"_s : u"doc_edit_done"_s);
+        }
+        // If nothing came of it, e.g. because the document is too large to edit, the action
+        // must not stay checked.
+        syncEditAction();
+    });
+    addRequest(u"doc_clear_drawing"_s, i18nc("@action", "Remove All Drawings"), u"edit-clear"_s);
+    // Pinning is what used to be called flagging, and is still called that inside: in the
+    // index, in the names of actions, and in rules and searches written before.
+    addAction(u"doc_flag"_s, i18nc("@action", "Pin"), u"pin"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_F, [this] {
+        // Pin all if any of the selected ones is not pinned yet, else take the pins off.
+        bool allFlagged = true;
+        const QList<qint64> ids = m_documents->selection();
+        for (qint64 id : ids) {
+            allFlagged = allFlagged && Store::document(id).flagged;
+        }
+        m_library->setFlagged(selection(), !allFlagged);
+    });
+    addAction(u"doc_from_inbox"_s, i18nc("@action", "Remove from Inbox"), u"mail-mark-read"_s, {}, [this] {
+        // The one way out of the inbox that is meant as one: nothing is held back in the list.
+        m_documents->letGo(m_documents->selection());
+        m_library->setInbox(selection(), false);
+    });
+    addAction(u"doc_to_inbox"_s, i18nc("@action", "Move to Inbox"), u"mail-folder-inbox"_s, {}, [this] {
+        m_library->setInbox(selection(), true);
+    });
+    addAction(u"doc_from_group"_s, i18nc("@action", "Remove from This Group"), u"list-remove"_s, {}, [this] {
+        m_documents->letGo(m_documents->selection());
+        m_library->removeFromGroup(selection(), m_sidebar->currentId());
+    });
+    addAction(u"doc_ocr"_s, i18nc("@action", "Recognize Text (OCR)"), u"document-scan"_s, {}, [this] {
+        m_library->requestOcr(selection());
+    });
+    addAction(u"doc_reindex"_s, i18nc("@action", "Read Again"), u"view-refresh"_s, {}, [this] {
+        m_library->reindex(selection());
+    });
+    addAction(u"doc_revert"_s, i18nc("@action", "Discard Copy and Return to Original"), u"document-revert"_s, {}, [this] {
+        const QList<qint64> ids = m_documents->selection();
+        for (qint64 id : ids) {
+            m_library->discardLocalCopy(id);
+        }
+    });
+    addAction(u"doc_trash"_s, i18nc("@action", "Move to Trash"), u"user-trash"_s, QKeySequence::Delete, [this] {
+        m_library->moveToTrash(selection());
+    });
+    addAction(u"doc_restore"_s, i18nc("@action", "Restore from Trash"), u"edit-undo"_s, {}, [this] {
+        m_library->restoreFromTrash(selection());
+    });
+    addRequest(u"empty_trash"_s, i18nc("@action", "Empty Trash…"), u"trash-empty"_s);
+    addAction(u"select_all"_s, i18nc("@action", "Select All Documents"), u"edit-select-all"_s, QKeySequence::SelectAll, [this] {
+        m_documents->selectAll();
+    });
+
+    // Organizing
+    addRequest(u"new_group"_s, i18nc("@action", "New Group…"), u"folder-new"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_G);
+    addRequest(u"new_tag"_s, i18nc("@action", "New Tag…"), u"tag-new"_s);
+    addRequest(u"save_search"_s, i18nc("@action", "Save Search…"), u"document-save"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_S);
+    addRequest(u"new_rule"_s, i18nc("@action", "New Rule…"), u"run-build-configure"_s);
+    // Things to do
+    addRequest(u"new_todo"_s, i18nc("@action", "New To-Do…"), u"task-new"_s);
+    addRequest(u"doc_todo"_s, i18nc("@action", "Create To-Do for Document…"), u"task-new"_s);
+    addAction(u"todos_clear_done"_s, i18nc("@action", "Remove Completed To-Dos"), u"edit-clear-history"_s, {}, [this] {
+        const int removed = m_library->removeDoneTodos();
+        Q_EMIT passiveMessage(i18ncp("@info", "%1 completed to-do was removed.", "%1 completed to-dos were removed.", removed));
+    });
+    addRequest(u"edit_sidebar_item"_s, i18nc("@action", "Edit Selected Sidebar Entry…"), u"document-edit"_s);
+    addRequest(u"delete_sidebar_item"_s, i18nc("@action", "Delete Selected Sidebar Entry…"), u"edit-delete"_s);
+    {
+        // Checked tells how it is with the location that is selected in the sidebar; only
+        // the user triggering it changes that.
+        auto sourceInbox = new QAction(this);
+        sourceInbox->setText(i18nc("@action", "Put New Files of the Selected Location into the Inbox"));
+        sourceInbox->setIcon(QIcon::fromTheme(u"mail-folder-inbox"_s));
+        sourceInbox->setCheckable(true);
+        connect(sourceInbox, &QAction::triggered, this, [this](bool checked) {
+            if (m_sidebar->currentKind() == "source"_L1) {
+                m_library->setSourceUsesInbox(m_sidebar->currentId(), checked);
+            }
+        });
+        mainCollection()->addAction(u"source_inbox"_s, sourceInbox);
+    }
+    addAction(u"apply_rule"_s, i18nc("@action", "Apply Selected Rule"), u"media-playback-start"_s, {}, [this] {
+        const int affected = m_library->applyRule(m_sidebar->currentId());
+        // A rule that runs scripts takes its time in the background, where the activity
+        // display shows it; the library says when it is through.
+        if (affected >= 0) {
+            Q_EMIT passiveMessage(i18ncp("@info", "The rule was applied to %1 document.", "The rule was applied to %1 documents.", affected));
+        }
+    });
+
+    // Scripts
+    addRequest(u"scripts_manage"_s, i18nc("@action", "Scripts…"), u"text-x-python"_s);
+    addRequest(u"new_script"_s, i18nc("@action", "New Script…"), u"document-new"_s);
+    addRequest(u"doc_run_script"_s, i18nc("@action", "Run Script…"), u"system-run"_s);
+    addRequest(u"scripts_output"_s, i18nc("@action", "Show Script Output"), u"view-list-text"_s);
+    addAction(u"scripts_stop"_s, i18nc("@action", "Stop Running Scripts"), u"process-stop"_s, {}, [this] {
+        m_library->stopScripts();
+    });
+
+    // Going places
+    addAction(u"go_inbox"_s, i18nc("@action", "Go to Inbox"), u"mail-folder-inbox"_s, Qt::CTRL | Qt::Key_1, [this] {
+        goTo(u"place:inbox"_s);
+    });
+    addAction(u"go_all"_s, i18nc("@action", "Go to All Documents"), u"folder-documents"_s, Qt::CTRL | Qt::Key_2, [this] {
+        goTo(u"place:all"_s);
+    });
+    addAction(u"go_flagged"_s, i18nc("@action", "Go to Pinned"), u"pin"_s, Qt::CTRL | Qt::Key_3, [this] {
+        goTo(u"place:flagged"_s);
+    });
+    addAction(u"go_trash"_s, i18nc("@action", "Go to Trash"), u"user-trash"_s, Qt::CTRL | Qt::Key_4, [this] {
+        goTo(u"place:trash"_s);
+    });
+    addRequest(u"focus_search"_s, i18nc("@action", "Search"), u"search"_s, QKeySequence::Find);
+    addToggle(u"search_advanced"_s, i18nc("@action", "Advanced Search"), u"view-filter"_s, Qt::CTRL | Qt::ALT | Qt::Key_F, false, [this](bool checked) {
+        setAdvancedSearch(checked);
+    });
+
+    // View
+    addToggle(u"view_left_sidebar"_s, i18nc("@action", "Show Sidebar"), u"sidebar-expand-left"_s, Qt::Key_F9, config->leftSidebarVisible(), [config](bool checked) {
+        config->setLeftSidebarVisible(checked);
+        config->save();
+    });
+    addToggle(u"view_right_sidebar"_s,
+              i18nc("@action", "Show Side Panel"),
+              u"sidebar-expand-right"_s,
+              Qt::Key_F11,
+              config->rightSidebarVisible(),
+              [config](bool checked) {
+                  config->setRightSidebarVisible(checked);
+                  config->save();
+              });
+    addToggle(u"view_preview"_s, i18nc("@action", "Show Preview"), u"view-preview"_s, Qt::Key_F10, config->previewVisible(), [config](bool checked) {
+        config->setPreviewVisible(checked);
+        config->save();
+    });
+
+    addAction(u"view_info"_s, i18nc("@action", "Show Document Information"), u"documentinfo"_s, {}, [this] {
+        showSidePanel(u"info"_s);
+    });
+    addAction(u"view_todos"_s, i18nc("@action", "Show To-Do List"), u"view-task"_s, {}, [this] {
+        showSidePanel(u"todo"_s);
+    });
+
+    addRequest(u"view_activity"_s, i18nc("@action", "Show Indexing Activity"), u"view-process-system"_s);
+    addRequest(u"view_columns"_s, i18nc("@action", "Choose List Columns and Row Height…"), u"view-file-columns"_s);
+
+    // The preview
+    addRequest(u"view_zoom_in"_s, i18nc("@action", "Zoom In"), u"zoom-in"_s, QKeySequence::ZoomIn);
+    addRequest(u"view_zoom_out"_s, i18nc("@action", "Zoom Out"), u"zoom-out"_s, QKeySequence::ZoomOut);
+    addRequest(u"view_zoom_reset"_s, i18nc("@action", "Reset Zoom"), u"zoom-original"_s, Qt::CTRL | Qt::Key_0);
+    // Formatted text as its source, a table as the lines of its file, indented JSON as it was
+    // written. What the preview calls it depends on what it shows.
+    addToggle(u"view_raw"_s, i18nc("@action", "Show Unformatted"), u"format-text-code"_s, Qt::CTRL | Qt::Key_U, false, [this](bool checked) {
+        if (checked != m_rawView) {
+            Q_EMIT request(u"view_raw"_s);
+        }
+        // If nothing came of it, the action must not stay as it was clicked.
+        if (QAction *raw = action(u"view_raw"_s)) {
+            raw->setChecked(m_rawView);
+        }
+    });
+
+    addRequest(u"options_configure_toolbars"_s, i18nc("@action", "Configure Toolbar…"), u"configure-toolbars"_s);
+    addAction(u"help_manual"_s, i18nc("@action", "Indeks Manual"), u"help-contents"_s, QKeySequence::HelpContents, [this] {
+        openManual();
+    });
+
+    QAction *preferences = KStandardActions::preferences(
+        this,
+        [this] {
+            Q_EMIT request(u"options_configure"_s);
+        },
+        this);
+    mainCollection()->addAction(preferences->objectName(), preferences);
+
+    // The command bar is Indeks' own (see CommandBar.qml): the stock one of this Kirigami Addons
+    // version only reacts to the mouse, not to Enter.
+    if (QAction *commandBar = action(u"open_kcommand_bar"_s)) {
+        disconnect(commandBar, &QAction::triggered, this, nullptr);
+        connect(commandBar, &QAction::triggered, this, [this] {
+            Q_EMIT request(u"open_kcommand_bar"_s);
+        });
+    }
+
+    readSettings();
+}
+
+void App::updateActions()
+{
+    const QList<qint64> ids = m_documents->selection();
+    const bool any = !ids.isEmpty();
+    const Document current = Store::document(m_documents->currentId());
+    const bool single = ids.size() == 1 && current.isValid();
+    const QString kind = m_sidebar->currentKind();
+    const bool inTrash = m_sidebar->currentKey() == "place:trash"_L1;
+
+    bool anyInbox = false;
+    bool anyOutsideInbox = false;
+    bool anyCopy = false;
+    bool anyOcrCandidate = false;
+    // Looking at every document of a huge selection is not worth it; assume the general case.
+    if (ids.size() <= 200) {
+        for (qint64 id : ids) {
+            const Document doc = Store::document(id);
+            anyInbox = anyInbox || doc.inbox;
+            anyOutsideInbox = anyOutsideInbox || !doc.inbox;
+            anyCopy = anyCopy || (!doc.owned && !doc.localCopy.isEmpty());
+            anyOcrCandidate = anyOcrCandidate || doc.kind == Kind::Pdf || doc.kind == Kind::Image;
+        }
+    } else {
+        anyInbox = anyOutsideInbox = anyCopy = anyOcrCandidate = true;
+    }
+
+    auto enable = [this](const QString &name, bool enabled) {
+        if (QAction *found = action(name)) {
+            found->setEnabled(enabled);
+        }
+    };
+    const bool office = Office::isOfficeDocument(current.mimeType) && m_library->officeViewAvailable();
+    const bool drawable = single && (current.kind == Kind::Pdf || current.kind == Kind::Image || office);
+    const bool textual = single && !drawable && (current.kind == Kind::PlainText || current.mimeType == "text/html"_L1);
+
+    if (QAction *open = action(u"doc_open"_s)) {
+        open->setEnabled(any);
+        // Says where the document will open: the application the desktop uses for its type.
+        // Several documents only get a name if they all go to the same one.
+        QString application;
+        if (ids.size() <= 200) {
+            QSet<QString> types;
+            for (qint64 id : ids) {
+                types.insert(Store::document(id).mimeType);
+            }
+            for (const QString &type : std::as_const(types)) {
+                const KService::Ptr service = KApplicationTrader::preferredService(type);
+                // Indeks itself as the default would mean opening the document where it is.
+                const QString name = service && service->desktopEntryName() != QGuiApplication::desktopFileName() ? service->name() : QString();
+                if (name.isEmpty() || (!application.isEmpty() && name != application)) {
+                    application.clear();
+                    break;
+                }
+                application = name;
+            }
+        }
+        open->setText(!any                    ? i18nc("@action", "Open File")
+                          : application.isEmpty() ? i18nc("@action", "Open in Default Application")
+                                                  : i18nc("@action %1 is the name of an application", "Open in %1", application));
+    }
+    enable(u"doc_open_with"_s, any);
+    enable(u"doc_show"_s, single && current.url.isLocalFile());
+    enable(u"doc_copy_location"_s, single);
+    enable(u"doc_rename"_s, single && current.owned);
+    enable(u"doc_tag"_s, any);
+    enable(u"doc_group"_s, any);
+    enable(u"doc_note"_s, single);
+    enable(u"doc_todo"_s, single);
+    enable(u"todos_clear_done"_s, m_library->todoCounts().value(u"done"_s).toInt() > 0);
+    m_editMode = drawable ? EditMode::Draw : textual ? EditMode::Text : EditMode::None;
+    if (QAction *edit = action(u"doc_edit"_s)) {
+        edit->setEnabled(m_editMode != EditMode::None);
+        edit->setText(drawable ? i18nc("@action", "Draw on Document") : textual ? i18nc("@action", "Edit Text") : i18nc("@action", "Edit"));
+        edit->setIcon(QIcon::fromTheme(drawable ? u"draw-freehand"_s : u"document-edit"_s));
+    }
+    enable(u"doc_clear_drawing"_s, drawable && m_library->hasInk(current.id));
+    enable(u"doc_flag"_s, any);
+    enable(u"doc_from_inbox"_s, anyInbox);
+    enable(u"doc_to_inbox"_s, anyOutsideInbox && !inTrash);
+    enable(u"doc_from_group"_s, any && kind == "group"_L1);
+    enable(u"doc_ocr"_s, anyOcrCandidate && m_library->ocrAvailable());
+    enable(u"doc_reindex"_s, any);
+    enable(u"doc_revert"_s, anyCopy);
+    enable(u"doc_trash"_s, any && !inTrash);
+    enable(u"doc_restore"_s, any && inTrash);
+    enable(u"empty_trash"_s, m_library->count(u"is:trashed"_s) > 0);
+    enable(u"select_all"_s, m_documents->count() > 0);
+    enable(u"save_search"_s, !m_documents->effectiveFilter().isEmpty());
+    const bool editable = kind == "group"_L1 || kind == "tag"_L1 || kind == "search"_L1 || kind == "rule"_L1 || kind == "source"_L1;
+    enable(u"edit_sidebar_item"_s, editable && kind != "source"_L1);
+    enable(u"delete_sidebar_item"_s, editable);
+    enable(u"apply_rule"_s, kind == "rule"_L1);
+    if (QAction *inbox = action(u"source_inbox"_s)) {
+        inbox->setEnabled(kind == "source"_L1);
+        inbox->setChecked(kind == "source"_L1 && m_library->sourceUsesInbox(m_sidebar->currentId()));
+    }
+    enable(u"view_zoom_in"_s, m_previewZoomable);
+    enable(u"view_zoom_out"_s, m_previewZoomable);
+    enable(u"view_zoom_reset"_s, m_previewZoomable);
+    enable(u"view_raw"_s, m_rawViewAvailable);
+    enable(u"doc_run_script"_s, any && !inTrash);
+    enable(u"scripts_stop"_s, m_library->scriptsRunning());
+    const QList<QAction *> all = mainCollection()->actions();
+    for (QAction *candidate : all) {
+        if (candidate->objectName().startsWith(scriptActionPrefix)) {
+            candidate->setEnabled(any && !inTrash);
+        }
+    }
+
+    if (!drawable && m_annotating) {
+        setAnnotating(false);
+    }
+}
+
+void App::syncScriptActions()
+{
+    // One action per script: that is what puts them into the command bar and lets them have
+    // keyboard shortcuts.
+    QSet<QString> wanted;
+    bool added = false;
+    const QVariantList scripts = m_library->scripts();
+    for (const QVariant &entry : scripts) {
+        const QVariantMap script = entry.toMap();
+        const QString file = script.value(u"file"_s).toString();
+        const QString name = scriptActionPrefix + file;
+        wanted.insert(name);
+        if (action(name)) {
+            continue;
+        }
+        auto run = new QAction(this);
+        run->setText(i18nc("@action %1 is the name of a script", "Run Script “%1”", script.value(u"name"_s).toString()));
+        run->setIcon(QIcon::fromTheme(u"system-run"_s));
+        connect(run, &QAction::triggered, this, [this, file] {
+            runScript(file);
+        });
+        mainCollection()->addAction(name, run);
+        added = true;
+    }
+    const QList<QAction *> all = mainCollection()->actions();
+    for (QAction *candidate : all) {
+        if (candidate->objectName().startsWith(scriptActionPrefix) && !wanted.contains(candidate->objectName())) {
+            mainCollection()->removeAction(candidate);
+        }
+    }
+    if (added) {
+        readSettings(); // the shortcuts given to them earlier
+        updateActions();
+    }
+}
+
+void App::runScript(const QString &file)
+{
+    const QVariantList ids = selection();
+    if (ids.isEmpty()) {
+        Q_EMIT passiveMessage(i18nc("@info", "Select the documents to run the script on first."));
+        return;
+    }
+    const QString problem = m_library->scriptsProblem();
+    if (!problem.isEmpty()) {
+        Q_EMIT passiveMessage(problem);
+        return;
+    }
+    m_library->runScript(file, ids);
+}
+
+void App::openScriptsFolder()
+{
+    // It is only made when the first script is saved; someone who wants to put a script
+    // there by hand needs it now.
+    const QString dir = m_library->scriptsDir();
+    QDir().mkpath(dir);
+    auto job = new KIO::OpenUrlJob(QUrl::fromLocalFile(dir), u"inode/directory"_s);
+    connect(job, &KJob::result, this, [this, job] {
+        if (job->error()) {
+            Q_EMIT passiveMessage(job->errorString());
+        }
+    });
+    job->start();
+}
+
+void App::openManual()
+{
+    // The manual is a PDF that is made when Indeks is built (see doc/) and installed with
+    // it. Run from where it was built, Indeks takes the one that was made there.
+    QString manual = QStandardPaths::locate(QStandardPaths::GenericDataLocation, u"indeks/Indeks-Manual.pdf"_s);
+    if (manual.isEmpty() && QFileInfo::exists(QStringLiteral(INDEKS_BUILT_MANUAL))) {
+        manual = QStringLiteral(INDEKS_BUILT_MANUAL);
+    }
+    if (manual.isEmpty()) {
+        Q_EMIT passiveMessage(i18nc("@info", "The manual is not installed."));
+        return;
+    }
+    auto job = new KIO::OpenUrlJob(QUrl::fromLocalFile(manual), u"application/pdf"_s);
+    connect(job, &KJob::result, this, [this, job] {
+        if (job->error()) {
+            Q_EMIT passiveMessage(job->errorString());
+        }
+    });
+    job->start();
+}
+
+void App::reportScript(const QVariantMap &report)
+{
+    const QString name = report.value(u"name"_s).toString();
+    const QString rule = report.value(u"rule"_s).toString();
+    const QString problem = report.value(u"problem"_s).toString();
+    const int documents = report.value(u"documents"_s).toInt();
+    const int changed = report.value(u"changed"_s).toInt();
+    const int failed = report.value(u"failed"_s).toInt();
+
+    if (!rule.isEmpty()) {
+        // Rules run whenever documents come in. They only speak up when something is
+        // wrong, and not for every handful of files of a long import.
+        if (problem.isEmpty() && failed == 0) {
+            return;
+        }
+        const qint64 now = QDateTime::currentSecsSinceEpoch();
+        if (now - m_scriptComplaints.value(name) < ScriptComplaintIntervalSecs) {
+            return;
+        }
+        m_scriptComplaints.insert(name, now);
+        Q_EMIT scriptMessage(problem.isEmpty()
+                                 ? i18ncp("@info", "The script “%2” of the rule “%3” failed on %1 document.", "The script “%2” of the rule “%3” failed on %1 documents.", failed, name, rule)
+                                 : i18nc("@info", "The script “%1” of the rule “%2” did not get through.", name, rule));
+        return;
+    }
+    if (!problem.isEmpty()) {
+        Q_EMIT scriptMessage(i18nc("@info", "The script “%1” did not get through.", name));
+    } else if (report.value(u"stopped"_s).toBool()) {
+        Q_EMIT scriptMessage(i18ncp("@info", "The script “%2” was stopped after %1 document.", "The script “%2” was stopped after %1 documents.", documents, name));
+    } else if (failed > 0) {
+        Q_EMIT scriptMessage(i18ncp("@info", "The script “%2” failed on %1 document.", "The script “%2” failed on %1 documents.", failed, name));
+    } else if (documents == 1) {
+        Q_EMIT scriptMessage(changed == 1 ? i18nc("@info", "The script “%1” ran on the document and changed it.", name)
+                                          : i18nc("@info", "The script “%1” ran on the document and found nothing to do.", name));
+    } else {
+        const QString ran = i18ncp("@info", "The script “%2” ran on %1 document.", "The script “%2” ran on %1 documents.", documents, name);
+        const QString did = changed == 0 ? i18nc("@info what a script did; follows how many documents it ran on", "It found nothing to do.")
+                                         : i18ncp("@info what a script did; follows how many documents it ran on", "It changed %1 of them.", "It changed %1 of them.", changed);
+        Q_EMIT scriptMessage(i18nc("@info two sentences about a script that ran", "%1 %2", ran, did));
+    }
+}
+
+void App::setAnnotating(bool annotating)
+{
+    if (m_annotating == annotating) {
+        return;
+    }
+    m_annotating = annotating;
+    if (annotating) {
+        // Drawing happens on Indeks' own copy. Make it now rather than at the first stroke,
+        // so that the view does not switch files in the middle of drawing.
+        m_library->ensureLocalCopy(m_documents->currentId());
+    }
+    syncEditAction();
+    Q_EMIT annotatingChanged();
+}
+
+void App::setAdvancedSearch(bool shown)
+{
+    if (m_advancedSearch == shown) {
+        return;
+    }
+    m_advancedSearch = shown;
+    if (QAction *toggle = action(u"search_advanced"_s)) {
+        toggle->setChecked(shown);
+    }
+    Q_EMIT advancedSearchChanged();
+}
+
+void App::setTextEditing(bool editing)
+{
+    if (m_textEditing == editing) {
+        return;
+    }
+    m_textEditing = editing;
+    syncEditAction();
+    Q_EMIT textEditingChanged();
+}
+
+void App::setPreviewZoomable(bool zoomable)
+{
+    if (m_previewZoomable != zoomable) {
+        m_previewZoomable = zoomable;
+        updateActions();
+        Q_EMIT previewChanged();
+    }
+}
+
+void App::setRawViewAvailable(bool available)
+{
+    if (m_rawViewAvailable != available) {
+        m_rawViewAvailable = available;
+        updateActions();
+        Q_EMIT previewChanged();
+    }
+}
+
+void App::setRawView(bool raw)
+{
+    if (m_rawView != raw) {
+        m_rawView = raw;
+        if (QAction *toggle = action(u"view_raw"_s)) {
+            toggle->setChecked(raw);
+        }
+        Q_EMIT previewChanged();
+    }
+}
+
+void App::syncEditAction()
+{
+    if (QAction *edit = action(u"doc_edit"_s)) {
+        edit->setChecked(m_annotating || m_textEditing);
+    }
+}
+
+void App::goTo(const QString &sidebarKey)
+{
+    m_sidebar->setCurrentKey(sidebarKey);
+}
+
+void App::showSidePanel(const QString &tab)
+{
+    Config *config = Config::self();
+    config->setRightPanelTab(tab == "todo"_L1 ? u"todo"_s : u"info"_s);
+    config->save();
+    if (QAction *panel = action(u"view_right_sidebar"_s); panel && !panel->isChecked()) {
+        panel->setChecked(true);
+    }
+}
+
+void App::showDocument(qint64 documentId)
+{
+    if (m_documents->rowOf(documentId) < 0) {
+        m_documents->setFilter(QString());
+        m_documents->setCriteria(QString());
+        goTo(Store::document(documentId).trashed ? u"place:trash"_s : u"place:all"_s);
+    }
+    m_documents->selectId(documentId);
+}
+
+void App::addUrls(const QList<QUrl> &urls)
+{
+    if (urls.isEmpty()) {
+        return;
+    }
+    m_library->addUrls(urls);
+    Q_EMIT passiveMessage(i18ncp("@info", "Adding %1 item to Indeks.", "Adding %1 items to Indeks.", urls.size()));
+}
+
+void App::handleArguments(const QStringList &arguments, const QString &workingDirectory)
+{
+    QCommandLineParser parser;
+    parser.addPositionalArgument(u"urls"_s, QString());
+    parser.parse(arguments);
+
+    QList<QUrl> files;
+    qint64 location = 0;
+    const QStringList positional = parser.positionalArguments();
+    for (const QString &argument : positional) {
+        const QUrl url = QUrl::fromUserInput(argument, workingDirectory.isEmpty() ? QDir::currentPath() : workingDirectory, QUrl::AssumeLocalFile);
+        if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
+            // A folder becomes an indexed location.
+            location = m_library->addSource(url);
+        } else {
+            files.append(url);
+        }
+    }
+    if (!files.isEmpty()) {
+        m_documents->setFilter(QString());
+        goTo(u"place:inbox"_s);
+        addUrls(files);
+    } else if (location != 0) {
+        m_documents->setFilter(QString());
+        goTo(u"source:%1"_s.arg(location));
+    }
+    Q_EMIT raiseWindow();
+}
+
+void App::openExternally(qint64 documentId)
+{
+    const Document doc = Store::document(documentId);
+    if (!doc.isValid()) {
+        return;
+    }
+    // Prefer what Indeks shows: the working copy if there is one.
+    const QString path = Store::ensureContent(doc);
+    auto job = new KIO::OpenUrlJob(path.isEmpty() ? doc.url : QUrl::fromLocalFile(path), doc.mimeType);
+    connect(job, &KJob::result, this, [this, job] {
+        if (job->error()) {
+            Q_EMIT passiveMessage(job->errorString());
+        }
+    });
+    job->start();
+}
+
+void App::openWith(const QVariantList &documentIds)
+{
+    QList<QUrl> urls;
+    for (const QVariant &id : documentIds) {
+        const Document doc = Store::document(id.toLongLong());
+        if (!doc.isValid()) {
+            continue;
+        }
+        // As with opening: what Indeks shows, which is the working copy if there is one.
+        const QString path = Store::ensureContent(doc);
+        urls.append(path.isEmpty() ? doc.url : QUrl::fromLocalFile(path));
+    }
+    if (urls.isEmpty()) {
+        return;
+    }
+    // A launcher job that is not told which application to use asks: with the desktop's own
+    // "Open With" dialog, where the choice can also be made the default for the file type.
+    auto job = new KIO::ApplicationLauncherJob();
+    job->setUrls(urls);
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, nullptr));
+    if (QWindow *window = QGuiApplication::focusWindow() ? QGuiApplication::focusWindow() : QGuiApplication::topLevelWindows().value(0)) {
+        KJobWindows::setWindow(job, window);
+    }
+    connect(job, &KJob::result, this, [this, job] {
+        // Closing the dialog without choosing is not something to report.
+        if (job->error() && job->error() != KJob::KilledJobError) {
+            Q_EMIT passiveMessage(job->errorString());
+        }
+        // The default application may have been changed in the dialog.
+        updateActions();
+    });
+    job->start();
+}
+
+void App::showInFileManager(qint64 documentId)
+{
+    const Document doc = Store::document(documentId);
+    if (doc.isValid()) {
+        KIO::highlightInFileManager({doc.url});
+    }
+}
+
+QUrl App::lineIcon(const QString &name) const
+{
+    // A negative number asks for that size rather than for a group of icons.
+    const QString path = KIconLoader::global()->iconPath(name, -22, true);
+    return path.isEmpty() ? QUrl() : QUrl::fromLocalFile(path);
+}
+
+void App::copyText(const QString &text)
+{
+    QGuiApplication::clipboard()->setText(text);
+}
+
+void App::applySettings()
+{
+    Config *config = Config::self();
+    IndexOptions options;
+    options.indexContent = config->indexContent();
+    options.indexHidden = config->indexHidden();
+    options.ocrEnabled = config->ocrEnabled();
+    options.ocrLanguages = config->ocrLanguages();
+    options.ocrJobs = config->ocrJobs();
+    options.officeConversion = config->officeConversion();
+    options.indexJobs = config->indexJobs();
+    options.maxContentSizeMb = config->maxContentSizeMb();
+    options.maxRemoteSizeMb = config->maxRemoteSizeMb();
+    m_library->setOptions(options);
+    m_library->setTodoWarningDays(config->todoWarningDays());
+    config->save();
+}
+
+QString App::databaseName() const
+{
+    const QString open = cleanedPath(m_library->databaseDir());
+    const QStringList paths = Config::self()->databasePaths();
+    const QStringList names = Config::self()->databaseNames();
+    const qsizetype index = paths.indexOf(open);
+    return index >= 0 && index < names.size() ? names.at(index) : localDatabaseName();
+}
+
+QString App::localDatabaseName() const
+{
+    const QString chosen = Config::self()->localDatabaseName().trimmed();
+    return chosen.isEmpty() ? i18nc("@item the database every installation has", "Local Database") : chosen;
+}
+
+bool App::renameDatabase(const QString &path, const QString &name)
+{
+    const QString trimmed = name.simplified();
+    if (trimmed.isEmpty()) {
+        return false;
+    }
+    Config *config = Config::self();
+    const QString cleaned = cleanedPath(path);
+    if (cleaned.isEmpty() || cleaned == cleanedPath(Paths::defaultDataDir())) {
+        config->setLocalDatabaseName(trimmed);
+    } else {
+        const QStringList paths = config->databasePaths();
+        QStringList names = config->databaseNames();
+        const qsizetype index = paths.indexOf(cleaned);
+        if (index < 0) {
+            return false;
+        }
+        // The list of names may be shorter than that of the folders: those go by their folder's name.
+        while (names.size() < paths.size()) {
+            names.append(QDir(paths.at(names.size())).dirName());
+        }
+        names[index] = trimmed;
+        config->setDatabaseNames(names);
+    }
+    config->save();
+    Q_EMIT databasesChanged();
+    return true;
+}
+
+QVariantList App::databases() const
+{
+    const QString open = cleanedPath(m_library->databaseDir());
+    const QString local = cleanedPath(Paths::defaultDataDir());
+    QVariantList list;
+    list.append(QVariantMap{
+        {u"name"_s, localDatabaseName()},
+        {u"path"_s, local},
+        {u"active"_s, open == local},
+        {u"builtin"_s, true},
+        {u"reachable"_s, true},
+        {u"network"_s, false},
+        {u"problem"_s, QString()},
+    });
+    const QStringList paths = Config::self()->databasePaths();
+    const QStringList names = Config::self()->databaseNames();
+    for (qsizetype i = 0; i < paths.size(); ++i) {
+        const QString path = paths.at(i);
+        const bool active = open == path;
+        const DatabaseFolder::State state = DatabaseFolder::inspect(path);
+        list.append(QVariantMap{
+            {u"name"_s, names.value(i, QDir(path).dirName())},
+            {u"path"_s, path},
+            {u"active"_s, active},
+            {u"builtin"_s, false},
+            {u"reachable"_s, state.reachable},
+            {u"network"_s, state.network},
+            {u"problem"_s, active ? QString() : Library::databaseProblem(path, false)},
+        });
+    }
+    return list;
+}
+
+QString App::folderPath(const QString &input) const
+{
+    const QString trimmed = input.trimmed();
+    if (trimmed.isEmpty()) {
+        return {};
+    }
+    const QUrl url = QUrl::fromUserInput(trimmed, QDir::homePath(), QUrl::AssumeLocalFile);
+    return url.isLocalFile() ? QDir::cleanPath(url.toLocalFile()) : QString();
+}
+
+QVariantMap App::inspectDatabaseFolder(const QString &folder) const
+{
+    const QString path = folderPath(folder);
+    if (path.isEmpty()) {
+        return {{u"path"_s, QString()}, {u"valid"_s, false}};
+    }
+    const DatabaseFolder::State state = DatabaseFolder::inspect(path);
+    const bool known = path == cleanedPath(Paths::defaultDataDir()) || Config::self()->databasePaths().contains(path);
+    return {
+        {u"path"_s, path},
+        {u"valid"_s, true},
+        {u"hasIndex"_s, state.hasIndex},
+        {u"network"_s, state.network},
+        {u"known"_s, known},
+        {u"problem"_s, known ? i18nc("@info", "This database is in the list already.") : Library::databaseProblem(path, true)},
+    };
+}
+
+QString App::addDatabase(const QString &name, const QString &folder)
+{
+    const QVariantMap inspected = inspectDatabaseFolder(folder);
+    if (!inspected.value(u"valid"_s).toBool()) {
+        return i18nc("@info", "Choose a folder on this computer or on a mounted share.");
+    }
+    const QString problem = inspected.value(u"problem"_s).toString();
+    if (!problem.isEmpty()) {
+        return problem;
+    }
+    const QString path = inspected.value(u"path"_s).toString();
+    const QString error = m_library->switchDatabase(path, true);
+    if (!error.isEmpty()) {
+        return error;
+    }
+    Config *config = Config::self();
+    QStringList paths = config->databasePaths();
+    QStringList names = config->databaseNames();
+    while (names.size() < paths.size()) {
+        names.append(QDir(paths.at(names.size())).dirName());
+    }
+    paths.append(path);
+    names.append(name.trimmed().isEmpty() ? QDir(path).dirName() : name.trimmed());
+    config->setDatabasePaths(paths);
+    config->setDatabaseNames(names);
+    config->setActiveDatabase(path);
+    config->save();
+    Q_EMIT databasesChanged();
+    return {};
+}
+
+QString App::openDatabase(const QString &path)
+{
+    const bool local = path.isEmpty() || cleanedPath(path) == cleanedPath(Paths::defaultDataDir());
+    const QString error = m_library->switchDatabase(local ? QString() : path, false);
+    if (error.isEmpty()) {
+        Config::self()->setActiveDatabase(local ? QString() : cleanedPath(path));
+        Config::self()->save();
+    }
+    Q_EMIT databasesChanged();
+    return error;
+}
+
+void App::forgetDatabase(const QString &path)
+{
+    Config *config = Config::self();
+    QStringList paths = config->databasePaths();
+    QStringList names = config->databaseNames();
+    const qsizetype index = paths.indexOf(cleanedPath(path));
+    if (index < 0) {
+        return;
+    }
+    if (cleanedPath(m_library->databaseDir()) == paths.at(index)) {
+        m_library->switchDatabase(QString());
+    }
+    if (config->activeDatabase() == paths.at(index)) {
+        config->setActiveDatabase(QString());
+    }
+    paths.removeAt(index);
+    if (index < names.size()) {
+        names.removeAt(index);
+    }
+    config->setDatabasePaths(paths);
+    config->setDatabaseNames(names);
+    config->save();
+    Q_EMIT databasesChanged();
+}
+
+QVariantMap App::toolbarItem(const QString &name)
+{
+    QString text;
+    QString icon;
+    if (previewBarActions.contains(name)) {
+        return {};
+    }
+    if (name == "separator"_L1) {
+        text = i18nc("@item a dividing line in the toolbar", "Separator");
+        icon = u"distribute-horizontal-x"_s;
+    } else if (name == "menu_add"_L1) {
+        text = i18nc("@item toolbar button with a menu", "Add (menu)");
+        icon = u"list-add"_s;
+    } else if (name == "menu_new"_L1) {
+        text = i18nc("@item toolbar button with a menu", "New (menu)");
+        icon = u"document-new"_s;
+    } else if (name == "doc_open"_L1) {
+        // Its own text names the application for the selected document.
+        text = i18nc("@item toolbar button", "Open File");
+        icon = u"document-open-symbolic"_s;
+    } else if (const QAction *found = action(name)) {
+        text = KLocalizedString::removeAcceleratorMarker(found->text());
+        icon = found->icon().name();
+    } else {
+        return {};
+    }
+    return {{u"name"_s, name}, {u"text"_s, text}, {u"icon"_s, icon}};
+}
+
+QVariantList App::toolbarCandidates()
+{
+    QVariantList result;
+    for (const QString &menu : {u"menu_add"_s, u"menu_new"_s}) {
+        result.append(toolbarItem(menu));
+    }
+    QVariantList actions;
+    const QList<QAction *> all = mainCollection()->actions();
+    for (const QAction *candidate : all) {
+        // Those that have their fixed place in the toolbar already are left out.
+        static const QStringList fixed = {u"view_left_sidebar"_s, u"view_right_sidebar"_s, u"view_preview"_s, u"save_search"_s, u"focus_search"_s, u"search_advanced"_s};
+        const QString name = candidate->objectName();
+        // The actions for single scripts come and go with the scripts; the toolbar takes
+        // the lasting ones.
+        if (name.isEmpty() || fixed.contains(name) || previewBarActions.contains(name) || candidate->text().isEmpty() || name.startsWith(scriptActionPrefix)) {
+            continue;
+        }
+        actions.append(toolbarItem(name));
+    }
+    std::sort(actions.begin(), actions.end(), [](const QVariant &a, const QVariant &b) {
+        return QString::localeAwareCompare(a.toMap().value(u"text"_s).toString(), b.toMap().value(u"text"_s).toString()) < 0;
+    });
+    return result + actions;
+}
+
+QStringList App::defaultToolbar() const
+{
+    return Config::self()->defaultToolbarActionsValue();
+}
+
+QUrl App::locationFromInput(const QString &text) const
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) {
+        return {};
+    }
+    const QUrl url = QUrl::fromUserInput(trimmed, QDir::homePath(), QUrl::AssumeLocalFile);
+    return url.isValid() && !url.scheme().isEmpty() ? url : QUrl();
+}
+
+#include "moc_app.cpp"

@@ -1,0 +1,11 @@
+// SPDX-FileCopyrightText: 2026 n4n0
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#pragma once
+
+// Made from scriptbridge.py when the program is configured: the Python program that runs the
+// user's scripts inside the sandbox.
+namespace Indeks
+{
+static const char scriptBridgeSource[] = R"PYBRIDGE(@INDEKS_SCRIPT_BRIDGE@)PYBRIDGE";
+}

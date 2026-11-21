@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 n4n0
+# SPDX-License-Identifier: CC0-1.0
+[Desktop Entry]
+Type=Application
+Name=Indeks
+GenericName=Document Manager
+Comment=Find, organize and annotate documents wherever they are stored
+Exec=indeks %U
+Icon=io.github.n4n0gh.indeks
+Terminal=false
+Categories=Qt;KDE;Office;
+Keywords=documents;index;search;tags;groups;OCR;PDF;notes;annotate;inbox;
+StartupNotify=true
+StartupWMClass=indeks
+SingleMainWindow=true
+X-DBUS-ServiceName=io.github.n4n0gh.indeks

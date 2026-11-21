@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    SPDX-FileCopyrightText: 2026 n4n0
+    SPDX-License-Identifier: CC0-1.0
+-->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name="indeksrc"/>
+    <group name="Indexing">
+        <entry name="indexContent" type="Bool">
+            <label>Read the text inside files so that it can be searched.</label>
+            <default>true</default>
+        </entry>
+        <entry name="indexHidden" type="Bool">
+            <label>Include hidden files and folders of indexed locations.</label>
+            <default>false</default>
+        </entry>
+        <entry name="rescanOnStart" type="Bool">
+            <label>Look for changes in all indexed locations when Indeks starts.</label>
+            <default>true</default>
+        </entry>
+        <entry name="officeConversion" type="Bool">
+            <label>Have LibreOffice read Office documents whose text cannot be read otherwise.</label>
+            <default>true</default>
+        </entry>
+        <entry name="indexJobs" type="Int">
+            <label>How many files are read at once when indexing; 0 picks half of the processor cores, eight at most.</label>
+            <default>0</default>
+            <min>0</min>
+            <max>16</max>
+        </entry>
+        <entry name="maxContentSizeMb" type="Int">
+            <label>Files larger than this are indexed by name only.</label>
+            <default>100</default>
+            <min>1</min>
+            <max>4096</max>
+        </entry>
+        <entry name="maxRemoteSizeMb" type="Int">
+            <label>Remote files larger than this are not downloaded for indexing.</label>
+            <default>50</default>
+            <min>1</min>
+            <max>4096</max>
+        </entry>
+    </group>
+    <group name="Databases">
+        <entry name="localDatabaseName" type="String">
+            <label>What the user calls the database every installation has; empty for its usual name.</label>
+            <default></default>
+        </entry>
+        <entry name="databaseNames" type="StringList">
+            <label>Names of the databases added besides the local one.</label>
+            <default></default>
+        </entry>
+        <entry name="databasePaths" type="StringList">
+            <label>Their folders, in the same order.</label>
+            <default></default>
+        </entry>
+        <entry name="activeDatabase" type="String">
+            <label>Folder of the database to open at start; empty for the local one.</label>
+            <default></default>
+        </entry>
+    </group>
+    <group name="Ocr">
+        <entry name="ocrEnabled" type="Bool">
+            <label>Recognize text in images and scanned PDF documents.</label>
+            <default>true</default>
+        </entry>
+        <entry name="ocrJobs" type="Int">
+            <label>How many pages or pictures are read for text at once; 0 picks most of the processor cores.</label>
+            <default>0</default>
+            <min>0</min>
+            <max>64</max>
+        </entry>
+        <entry name="ocrLanguages" type="String">
+            <label>Tesseract languages to recognize, joined with a plus sign.</label>
+            <default>eng</default>
+        </entry>
+    </group>
+    <group name="View">
+        <entry name="leftSidebarVisible" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="rightSidebarVisible" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="todoWarningDays" type="Int">
+            <label>From how many days before it is due a to-do stands out as due soon.</label>
+            <default>3</default>
+            <min>0</min>
+            <max>365</max>
+        </entry>
+        <entry name="rightPanelTab" type="String">
+            <label>What the panel on the right shows: "info" about the selected document, or the "todo" list.</label>
+            <default>info</default>
+        </entry>
+        <entry name="previewVisible" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="previewTextZoom" type="Double">
+            <label>How large text is shown in the preview, 1 being the size of the desktop's fonts.</label>
+            <default>1</default>
+            <min>0.5</min>
+            <max>4</max>
+        </entry>
+        <entry name="listColumns" type="StringList">
+            <label>What the list of documents shows of each document besides its name, in the order of the columns.</label>
+            <default>kind,tags,modified,added,size</default>
+        </entry>
+        <entry name="listColumnWidths" type="StringList">
+            <label>Widths the user gave columns of the list, as name=width in units of the grid.</label>
+            <default></default>
+        </entry>
+        <entry name="listRowSize" type="Int">
+            <label>How tall the rows of the list are: 0 compact, 1 normal, 2 tall.</label>
+            <default>1</default>
+            <min>0</min>
+            <max>2</max>
+        </entry>
+        <entry name="sortColumn" type="String">
+            <default>modified</default>
+        </entry>
+        <entry name="sortDescending" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="collapsedSections" type="StringList">
+            <default></default>
+        </entry>
+        <entry name="toolbarActions" type="StringList">
+            <label>What the toolbar shows between the panel buttons and the search field: names of actions, "menu_add", "menu_new" and "separator".</label>
+            <default>menu_add,menu_new,separator,doc_tag,doc_group,doc_flag,separator,doc_open,doc_trash</default>
+        </entry>
+        <entry name="toolbarIconsOnly" type="Bool">
+            <label>Show the toolbar buttons without their text.</label>
+            <default>false</default>
+        </entry>
+    </group>
+</kcfg>
