@@ -1,6 +1,14 @@
 .*
 !/.gitignore
+!/.github/
 /build/
 /build-*/
 /compile_commands.json
 CMakeLists.txt.user*
+# What packaging leaves behind
+/repo/
+/site/
+/dist/
+*.flatpak
+*.AppImage
+*.AppImage.zsync

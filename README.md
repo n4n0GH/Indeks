@@ -3,10 +3,16 @@
     SPDX-License-Identifier: CC0-1.0
 -->
 
+<p align="center">
+  <img src="io.github.n4n0gh.indeks.svg" width="128" height="128" alt="The Indeks logo: a folder with papers and a light bulb">
+</p>
+
 # Indeks
 
 A document manager for KDE Plasma in the spirit of DEVONthink and EagleFiler, built with
 Qt 6, Kirigami and KDE Frameworks.
+
+![The Indeks window: places, groups and tags on the left, the list of documents with a PDF shown below it, and what is known about the document on the right](doc/images/indeks.png)
 
 Indeks does not take your files away from where they are. It keeps an index of folders you
 point it at – on this computer, on external drives, on servers – and lets you find, preview,
@@ -40,8 +46,21 @@ tag, group and annotate what is in them.
   Its chapters are Markdown files in [`doc/manual`](doc/manual/).
 - **Developer documentation** is in [`doc/developer`](doc/developer/):
   [architecture](doc/developer/architecture.md), [database](doc/developer/database.md),
-  [development](doc/developer/development.md) and
+  [development](doc/developer/development.md),
+  [releasing](doc/developer/releasing.md) and
   [how the documentation is kept](doc/developer/documentation.md).
+
+## Installing
+
+Releases are published on the [releases page](https://github.com/n4n0GH/Indeks/releases)
+as a Flatpak and as an AppImage.
+
+- **Flatpak:** `flatpak install --user https://n4n0gh.github.io/Indeks/indeks.flatpakref`.
+  It is kept up to date with your other Flatpaks.
+- **AppImage:** download `Indeks-<version>-x86_64.AppImage`, make it executable and start
+  it. AppImageUpdate, Gear Lever, AppImageLauncher and the like find newer releases.
+
+The manual says what each of them brings along and what it leaves to the system.
 
 ## Building
 

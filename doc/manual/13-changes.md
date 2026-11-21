@@ -10,9 +10,9 @@ chapters before this one always describe the version named on the cover.
 
 ## Version 0.1.0
 
-Indeks is in development; this version is not released yet. The latest additions are listed
-first.
+The first release. What it brings, the latest additions first:
 
+- **Flatpak and AppImage:** Releases are built in both forms, and both update themselves.
 - **Manual:** This manual. *Indeks Manual* (`F1`) opens it. Its table of contents can be
   clicked, and it has bookmarks for chapters and sections.
 - **Columns per view:** Every view of the list has its own columns.

@@ -651,6 +651,8 @@ int main(int argc, char **argv)
         QString text;
     };
     QList<Heading> headings;
+    // Every heading within a chapter, whether the contents list it or not.
+    QList<QTextCursor> minorHeadings;
     int chapterIndex = 0;
     for (QTextBlock block = document.begin(); block.isValid(); block = block.next()) {
         QTextCursor at(block);
@@ -666,11 +668,11 @@ int main(int argc, char **argv)
             at.select(QTextCursor::BlockUnderCursor);
             QTextCharFormat text = headingFormat(level == 2 ? 14 : level == 3 ? 11 : 10, level == 2 ? Accent : QColor(Qt::black));
             at.mergeCharFormat(text);
+            // A long heading goes on in a second line; it is not to run out of its column.
             format.setTopMargin(level == 2 ? mm(6) : mm(4));
             format.setBottomMargin(mm(1.6));
-            // A heading is not left alone at the foot of a column.
-            format.setProperty(QTextFormat::BlockNonBreakableLines, true);
             QTextCursor(block).setBlockFormat(format);
+            minorHeadings.append(QTextCursor(block));
             if (level == 2) {
                 headings.append({QTextCursor(block), 2, block.text()});
             }
@@ -684,6 +686,7 @@ int main(int argc, char **argv)
             format.setBackground(CodeBackground);
             format.setLeftMargin(mm(1.5));
             format.setRightMargin(mm(1.5));
+            format.setNonBreakableLines(false);
             at.setBlockFormat(format);
             at.select(QTextCursor::BlockUnderCursor);
             QTextCharFormat mono;
@@ -730,6 +733,16 @@ int main(int argc, char **argv)
                 at.mergeCharFormat(mono);
             }
         }
+    }
+    // The arrow between the steps of a path through menus. The font of the text has none,
+    // and the one that would be borrowed for it stands taller and pushes the lines apart:
+    // it is taken from a font that fits into the line, upright and a little smaller.
+    for (QTextCursor arrow = document.find(u"→"_s); !arrow.isNull(); arrow = document.find(u"→"_s, arrow)) {
+        QTextCharFormat fitting;
+        fitting.setFontItalic(false);
+        fitting.setFontFamilies({u"Hack"_s, u"DejaVu Sans"_s});
+        fitting.setFontPointSize(8.5);
+        arrow.mergeCharFormat(fitting);
     }
     // Tables of the chapters: ruled, with a head that stands out.
     QList<QTextTable *> tables;
@@ -839,48 +852,84 @@ int main(int argc, char **argv)
         return room;
     };
 
-    // In the order of the text, since room that is made moves what comes after it.
-    struct Banner {
+    // All of this is settled in the order of the text, one place after the other, because
+    // each step moves what comes after it and nothing that comes before:
+    //  - a chapter begins a page, under its title;
+    //  - a heading is not left alone at the foot of a column;
+    //  - a wide picture goes to the top of the page after the one it is spoken of on. Room
+    //    for it is only made once everything before that page is settled, which is when the
+    //    first of these places on or after that page comes up.
+    struct Step {
+        enum Kind { ChapterStart, Picture, HeadingPlace };
         int position;
-        int chapter; // or -1
-        int figure; // or -1
+        Kind kind;
+        int index;
     };
-    QList<Banner> banners;
-    for (int i = 0, chapter = 0; i < headings.size(); ++i) {
-        if (headings.at(i).level == 1) {
-            banners.append({headings.at(i).at.position(), chapter++, -1});
-        }
-    }
-    for (int i = 0; i < figures.size(); ++i) {
-        banners.append({figures.at(i).anchor.position(), -1, i});
-    }
-    std::sort(banners.begin(), banners.end(), [](const Banner &a, const Banner &b) {
-        return a.position < b.position;
-    });
+    QList<Step> steps;
     QList<QTextCursor> chapterStarts;
     for (const Heading &heading : std::as_const(headings)) {
         if (heading.level == 1) {
+            steps.append({heading.at.position(), Step::ChapterStart, int(chapterStarts.size())});
             chapterStarts.append(heading.at);
         }
     }
-    for (const Banner &banner : std::as_const(banners)) {
-        if (banner.chapter >= 0) {
+    for (int i = 0; i < figures.size(); ++i) {
+        steps.append({figures.at(i).anchor.position(), Step::Picture, i});
+    }
+    for (int i = 0; i < minorHeadings.size(); ++i) {
+        steps.append({minorHeadings.at(i).position(), Step::HeadingPlace, i});
+    }
+    std::stable_sort(steps.begin(), steps.end(), [](const Step &a, const Step &b) {
+        return a.position < b.position;
+    });
+
+    struct Waiting {
+        int figure;
+        int page; // the page it is to go to the top of, counted in pairs of columns
+    };
+    QList<Waiting> waiting;
+    const auto place = [&](const Waiting &due) {
+        Figure &figure = figures[due.figure];
+        QTextBlock room = makeRoom(due.page * 2, figure.height());
+        figure.offset = onPage(room.blockFormat().lineHeight()) - figure.height();
+        figure.spacer = QTextCursor(room);
+        makeRoom(columnOf(room) + 1, figure.height());
+    };
+    // Pictures whose page begins at or before the place that is settled next.
+    const auto placeDue = [&](const QTextBlock &next) {
+        while (!waiting.isEmpty() && (!next.isValid() || columnOf(next) >= waiting.constFirst().page * 2)) {
+            place(waiting.takeFirst());
+        }
+    };
+    const auto emptyColumnBefore = [&](const QTextBlock &block) {
+        const QTextBlockFormat format = block.blockFormat();
+        const QTextCharFormat text = block.charFormat();
+        QTextCursor at(block);
+        at.movePosition(QTextCursor::StartOfBlock);
+        at.insertBlock(format, text);
+        QTextBlockFormat empty;
+        empty.setPageBreakPolicy(QTextFormat::PageBreak_AlwaysBefore);
+        empty.setLineHeight(1, QTextBlockFormat::FixedHeight);
+        QTextCursor(at.block().previous()).setBlockFormat(empty);
+    };
+    for (const Step &step : std::as_const(steps)) {
+        switch (step.kind) {
+        case Step::Picture: {
+            const Figure &figure = figures.at(step.index);
+            waiting.append({step.index, columnOf(figure.anchor.block()) / 2 + 1});
+            break;
+        }
+        case Step::ChapterStart: {
+            const QTextCursor &start = chapterStarts.at(step.index);
+            placeDue(start.block());
             // A chapter begins a page, which is to say in a left column: if it would begin
             // in a right one, that column is left empty.
-            const QTextCursor &start = chapterStarts.at(banner.chapter);
             if (columnOf(start.block()) % 2 == 1) {
-                const QTextBlockFormat format = start.blockFormat();
-                QTextCursor at(start.block());
-                at.movePosition(QTextCursor::StartOfBlock);
-                at.insertBlock(format, QTextCharFormat());
-                QTextBlockFormat empty;
-                empty.setPageBreakPolicy(QTextFormat::PageBreak_AlwaysBefore);
-                empty.setLineHeight(1, QTextBlockFormat::FixedHeight);
-                QTextCursor(at.block().previous()).setBlockFormat(empty);
+                emptyColumnBefore(start.block());
             }
             // The title reaches over the right column too, if the chapter gets that far.
             const int leftColumn = columnOf(start.block());
-            const int next = banner.chapter + 1 < chapterStarts.size() ? chapterStarts.at(banner.chapter + 1).position() : document.characterCount();
+            const int next = step.index + 1 < chapterStarts.size() ? chapterStarts.at(step.index + 1).position() : document.characterCount();
             bool reaches = false;
             for (QTextBlock block = start.block().next(); block.isValid() && block.position() < next; block = block.next()) {
                 if (rectOf(block).bottom() > (leftColumn + 1) * column.height() + 1) {
@@ -891,16 +940,25 @@ int main(int argc, char **argv)
             if (reaches) {
                 makeRoom(leftColumn + 1, titleHeight);
             }
-        } else {
-            // A wide picture goes to the top of the page after the one it is spoken of on.
-            Figure &figure = figures[banner.figure];
-            const int page = columnOf(figure.anchor.block()) / 2 + 1;
-            QTextBlock room = makeRoom(page * 2, figure.height());
-            figure.offset = onPage(room.blockFormat().lineHeight()) - figure.height();
-            figure.spacer = QTextCursor(room);
-            makeRoom(columnOf(room) + 1, figure.height());
+            break;
+        }
+        case Step::HeadingPlace: {
+            const QTextCursor &heading = minorHeadings.at(step.index);
+            placeDue(heading.block());
+            // What it is the heading of begins in the next column, or the heading itself is
+            // cut in two by the end of the column: the heading goes to the next column whole.
+            const QTextBlock after = heading.block().next();
+            const int begins = int(rectOf(heading.block()).top() / column.height());
+            if (columnOf(heading.block()) > begins || (after.isValid() && int(rectOf(after).top() / column.height()) > begins)) {
+                QTextBlockFormat format = heading.blockFormat();
+                format.setPageBreakPolicy(QTextFormat::PageBreak_AlwaysBefore);
+                QTextCursor(heading.block()).setBlockFormat(format);
+            }
+            break;
+        }
         }
     }
+    placeDue(QTextBlock());
 
     // ------------------------------------------------------------------------ pages
     // The cover is page 1; the first two columns are page 2.

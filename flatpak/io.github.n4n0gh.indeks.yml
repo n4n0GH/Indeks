@@ -1,0 +1,119 @@
+# SPDX-FileCopyrightText: 2026 n4n0
+# SPDX-License-Identifier: CC0-1.0
+#
+# Builds Indeks as a Flatpak:
+#
+#   flatpak-builder --user --install --install-deps-from=flathub --force-clean build-flatpak flatpak/io.github.n4n0gh.indeks.yml
+#   flatpak run io.github.n4n0gh.indeks
+
+id: io.github.n4n0gh.indeks
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+# The KDE runtime has Qt, the KDE Frameworks and Kirigami Addons, but not Qt PDF, which
+# is part of QtWebEngine; Flathub's base app has that built for this runtime.
+base: io.qt.qtwebengine.BaseApp
+base-version: '6.11'
+command: indeks
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Indexed locations on servers.
+  - --share=network
+  # Indeks indexes the folders it is pointed at, wherever they are, and a database can be
+  # put into any folder (on a share, say). Files in indexed folders are only ever read.
+  - --filesystem=host
+  # The settings of Plasma's global theme (the icon theme, say), which are not in
+  # kdeglobals (that one the runtime lets be read).
+  - --filesystem=xdg-config/kdedefaults:ro
+  # Not there inside the sandbox, and so not available in the Flatpak:
+  #  - LibreOffice, which Indeks has show Office documents as they look and read the old
+  #    Office formats; such documents are shown as the text found in them;
+  #  - bubblewrap, in which scripts are run; scripts do not run;
+  #  - "Send to Indeks" in Dolphin, which is installed with the system.
+
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /lib/*.la
+  - /mkspecs
+  - /share/doc
+  - /share/man
+  - '*.a'
+
+# Of the base app only Qt PDF is used. The web engine itself, a browser's worth of it, is
+# left out of what is installed: Qt PDF does not need it.
+cleanup-commands:
+  - rm -rf /app/lib/*/libQt6WebEngine* /app/lib/*/libQt6WebView* /app/lib/*/libQt6WebChannel*
+  - rm -rf /app/lib/libexec/QtWebEngineProcess /app/bin/QtWebEngineProcess /app/bin/qwebengine_convert_dict /app/bin/event_rpcgen.py
+  - rm -rf /app/resources /app/translations /app/qtwebengine_dictionaries
+  - rm -rf /app/lib/*/qml/QtWebEngine /app/lib/*/qml/QtWebView /app/lib/*/qml/QtWebChannel
+  - rm -rf /app/lib/*/plugins/webview /app/lib/*/plugins/designer
+
+modules:
+  # Text recognition: Tesseract, the library it reads pictures with, and what it knows of
+  # English and German. Other languages would each be another file of
+  # https://github.com/tesseract-ocr/tessdata_fast in the last of these three modules.
+  - name: leptonica
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz
+        sha256: 3745ae3bf271a6801a2292eead83ac926e3a9bc1bf622e9cd4dd0f3786e17205
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DDISABLE_CURL=ON
+      - -DDISABLE_ARCHIVE=ON
+      - -DSW_BUILD=OFF
+      - -DOPENMP_BUILD=OFF
+      - -DTESSDATA_PREFIX=/app/share
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.1.tar.gz
+        sha256: a7a3f2a7420cb6a6a94d80c24163e183cf1d2f1bed2df3bbc397c81808a57237
+
+  - name: tessdata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 -t /app/share/tessdata eng.traineddata deu.traineddata osd.traineddata
+    sources:
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata
+        sha256: 19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/osd.traineddata
+        sha256: 9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff
+
+  - name: indeks
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - build
+          - build-flatpak
+          - repo
+          - site
+          - dist

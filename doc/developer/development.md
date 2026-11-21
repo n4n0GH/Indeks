@@ -51,6 +51,9 @@ indeks ~/Documents          # index a folder
 | `doc/manual` | The manual, a chapter per file |
 | `doc/developer` | This documentation |
 | `doc/tools` | The program that makes the PDF of the manual |
+| `flatpak` | The Flatpak manifest and what publishes the Flatpak repository |
+| `packaging/appimage` | The script that builds the AppImage |
+| `.github/workflows` | Building and publishing both for every release; see [releasing.md](releasing.md) |
 
 See [architecture.md](architecture.md) for what is in them.
 

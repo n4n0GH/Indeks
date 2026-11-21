@@ -23,7 +23,7 @@
       <li>“Send to Indeks” in the context menu of the Dolphin file manager</li>
     </ul>
   </description>
-  <url type="homepage">https://github.com/n4n0gh</url>
+  <url type="homepage">https://github.com/n4n0GH/Indeks</url>
   <launchable type="desktop-id">io.github.n4n0gh.indeks.desktop</launchable>
   <developer id="io.github.n4n0gh">
     <name>n4n0</name>
@@ -36,9 +36,9 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.1.0" date="2026-11-20">
+    <release version="0.1.0" date="2026-11-21">
       <description>
-        <p>First version.</p>
+        <p>The first release: indexing in place, search, groups, tags and rules, previews of many kinds of documents, notes and drawing, a to-do list, scripts, and a manual.</p>
       </description>
     </release>
   </releases>

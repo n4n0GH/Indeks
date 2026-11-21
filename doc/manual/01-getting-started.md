@@ -60,6 +60,34 @@ the list in front of you until you move on.
 **Everything is reachable from the keyboard.** `Ctrl+Alt+I` opens the command bar, which
 lists every function of Indeks. Type a few letters of what you want and press `Enter`.
 
+## Installing Indeks
+
+Releases of Indeks are published at `https://github.com/n4n0GH/Indeks/releases` in two
+forms. Both keep themselves up to date.
+
+**Flatpak.** Install it with a software centre such as Discover from
+`https://n4n0gh.github.io/Indeks`, or in a terminal:
+
+```
+flatpak install --user https://n4n0gh.github.io/Indeks/indeks.flatpakref
+```
+
+- It is updated together with your other Flatpak applications.
+- It brings text recognition along, for English and German.
+- It runs in a sandbox, which keeps some things out: Office documents are shown as their
+  text instead of as they look, scripts do not run, and Dolphin has no *Send to Indeks*.
+
+**AppImage.** Download `Indeks-<version>-x86_64.AppImage` from the releases page, make it
+executable and start it.
+
+- Tools such as AppImageUpdate, Gear Lever and AppImageLauncher notice a newer release and
+  fetch only what changed.
+- It uses what is installed on your system for text recognition (Tesseract), for Office
+  documents (LibreOffice) and for scripts (Python 3 and bubblewrap).
+- Dolphin has no *Send to Indeks*; drag files onto the window instead.
+
+Indeks can also be built from its source; the file `README.md` there says how.
+
 ## First steps
 
 ### Starting Indeks

@@ -110,6 +110,7 @@ or the one in the build folder when Indeks runs from there.
 | `architecture.md` | The programs, classes, threads and processes, and the principles the code keeps to |
 | `database.md` | The tables of the index and how to change them |
 | `development.md` | Building, testing, conventions, a checklist for new features |
+| `releasing.md` | Making a release; how the Flatpak and the AppImage are built and updated |
 | `documentation.md` | This file |
 
 ## The README
