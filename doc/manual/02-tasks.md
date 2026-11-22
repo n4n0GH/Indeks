@@ -46,6 +46,18 @@ The to-do appears in the *To-Do* tab of the side panel. It turns orange when the
 and red when it has passed. A click on it brings the letter back into view. Tick it off when
 you are done.
 
+## Keeping papers together
+
+A contract, its invoices and the letters about it are separate files, perhaps in separate
+folders.
+
+1. Select them in the list, with `Ctrl`-click or `Shift`-click.
+2. Right-click and choose *Link Selected Documents*.
+
+From now on the *Information* tab of each of them lists the others, and a click on a name
+goes there. To add a paper later, select one of them, choose *Manage Linked Documents…*
+(`Ctrl+L`) and look for the new one. See *Organising → Linked documents*.
+
 ## Filing automatically
 
 You get the same kinds of documents again and again.

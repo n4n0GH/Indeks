@@ -11,8 +11,8 @@ Indeks. This chapter describes the kinds of documents and how each is shown in t
 ## General
 
 Every document has a name, a type, a size, the times it was changed and added, and a
-location. To these Indeks adds what you attach: tags, groups, a pin, a comment, notes,
-drawings and to-dos.
+location. To these Indeks adds what you attach: tags, groups, a pin, links to other
+documents, a comment, notes, drawings and to-dos.
 
 **The preview.** Selecting a document shows it in the preview below the list. The bar above
 the preview is always there. On its left it says a word about the document, such as its

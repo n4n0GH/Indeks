@@ -433,6 +433,8 @@ SearchQuery::Clause SearchQuery::compileToken(const QString &key, const QString 
         } else if (lower == "pinned"_L1 || lower == "flagged"_L1) {
             // "Flagged" is what pinned documents were called once; searches saved then still work.
             setNarrow(u"d.flagged = 1"_s);
+        } else if (lower == "linked"_L1) {
+            setNarrow(u"EXISTS (SELECT 1 FROM document_links l WHERE l.a_id = d.id OR l.b_id = d.id)"_s);
         } else if (lower == "unfiled"_L1) {
             set(u"NOT EXISTS (SELECT 1 FROM document_folders df WHERE df.doc_id = d.id)"_s);
         } else if (lower == "untagged"_L1) {

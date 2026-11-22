@@ -31,6 +31,12 @@ class App : public AbstractKirigamiApplication
     QML_SINGLETON
     Q_PROPERTY(Indeks::Library *library READ library CONSTANT)
     Q_PROPERTY(DocumentModel *documents READ documents CONSTANT)
+    /**
+     * What the dialog for linked documents finds for what is typed there: a list of its own,
+     * so that looking for a document to link leaves the list in the window as it is. Switched
+     * off while the dialog is closed.
+     */
+    Q_PROPERTY(DocumentModel *linkCandidates READ linkCandidates CONSTANT)
     Q_PROPERTY(SidebarModel *sidebar READ sidebar CONSTANT)
     Q_PROPERTY(ActivityModel *activity READ activity CONSTANT)
     /** Name of the database that is open. */
@@ -65,6 +71,10 @@ public:
     DocumentModel *documents() const
     {
         return m_documents;
+    }
+    DocumentModel *linkCandidates() const
+    {
+        return m_linkCandidates;
     }
     SidebarModel *sidebar() const
     {
@@ -217,6 +227,7 @@ private:
 
     Indeks::Library *m_library = nullptr;
     DocumentModel *m_documents = nullptr;
+    DocumentModel *m_linkCandidates = nullptr;
     SidebarModel *m_sidebar = nullptr;
     ActivityModel *m_activity = nullptr;
     /** What the Edit action does with the selected document. */

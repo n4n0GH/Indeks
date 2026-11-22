@@ -17,6 +17,7 @@ QQC2.Pane {
     readonly property int selectionCount: App.documents.selectionCount
     property var info: ({})
     property var notes: []
+    property var links: []
 
     /** A note that is stuck to a page was clicked: the page is wanted in view. */
     signal noteActivated(var note)
@@ -28,6 +29,7 @@ QQC2.Pane {
     function refresh(): void {
         info = documentId > 0 ? App.library.documentInfo(documentId) : {};
         notes = documentId > 0 ? App.library.notes(documentId) : [];
+        links = documentId > 0 ? App.library.linkedDocuments(documentId) : [];
         if (!commentField.activeFocus) {
             commentField.text = info.comment ?? "";
         }
@@ -93,7 +95,7 @@ QQC2.Pane {
             text: root.selectionCount > 1
                 ? i18ncp("@info:placeholder", "%1 document selected", "%1 documents selected", root.selectionCount)
                 : i18nc("@info:placeholder", "No document selected")
-            explanation: root.selectionCount > 1 ? i18nc("@info:placeholder", "Tags and groups can be given to all of them at once.") : ""
+            explanation: root.selectionCount > 1 ? i18nc("@info:placeholder", "Tags and groups can be given to all of them at once, and they can be linked with one another.") : ""
 
             QQC2.Button {
                 Layout.alignment: Qt.AlignHCenter
@@ -104,6 +106,11 @@ QQC2.Pane {
                 Layout.alignment: Qt.AlignHCenter
                 visible: root.selectionCount > 1
                 action: root.actions.group
+            }
+            QQC2.Button {
+                Layout.alignment: Qt.AlignHCenter
+                visible: root.selectionCount > 1
+                action: root.actions.linkSelected
             }
         }
 
@@ -282,6 +289,61 @@ QQC2.Pane {
                     }
                     QQC2.Button {
                         action: root.actions.group
+                    }
+
+                    // Linked documents: what belongs together with this one
+                    SectionTitle {
+                        text: i18nc("@title:group", "Linked Documents")
+                    }
+                    Repeater {
+                        model: root.links
+
+                        RowLayout {
+                            id: linkRow
+
+                            required property var modelData
+
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Kirigami.Icon {
+                                source: linkRow.modelData.icon
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: implicitWidth
+                            }
+                            // A click goes to the document.
+                            Kirigami.LinkButton {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideMiddle
+                                textFormat: Text.PlainText
+                                text: linkRow.modelData.name
+                                onClicked: App.showDocument(linkRow.modelData.id)
+                                QQC2.ToolTip.text: linkRow.modelData.trashed ? i18nc("@info:tooltip where a linked document is", "In the trash")
+                                                                             : linkRow.modelData.location
+                                QQC2.ToolTip.visible: hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            }
+                            Kirigami.Icon {
+                                visible: linkRow.modelData.trashed
+                                source: "user-trash"
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: implicitWidth
+                            }
+                            QQC2.ToolButton {
+                                icon.name: "remove-link"
+                                text: i18nc("@action:button", "Remove Link")
+                                display: QQC2.AbstractButton.IconOnly
+                                onClicked: App.library.unlinkDocuments(root.documentId, linkRow.modelData.id)
+                                QQC2.ToolTip.text: text
+                                QQC2.ToolTip.visible: hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            }
+                        }
+                    }
+                    QQC2.Button {
+                        Layout.maximumWidth: parent.width
+                        action: root.actions.links
                     }
 
                     // Comment

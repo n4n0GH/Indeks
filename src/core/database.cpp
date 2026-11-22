@@ -457,6 +457,17 @@ bool Database::migrate(QSqlDatabase &db)
                  "finished INTEGER NOT NULL DEFAULT 0)"_s;
         steps += u"CREATE INDEX todos_doc ON todos(doc_id)"_s;
     }
+    if (current < 12) {
+        // Version 12 lets documents be linked to one another, for what belongs together
+        // across files. A link has no direction: each pair is kept once, the lower id first,
+        // which is what keeps a pair from being there twice.
+        steps += u"CREATE TABLE document_links ("
+                 "a_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, "
+                 "b_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, "
+                 "created INTEGER NOT NULL DEFAULT 0, "
+                 "PRIMARY KEY (a_id, b_id), CHECK (a_id < b_id)) WITHOUT ROWID"_s;
+        steps += u"CREATE INDEX document_links_b ON document_links(b_id)"_s;
+    }
     for (const QString &statement : std::as_const(steps)) {
         if (!run(db, statement)) {
             db.rollback();

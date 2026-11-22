@@ -232,6 +232,7 @@ bool hasUserData(qint64 id)
                            "OR EXISTS (SELECT 1 FROM document_tags WHERE doc_id = c.id) "
                            "OR EXISTS (SELECT 1 FROM document_folders WHERE doc_id = c.id) "
                            "OR EXISTS (SELECT 1 FROM annotations WHERE doc_id = c.id) "
+                           "OR EXISTS (SELECT 1 FROM document_links WHERE a_id = c.id OR b_id = c.id) "
                            "OR EXISTS (SELECT 1 FROM todos WHERE doc_id = c.id AND done = 0)))"_s,
                            {id})
         .toBool();
@@ -247,6 +248,8 @@ static bool hasOwnUserData(qint64 id)
                            "OR EXISTS (SELECT 1 FROM document_tags WHERE doc_id = d.id) "
                            "OR EXISTS (SELECT 1 FROM document_folders WHERE doc_id = d.id) "
                            "OR EXISTS (SELECT 1 FROM annotations WHERE doc_id = d.id) "
+                           // What it was said to belong with.
+                           "OR EXISTS (SELECT 1 FROM document_links WHERE a_id = d.id OR b_id = d.id) "
                            // Something that is still to be done about it.
                            "OR EXISTS (SELECT 1 FROM todos WHERE doc_id = d.id AND done = 0) "
                            "FROM documents d WHERE d.id = ?"_s,

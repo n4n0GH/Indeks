@@ -28,8 +28,9 @@ tag, group and annotate what is in them.
   pictures and scans, with a search language, stackable filters and saved searches.
 - **Many kinds of documents.** Text, Markdown, source code, HTML, RTF, OpenDocument and
   Office files, PDF, pictures, e-mails and whole mailboxes, CSV and JSON, Obsidian canvases.
-- **Organising.** An inbox for what is new, groups, tags, pins, and rules that file
-  documents by themselves. Python scripts in a sandbox for what rules cannot say.
+- **Organising.** An inbox for what is new, groups, tags, pins, links between documents that
+  belong together, and rules that file documents by themselves. Python scripts in a sandbox
+  for what rules cannot say.
 - **Annotating.** Comments, notes, sticky notes on pages, freehand drawing on PDFs and
   pictures.
 - **To-dos.** A list with deadlines whose entries can point to documents.

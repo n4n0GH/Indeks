@@ -52,7 +52,7 @@ QString fullText(qint64 id);
 
 /**
  * Whether the document carries work of the user's that must not be thrown away: a comment,
- * notes, drawings, tags, groups, a flag, or a text edited in Indeks. A document whose file is
+ * notes, drawings, tags, groups, a flag, links to other documents, or a text edited in Indeks. A document whose file is
  * gone, or whose location is no longer indexed, is kept exactly as long as this holds.
  */
 bool hasUserData(qint64 id);

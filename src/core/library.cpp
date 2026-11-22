@@ -1537,6 +1537,8 @@ void Library::emptyTrash()
                 // The file still sits in an indexed location, or the message in its mailbox.
                 // Keep a hidden entry so that the next scan does not bring the document back.
                 Database::exec(u"UPDATE documents SET trashed = 2, inbox = 0 WHERE id = ?"_s, {doc.id});
+                // It is gone as far as the user can see, and nothing is linked to what is gone.
+                Database::exec(u"DELETE FROM document_links WHERE a_id = ? OR b_id = ?"_s, {doc.id, doc.id});
                 Store::writeFullText(doc.id, doc.name, QString());
             } else {
                 Store::removeDocument(doc.id);
@@ -1550,6 +1552,8 @@ void Library::emptyTrash()
         KIO::trash(ownedFiles, KIO::HideProgressInfo);
     }
     touch();
+    // A document elsewhere may have been kept for nothing but its link to one of these.
+    dropAbandoned();
     tidyIfDue();
 }
 
@@ -1815,6 +1819,91 @@ void Library::removeFromGroup(const QVariantList &ids, qint64 groupId)
         Q_EMIT documentChanged(id);
     }
     touch();
+    dropAbandoned();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Links between documents
+
+QVariantList Library::linkedDocuments(qint64 id) const
+{
+    QList<qint64> others;
+    // What was emptied from the trash is only remembered, not there.
+    QSqlQuery query = Database::exec(u"SELECT d.id FROM documents d WHERE d.trashed <> 2 AND d.id IN "
+                                     "(SELECT b_id FROM document_links WHERE a_id = ? UNION SELECT a_id FROM document_links WHERE b_id = ?) "
+                                     "ORDER BY d.name COLLATE NOCASE, d.id"_s,
+                                     {id, id});
+    while (query.next()) {
+        others.append(query.value(0).toLongLong());
+    }
+    query.finish();
+
+    QVariantList result;
+    for (qint64 other : std::as_const(others)) {
+        const QVariantMap info = documentInfo(other);
+        result.append(QVariantMap{
+            {u"id"_s, other},
+            {u"name"_s, info.value(u"name"_s)},
+            {u"icon"_s, info.value(u"icon"_s)},
+            {u"location"_s, info.value(u"location"_s)},
+            {u"trashed"_s, info.value(u"trashed"_s).toInt() != 0},
+            {u"missing"_s, info.value(u"missing"_s).toInt() != 0},
+        });
+    }
+    return result;
+}
+
+int Library::linkDocuments(const QVariantList &ids)
+{
+    QList<qint64> list;
+    const QList<qint64> given = toIdList(ids);
+    for (qint64 id : given) {
+        if (!list.contains(id) && Store::document(id).isValid()) {
+            list.append(id);
+        }
+    }
+    if (list.size() < 2) {
+        return 0;
+    }
+    if (list.size() > MaxLinkedAtOnce) {
+        // Every one with every other: the links of a hundred documents would be thousands.
+        Q_EMIT message(i18ncp("@info",
+                              "No more than %1 document can be linked with one another at once.",
+                              "No more than %1 documents can be linked with one another at once.",
+                              MaxLinkedAtOnce));
+        return -1;
+    }
+    int added = 0;
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    {
+        Transaction transaction;
+        for (int i = 0; i < list.size(); ++i) {
+            for (int j = i + 1; j < list.size(); ++j) {
+                added += Database::exec(u"INSERT OR IGNORE INTO document_links (a_id, b_id, created) VALUES (?, ?, ?)"_s,
+                                        {qMin(list.at(i), list.at(j)), qMax(list.at(i), list.at(j)), now})
+                             .numRowsAffected();
+            }
+        }
+        // Linked by hand is worked with, and what is worked with leaves the inbox.
+        Database::exec(u"UPDATE documents SET inbox = 0 WHERE inbox = 1 AND id IN (%1)"_s.arg(Store::idList(list)));
+        transaction.commit();
+    }
+    for (qint64 id : std::as_const(list)) {
+        Q_EMIT documentChanged(id);
+    }
+    touch();
+    return added;
+}
+
+void Library::unlinkDocuments(qint64 id, qint64 otherId)
+{
+    if (Database::exec(u"DELETE FROM document_links WHERE a_id = ? AND b_id = ?"_s, {qMin(id, otherId), qMax(id, otherId)}).numRowsAffected() <= 0) {
+        return;
+    }
+    Q_EMIT documentChanged(id);
+    Q_EMIT documentChanged(otherId);
+    touch();
+    // Either of them may have been kept for this link alone.
     dropAbandoned();
 }
 

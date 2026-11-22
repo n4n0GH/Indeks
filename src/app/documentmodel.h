@@ -54,6 +54,12 @@ class DocumentModel : public QAbstractListModel
      * below them when they are opened. Rows then keep room for the arrow that opens them.
      */
     Q_PROPERTY(bool tree READ isTree NOTIFY treeChanged)
+    /**
+     * Whether the list is kept at all. One that nobody looks at, such as the list a dialog
+     * picks documents from while that dialog is closed, is switched off: it holds nothing
+     * and reads nothing, whatever changes in the index.
+     */
+    Q_PROPERTY(bool active READ isActive WRITE setActive NOTIFY activeChanged)
 public:
     enum Roles {
         IdRole = Qt::UserRole + 1,
@@ -143,6 +149,11 @@ public:
     {
         return m_tree;
     }
+    bool isActive() const
+    {
+        return m_active;
+    }
+    void setActive(bool active);
 
     QVariantList selectedIds() const;
     QList<qint64> selection() const;
@@ -196,6 +207,7 @@ Q_SIGNALS:
     void currentChanged();
     void loadingChanged();
     void treeChanged();
+    void activeChanged();
 
 private:
     using Row = DocumentRow;
@@ -233,6 +245,7 @@ private:
     /** The search itself finds parts of documents; they are listed among the rest then. */
     bool m_flat = false;
     bool m_tree = false;
+    bool m_active = true;
     QStringList m_terms;
     bool m_loading = false;
 

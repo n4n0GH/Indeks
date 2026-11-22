@@ -1020,6 +1020,13 @@ QQC2.Pane {
             action: root.actions.docTodo
             text: i18nc("@action:inmenu", "Create To-Do…")
         }
+        QQC2.MenuItem { action: root.actions.links }
+        QQC2.MenuItem {
+            // For several documents at once; one alone has nothing to be linked with here.
+            action: root.actions.linkSelected
+            visible: enabled
+            height: visible ? implicitHeight : 0
+        }
         QQC2.MenuSeparator {}
         QQC2.MenuItem { action: root.actions.edit }
         QQC2.MenuItem { action: root.actions.rename }

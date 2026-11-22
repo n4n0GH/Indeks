@@ -84,11 +84,11 @@ Documents stay in view*.
 key, to list its messages below it. The left arrow key closes it again.
 
 **The context menu.** A right-click on a document offers the commands for it: opening,
-tagging, grouping, pinning, notes, to-dos, editing, text recognition, scripts, inbox and
-trash.
+tagging, grouping, pinning, notes, to-dos, linked documents, editing, text recognition,
+scripts, inbox and trash.
 
-**Dragging.** Documents can be dragged onto the sidebar and into other applications. Files
-dragged in from elsewhere are added.
+**Dragging.** Documents can be dragged onto the sidebar and into other applications. A folder
+dragged in from elsewhere becomes an indexed location; single files are not taken.
 
 ### Columns
 
@@ -146,12 +146,16 @@ The first tab shows what Indeks knows about the selected document.
   belongs to, and metadata found in the file, such as the author or the number of pages.
 - **Tags:** Type into the field to add a tag; click the cross on a tag to remove it.
 - **Groups:** The groups the document is in, with a button to add it to another.
+- **Linked Documents:** The documents this one is linked to. Click a name to go to that
+  document; the button beside it removes the link. *Manage Linked Documents…* finds
+  documents to link. See *Organising → Linked documents*.
 - **Comment:** A free text about the document. Comments are searchable.
 - **Notes:** The notes on the document, with a button to add one. A note that is stuck to a
   page says so; a click on *On page 3* turns to that page.
 - **Messages:** A warning when the file is missing or the location is not connected.
 
-With several documents selected, the tab offers to tag and group all of them at once.
+With several documents selected, the tab offers to tag and group all of them at once, and
+to link them with one another.
 
 ### To-Do
 

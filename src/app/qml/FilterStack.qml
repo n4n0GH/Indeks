@@ -280,6 +280,7 @@ GridLayout {
         { query: "is:pinned", label: i18nc("@item state of a document", "Pinned") },
         { query: "is:annotated", label: i18nc("@item state of a document", "With notes or drawings") },
         { query: "is:inbox", label: i18nc("@item state of a document", "In the inbox") },
+        { query: "is:linked", label: i18nc("@item state of a document", "Linked to other documents") },
         { query: "is:unfiled", label: i18nc("@item state of a document", "In no group") },
         { query: "is:untagged", label: i18nc("@item state of a document", "Untagged") },
         { query: "is:copied", label: i18nc("@item state of a document", "Worked on in a copy") },

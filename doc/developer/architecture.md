@@ -62,7 +62,7 @@ does the work. It is built as three programs and one library.
 | Class | File | Role |
 | --- | --- | --- |
 | `App` | `app.*` | The application object (`AbstractKirigamiApplication`). Defines every action, keeps the settings in step, and is what QML reaches as `App`. |
-| `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. |
+| `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. There are two: `App.documents` is the list in the window, and `App.linkCandidates` is what the dialog for linked documents finds for what is typed there. The second is switched off (`active`) while that dialog is closed, so that it reads nothing. A dialog that lets the user pick documents by searching can use it the same way, one dialog at a time. |
 | `SearchWorker` | `searchworker.*` | Runs full text searches in a thread of their own, so that typing is never held up. |
 | `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar, each with its key (`place:inbox`, `group:12`), query and count. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |

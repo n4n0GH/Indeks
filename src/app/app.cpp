@@ -87,6 +87,7 @@ App::App(QObject *parent)
     : AbstractKirigamiApplication(parent)
     , m_library(createLibrary(this))
     , m_documents(new DocumentModel(m_library, this))
+    , m_linkCandidates(new DocumentModel(m_library, this))
     , m_sidebar(new SidebarModel(m_library, this))
     , m_activity(new ActivityModel(m_library, this))
 {
@@ -116,6 +117,10 @@ App::App(QObject *parent)
     }
     m_documents->setSortColumn(config->sortColumn());
     m_documents->setSortDescending(config->sortDescending());
+    // Only while its dialog is open and something is typed there.
+    m_linkCandidates->setActive(false);
+    m_linkCandidates->setSortColumn(u"name"_s);
+    m_linkCandidates->setSortDescending(false);
     m_sidebar->setCollapsedSections(config->collapsedSections());
 
     connect(m_sidebar, &SidebarModel::currentChanged, this, [this] {
@@ -286,6 +291,17 @@ void App::setupActions()
     addRequest(u"doc_tag"_s, i18nc("@action", "Add Tag…"), u"tag-new"_s, Qt::CTRL | Qt::Key_T);
     addRequest(u"doc_group"_s, i18nc("@action", "Add to Group…"), u"folder-new"_s, Qt::CTRL | Qt::Key_G);
     addRequest(u"doc_note"_s, i18nc("@action", "Add Note…"), u"note"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_M);
+    addRequest(u"doc_links"_s, i18nc("@action", "Manage Linked Documents…"), u"link"_s, Qt::CTRL | Qt::Key_L);
+    addAction(u"doc_link_selected"_s, i18nc("@action", "Link Selected Documents"), u"insert-link"_s, {}, [this] {
+        const QVariantList ids = selection();
+        const int made = m_library->linkDocuments(ids);
+        // Turned down, with the reason, where there were too many.
+        if (made == 0) {
+            Q_EMIT passiveMessage(i18nc("@info", "The selected documents are linked with one another already."));
+        } else if (made > 0) {
+            Q_EMIT passiveMessage(i18ncp("@info", "The %1 selected document is linked now.", "The %1 selected documents are linked with one another now.", int(ids.size())));
+        }
+    });
     // One action for working on the document itself. What that means depends on the document:
     // text is edited, pages and pictures are drawn on. It stays checked while that goes on.
     addToggle(u"doc_edit"_s, i18nc("@action", "Edit"), u"document-edit"_s, Qt::CTRL | Qt::Key_E, false, [this](bool checked) {
@@ -549,6 +565,8 @@ void App::updateActions()
     enable(u"doc_tag"_s, any);
     enable(u"doc_group"_s, any);
     enable(u"doc_note"_s, single);
+    enable(u"doc_links"_s, single && !inTrash);
+    enable(u"doc_link_selected"_s, ids.size() >= 2 && !inTrash);
     enable(u"doc_todo"_s, single);
     enable(u"todos_clear_done"_s, m_library->todoCounts().value(u"done"_s).toInt() > 0);
     m_editMode = drawable ? EditMode::Draw : textual ? EditMode::Text : EditMode::None;

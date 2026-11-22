@@ -218,6 +218,24 @@ public:
     Q_INVOKABLE void addToGroup(const QVariantList &ids, qint64 groupId);
     Q_INVOKABLE void removeFromGroup(const QVariantList &ids, qint64 groupId);
 
+    // Links between documents
+    /**
+     * The documents that @p id is linked to, by name: maps with `id`, `name`, `icon`,
+     * `location`, `trashed` and `missing`. A link has no direction; whichever of the two is
+     * asked names the other.
+     */
+    Q_INVOKABLE QVariantList linkedDocuments(qint64 id) const;
+    /** How many documents can be linked with one another in one go. */
+    static constexpr int MaxLinkedAtOnce = 20;
+    /**
+     * Links every one of the documents with every other of them, and returns how many links
+     * that made; pairs that were linked already stay as they are. More than MaxLinkedAtOnce
+     * are turned down with a message(), and -1. Linking is working with a document: those
+     * that waited in the inbox leave it.
+     */
+    Q_INVOKABLE int linkDocuments(const QVariantList &ids);
+    Q_INVOKABLE void unlinkDocuments(qint64 id, qint64 otherId);
+
     // Saved searches
     Q_INVOKABLE QVariantList savedSearches() const;
     /** Creates the search if @p id is 0. */

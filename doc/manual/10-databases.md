@@ -26,7 +26,7 @@ cannot be reached.
 
 | In the folder | Content |
 | --- | --- |
-| `index.sqlite` | The index: documents, their text, tags, groups, notes, drawings, to-dos, rules, saved searches, and the columns chosen for each view |
+| `index.sqlite` | The index: documents, their text, tags, groups, links, notes, drawings, to-dos, rules, saved searches, and the columns chosen for each view |
 | `files/` | Documents created in Indeks |
 | `copies/` | Working copies of documents that were edited or drawn on |
 | `scripts/` | Scripts |

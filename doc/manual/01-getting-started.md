@@ -156,8 +156,8 @@ You can also drag documents onto a group or a tag in the sidebar.
 
 ## A word about backups
 
-The index holds work that exists nowhere else: your tags, groups, notes, drawings, to-dos,
-rules, and the documents you created or edited in Indeks. Include the database folder in your
+The index holds work that exists nowhere else: your tags, groups, links, notes, drawings,
+to-dos, rules, and the documents you created or edited in Indeks. Include the database folder in your
 backups. For the local database that is `~/.local/share/indeks`; see *Databases* for others.
 
 Your indexed files are not stored in the database. Back them up as you always have.

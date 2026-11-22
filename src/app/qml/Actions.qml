@@ -37,6 +37,8 @@ Item {
     readonly property Kirigami.Action tag: Wrapped { name: "doc_tag" }
     readonly property Kirigami.Action group: Wrapped { name: "doc_group" }
     readonly property Kirigami.Action note: Wrapped { name: "doc_note" }
+    readonly property Kirigami.Action links: Wrapped { name: "doc_links" }
+    readonly property Kirigami.Action linkSelected: Wrapped { name: "doc_link_selected" }
     readonly property Kirigami.Action edit: Wrapped { name: "doc_edit" }
     readonly property Kirigami.Action clearDrawing: Wrapped { name: "doc_clear_drawing" }
     readonly property Kirigami.Action flag: Wrapped { name: "doc_flag" }

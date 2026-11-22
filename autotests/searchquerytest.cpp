@@ -98,6 +98,7 @@ private Q_SLOTS:
         QVERIFY(SearchQuery(u"kind:email name:engine"_s).reachesInside());
         QVERIFY(SearchQuery(u"tag:answered"_s).reachesInside());
         QVERIFY(SearchQuery(u"is:pinned"_s).reachesInside());
+        QVERIFY(SearchQuery(u"is:linked"_s).reachesInside());
         // Pinned documents were called flagged once; both words find them.
         QCOMPARE(SearchQuery(u"is:flagged"_s).where(), SearchQuery(u"is:pinned"_s).where());
         QVERIFY(SearchQuery(u"partof:12"_s).reachesInside());

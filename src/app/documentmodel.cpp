@@ -405,6 +405,36 @@ void DocumentModel::setLoading(bool loading)
     }
 }
 
+void DocumentModel::setActive(bool active)
+{
+    if (m_active == active) {
+        return;
+    }
+    m_active = active;
+    Q_EMIT activeChanged();
+    if (active) {
+        load(Load::Navigated);
+        return;
+    }
+    // Whatever is still being searched for is no longer wanted, and nothing is listed.
+    ++m_tickets.search;
+    forgetExcerpts();
+    setLoading(false);
+    m_lingering.clear();
+    m_handled.clear();
+    m_dismissed.clear();
+    const bool changed = !m_rows.isEmpty() || m_truncated;
+    beginResetModel();
+    m_rows.clear();
+    indexRows();
+    endResetModel();
+    m_truncated = false;
+    if (changed) {
+        Q_EMIT countChanged();
+    }
+    setSelection({}, 0);
+}
+
 void DocumentModel::setScope(const QString &scope)
 {
     if (m_scope == scope) {
@@ -504,6 +534,9 @@ QSet<qint64> DocumentModel::leavers(const QList<Row> &found) const
 
 void DocumentModel::load(Load load)
 {
+    if (!m_active) {
+        return;
+    }
     if (m_loading && m_load == Load::Navigated) {
         // The list of the place that was just gone to is not there yet. Whatever is asked
         // for now is still that list, for the first time.

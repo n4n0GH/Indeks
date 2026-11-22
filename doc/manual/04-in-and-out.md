@@ -106,8 +106,8 @@ sign.
 - **If the file comes back** to where it was, for example from a backup, the document leaves
   the trash by itself.
 - **Restore from Trash** brings such a document back only if something of yours is attached
-  to it: a tag, a group, a pin, a comment, a note, a drawing, an open to-do, or a text you
-  edited in Indeks. It is then listed as a document whose file is missing, also under
+  to it: a tag, a group, a pin, a link to another document, a comment, a note, a drawing, an
+  open to-do, or a text you edited in Indeks. It is then listed as a document whose file is missing, also under
   *Missing Files* in the sidebar.
 - **Empty Trash…** is what finally forgets it.
 

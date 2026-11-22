@@ -6,8 +6,8 @@
 # Organising
 
 Indeks gives you several ways to organise documents. They can be combined freely: a document
-can be in several groups, carry several tags, be pinned, and have notes, all at once. None of
-this changes the file.
+can be in several groups, carry several tags, be pinned, be linked to other documents, and
+have notes, all at once. None of this changes the file.
 
 ## The inbox
 
@@ -19,6 +19,7 @@ that turned up in an indexed location.
 - putting it into a group,
 - giving it a tag,
 - pinning it,
+- linking it to another document,
 - writing a note on it.
 
 *Remove from Inbox* in the context menu takes a document out without any of that. *Move to
@@ -68,6 +69,41 @@ A tag is a word you attach to documents. Use tags for what cuts across groups, s
 *Pin* (`Ctrl+Shift+F`) marks documents you want at hand. They are listed under *Pinned* in the
 sidebar (`Ctrl+3`) and carry a pin in every list. Choosing *Pin* on pinned documents unpins
 them.
+
+## Linked documents
+
+A link says that two documents belong together: a contract and its invoices, a letter and
+the reply to it, a scan and the notes you took on it. A link has no direction. It shows on
+both documents, and either of them leads to the other. A document can be linked to any
+number of others, wherever their files are.
+
+**Linking.**
+
+- *Manage Linked Documents…* (`Ctrl+L`), in the context menu of a document and in the
+  *Information* tab, opens a dialog for the selected document. Type into its field to find
+  the document to link: part of a name, words from the text, or search terms such as
+  `tag:tax`. *Link* beside a document that was found links it. Documents that are linked
+  already are marked *Linked*.
+- *Link Selected Documents*, in the context menu and in the *Information* tab while several
+  documents are selected, links every one of them with every other. This takes up to 20
+  documents at a time.
+
+**Following a link.** The *Information* tab lists the documents the selected one is linked
+to. Click a name to go to that document. In the dialog, the arrow beside a linked document
+does the same.
+
+**Removing a link.** Click the button beside the linked document, in the *Information* tab or
+in the dialog. Only the link goes; both documents stay.
+
+**Finding linked documents.** `is:linked` in the search field, or *State → Linked to other
+documents* in the filter bar, lists the documents that have a link.
+
+A document in the trash keeps its links, and they say that it is in the trash. Emptying the
+trash removes them with the document.
+
+> **Note:** Links belong to what you attached to a document, like tags and notes. A document
+> whose file is gone, or whose location is no longer indexed, is kept for as long as it is
+> linked; see *In and Out*.
 
 ## Comments
 

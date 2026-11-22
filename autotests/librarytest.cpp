@@ -2078,6 +2078,165 @@ def process(document):
         QVERIFY(!Store::document(edited).isValid());
     }
 
+    void linksDocumentsToOneAnother()
+    {
+        QTemporaryDir folder;
+        QVERIFY(folder.isValid());
+        for (const char *name : {"contract.txt", "invoice.txt", "letter.txt", "receipt.txt", "stray.txt"}) {
+            writeFile(folder.filePath(QString::fromLatin1(name)), QByteArray("A paper called ") + name + '\n');
+        }
+        // More than can be linked in one go.
+        for (int i = 0; i <= Library::MaxLinkedAtOnce; ++i) {
+            writeFile(folder.filePath(u"many-%1.txt"_s.arg(i)), "One of many.\n");
+        }
+        const qint64 source = m_library->addSource(QUrl::fromLocalFile(folder.path()));
+        settle();
+        auto idIn = [&](const QString &name) {
+            return Store::documentByUrl(QUrl::fromLocalFile(folder.filePath(name))).id;
+        };
+        const qint64 contract = idIn(u"contract.txt"_s);
+        const qint64 invoice = idIn(u"invoice.txt"_s);
+        const qint64 letter = idIn(u"letter.txt"_s);
+        const qint64 receipt = idIn(u"receipt.txt"_s);
+        const qint64 stray = idIn(u"stray.txt"_s);
+        QVERIFY(contract > 0 && invoice > 0 && letter > 0 && receipt > 0 && stray > 0);
+        const auto linkedTo = [&](qint64 id) {
+            QList<qint64> others;
+            for (const QVariant &entry : m_library->linkedDocuments(id)) {
+                others.append(entry.toMap().value(u"id"_s).toLongLong());
+            }
+            return others;
+        };
+        const auto entryOf = [&](qint64 id, qint64 other) {
+            for (const QVariant &entry : m_library->linkedDocuments(id)) {
+                if (entry.toMap().value(u"id"_s).toLongLong() == other) {
+                    return entry.toMap();
+                }
+            }
+            return QVariantMap();
+        };
+        QCOMPARE(m_library->count(u"is:linked"_s), 0);
+
+        // One alone is linked with nothing, and no document with itself.
+        QCOMPARE(m_library->linkDocuments(ids({contract})), 0);
+        QCOMPARE(m_library->linkDocuments(ids({contract, contract})), 0);
+        QCOMPARE(m_library->linkDocuments(ids({contract, 987654321})), 0);
+        QVERIFY(linkedTo(contract).isEmpty());
+
+        // A link has no direction: it shows on both documents.
+        QSignalSpy changes(m_library.get(), &Library::documentChanged);
+        QCOMPARE(m_library->linkDocuments(ids({invoice, contract})), 1);
+        QCOMPARE(linkedTo(contract), QList<qint64>({invoice}));
+        QCOMPARE(linkedTo(invoice), QList<qint64>({contract}));
+        QCOMPARE(int(changes.size()), 2);
+        // Once more, or the other way round, changes nothing.
+        QCOMPARE(m_library->linkDocuments(ids({contract, invoice})), 0);
+        QCOMPARE(m_library->linkDocuments(ids({invoice, contract})), 0);
+        QCOMPARE(linkedTo(contract), QList<qint64>({invoice}));
+        // What is said about a linked document.
+        const QVariantMap entry = entryOf(invoice, contract);
+        QCOMPARE(entry.value(u"name"_s).toString(), u"contract.txt"_s);
+        QCOMPARE(entry.value(u"location"_s).toString(), folder.path());
+        QVERIFY(!entry.value(u"icon"_s).toString().isEmpty());
+        QVERIFY(!entry.value(u"trashed"_s).toBool());
+
+        // Several at once: every one with every other. One of the pairs was there already.
+        QCOMPARE(m_library->linkDocuments(ids({contract, invoice, receipt})), 2);
+        QCOMPARE(linkedTo(contract), QList<qint64>({invoice, receipt})); // by name
+        QCOMPARE(linkedTo(receipt), QList<qint64>({contract, invoice}));
+        QCOMPARE(m_library->count(u"is:linked"_s), 3);
+        QCOMPARE(m_library->count(u"is:linked receipt"_s), 1);
+        QCOMPARE(m_library->count(u"-is:linked sourceid:%1"_s.arg(source)), Library::MaxLinkedAtOnce + 3);
+
+        // Too many at once are turned down, all of them.
+        QVariantList many;
+        for (int i = 0; i <= Library::MaxLinkedAtOnce; ++i) {
+            many.append(idIn(u"many-%1.txt"_s.arg(i)));
+        }
+        QSignalSpy messages(m_library.get(), &Library::message);
+        QCOMPARE(m_library->linkDocuments(many), -1);
+        QCOMPARE(int(messages.size()), 1);
+        QCOMPARE(m_library->count(u"is:linked"_s), 3);
+        many.removeLast();
+        QCOMPARE(m_library->linkDocuments(many), Library::MaxLinkedAtOnce * (Library::MaxLinkedAtOnce - 1) / 2);
+        QCOMPARE(int(linkedTo(many.constFirst().toLongLong()).size()), Library::MaxLinkedAtOnce - 1);
+        // One that leaves does not take the links of the others along.
+        for (int i = 1; i < many.size(); ++i) {
+            m_library->unlinkDocuments(many.at(i).toLongLong(), many.constFirst().toLongLong());
+        }
+        QVERIFY(linkedTo(many.constFirst().toLongLong()).isEmpty());
+        QCOMPARE(int(linkedTo(many.at(1).toLongLong()).size()), Library::MaxLinkedAtOnce - 2);
+        for (int i = 1; i < many.size(); ++i) {
+            for (int j = i + 1; j < many.size(); ++j) {
+                m_library->unlinkDocuments(many.at(i).toLongLong(), many.at(j).toLongLong());
+            }
+        }
+        QCOMPARE(m_library->count(u"is:linked"_s), 3);
+
+        // Linking is working with a document: one that waited in the inbox leaves it.
+        m_library->setInbox(ids({letter}), true);
+        QCOMPARE(m_library->linkDocuments(ids({letter, contract})), 1);
+        QVERIFY(!Store::document(letter).inbox);
+
+        // A link is taken away from either end.
+        m_library->unlinkDocuments(receipt, contract);
+        QCOMPARE(linkedTo(contract), QList<qint64>({invoice, letter}));
+        QCOMPARE(linkedTo(receipt), QList<qint64>({invoice}));
+        m_library->unlinkDocuments(invoice, receipt);
+        QVERIFY(linkedTo(receipt).isEmpty());
+        m_library->unlinkDocuments(invoice, receipt); // none there: nothing happens
+
+        // A link is something of the user's, like a tag: a document whose file went is kept
+        // for it. It goes into the trash like every such document, which the link shows ...
+        QVERIFY(QFile::remove(folder.filePath(u"letter.txt"_s)));
+        m_library->rescanSource(source);
+        settle();
+        QVERIFY(Store::document(letter).trashed);
+        QVERIFY(entryOf(contract, letter).value(u"trashed"_s).toBool());
+        QVERIFY(entryOf(contract, letter).value(u"missing"_s).toBool());
+        // ... but it can be taken out again, as a document without a file ...
+        m_library->restoreFromTrash(ids({letter}));
+        QVERIFY(!Store::document(letter).trashed);
+        QVERIFY(!entryOf(contract, letter).value(u"trashed"_s).toBool());
+        // ... until the link goes: then nothing holds it any more.
+        m_library->unlinkDocuments(contract, letter);
+        QVERIFY2(Store::document(letter).trashed, "a missing document stayed after its last link was removed");
+        m_library->emptyTrash();
+        QVERIFY(!Store::document(letter).isValid());
+
+        // What is emptied from the trash is linked to nothing any more, whether its file is
+        // still there, and the document only hidden from the next scan ...
+        m_library->moveToTrash(ids({invoice}));
+        QVERIFY(entryOf(contract, invoice).value(u"trashed"_s).toBool());
+        m_library->emptyTrash();
+        QVERIFY(linkedTo(contract).isEmpty());
+        QCOMPARE(m_library->count(u"is:linked"_s), 0);
+        // ... or gone, and the document with it.
+        QCOMPARE(m_library->linkDocuments(ids({receipt, stray})), 1);
+        QVERIFY(QFile::remove(folder.filePath(u"stray.txt"_s)));
+        m_library->rescanSource(source);
+        settle();
+        QCOMPARE(linkedTo(receipt), QList<qint64>({stray}));
+        m_library->emptyTrash();
+        QVERIFY(!Store::document(stray).isValid());
+        QVERIFY(linkedTo(receipt).isEmpty());
+
+        // Linked documents outlive their location, for as long as they are linked.
+        QCOMPARE(m_library->linkDocuments(ids({contract, receipt})), 1);
+        m_library->removeSource(source);
+        QVERIFY(Store::document(contract).isValid());
+        QVERIFY(Store::document(receipt).isValid());
+        QCOMPARE(m_library->count(u"is:linked"_s), 2);
+        QCOMPARE(m_library->count(u"many"_s), 0); // those with nothing attached went with it
+        m_library->unlinkDocuments(contract, receipt);
+        QVERIFY2(!Store::document(contract).isValid(), "a document of a removed location stayed after its last link was removed");
+        QVERIFY(!Store::document(receipt).isValid());
+        QCOMPARE(m_library->count(u"is:linked"_s), 0);
+        // Only Indeks forgets them: the files are the user's.
+        QVERIFY(QFile::exists(folder.filePath(u"contract.txt"_s)));
+        QVERIFY(QFile::exists(folder.filePath(u"receipt.txt"_s)));
+    }
+
     void indexGivesSpaceBack()
     {
         // A new index can hand free pages back without being written out anew.

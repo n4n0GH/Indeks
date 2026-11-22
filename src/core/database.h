@@ -36,7 +36,7 @@ public:
     /** Whether the calling thread's connection is open, i.e. the index can be used. */
     static bool isOpen();
 
-    static constexpr int SchemaVersion = 11;
+    static constexpr int SchemaVersion = 12;
     /**
      * What SQLite calls the application id of a file: a number in its header that says
      * whose it is. An index of Indeks carries this one ("Indk"). It is how a file that is

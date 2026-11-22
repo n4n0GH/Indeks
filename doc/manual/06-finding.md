@@ -48,7 +48,7 @@ words and with each other.
 | `added:today`, `added:7d`, `added:12h` | added today, in the last 7 days, in the last 12 hours |
 | `modified:>2026-01-31`, `added:2026-03` | changed after a day; added in a month |
 | `size:>5M`, `size:<200k` | by size |
-| `is:inbox`, `is:pinned`, `is:annotated` | by what you did with them |
+| `is:inbox`, `is:pinned`, `is:annotated`, `is:linked` | by what you did with them |
 | `is:unfiled`, `is:untagged` | in no group; without tags |
 | `is:duplicate` | files with the same content as another |
 | `is:missing`, `is:trashed` | file is gone; in the trash |

@@ -198,6 +198,9 @@ StatefulApp.StatefulWindow {
             case "doc_note":
                 noteDialog.ask(currentId, App.library.documentInfo(currentId).name);
                 break;
+            case "doc_links":
+                linkDialog.ask(currentId);
+                break;
             case "new_todo":
                 todoDialog.ask(0);
                 break;
@@ -452,6 +455,9 @@ StatefulApp.StatefulWindow {
 
         // What was just written down is shown where it now stands.
         onAdded: App.showSidePanel("todo")
+    }
+    LinkDialog {
+        id: linkDialog
     }
     GroupDialog {
         id: groupDialog

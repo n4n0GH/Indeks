@@ -60,6 +60,7 @@ step, in one transaction. A database from a newer Indeks is refused.
 | `metadata` | Key and value pairs found in files (author, e-mail headers, …). |
 | `tags`, `document_tags` | Tags and which documents have them. |
 | `folders`, `document_folders` | Groups (called folders here for historical reasons), nested through `parent_id`, and which documents are in them. |
+| `document_links` | Links between documents. A link has no direction: each pair is one row, with the lower id in `a_id` and the higher in `b_id` (a `CHECK` sees to it), so a pair cannot be there twice. Asking for the links of a document means looking at both columns. |
 | `searches` | Saved searches: name and query. |
 | `rules` | Rules: name, the compiled query, the filters and actions as JSON, whether active and whether run on import. |
 | `annotations` | Notes (`kind = 'note'`) and drawings (`kind = 'ink'`), per document and page. `x`, `y`: where a sticky note stands, as shares of the page; -1 for none. |
@@ -101,3 +102,8 @@ step, in one transaction. A database from a newer Indeks is refused.
 - Group writes in a `Transaction`, and keep it short: the other threads wait meanwhile.
 - A removed document takes its rows in the dependent tables with it (`ON DELETE CASCADE`),
   except to-dos, which outlive it: see `Store::removeDocument()`.
+- What the user attached keeps a document whose file or location is gone
+  (`Store::hasUserData()`). A new table of things the user attaches belongs in that
+  function, for the document and for its parts, as `document_links` is. A document that is
+  emptied from the trash but stays as a hidden row (`trashed = 2`) loses its links there
+  and then, in `Library::emptyTrash()`, since the row does not go and nothing cascades.

@@ -10,6 +10,15 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.2.0
 
+- **Linked documents:** Documents can be linked to one another, for papers that belong
+  together although they are separate files. *Manage Linked Documents…* (`Ctrl+L`), in the
+  context menu and in the *Information* tab, finds documents to link. *Link Selected
+  Documents* links several at once. The *Information* tab lists the links of a document and
+  leads from one to the other, and `is:linked` finds the documents that have any. See
+  *Organising → Linked documents*.
+- **Databases are brought up to date:** This version adds the links to the index the first
+  time it opens a database. Version 0.2.0 and older cannot open that database afterwards.
+  If you use a database from several computers, update Indeks on all of them.
 - **Rules for what is not there yet:** In the dialog of a rule, filter choices that no
   document matches at the moment can be chosen. Before, a rule could not be kept to the
   inbox while the inbox was empty, or be given a tag that no document had. See *Automation →

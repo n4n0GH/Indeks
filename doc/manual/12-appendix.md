@@ -21,6 +21,7 @@ language, and what scripts can do.
 - **Index:** What Indeks knows about your files: where they are, their text, and what you
   attached to them.
 - **Indexed location:** A folder, on this computer or on a server, whose files Indeks knows.
+- **Link:** A connection between two documents that belong together. It shows on both.
 - **Mailbox:** A file that holds many e-mail messages (mbox). It opens like a folder.
 - **Note:** A text attached to a document. A document can have many.
 - **Pin:** A mark on a document that lists it under *Pinned*.
@@ -74,6 +75,7 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Ctrl+G` | Add to Group… |
 | `Ctrl+Shift+F` | Pin or unpin |
 | `Ctrl+Shift+M` | Add Note… |
+| `Ctrl+L` | Manage Linked Documents… |
 | `Ctrl+E` | Edit text, or draw on the document |
 | `F2` | Rename… (documents created in Indeks) |
 | `Ctrl+Alt+C` | Copy Location |
@@ -121,6 +123,9 @@ Every command is in the command bar. This list says what each one does.
 - **Rename…:** Renames a document created in Indeks.
 - **Add Tag…**, **Add to Group…**, **Pin**, **Add Note…:** See *Organising*.
 - **Create To-Do for Document…:** Creates a to-do linked to the document.
+- **Manage Linked Documents…:** Shows the documents the selected one is linked to, removes
+  links and finds documents to link.
+- **Link Selected Documents:** Links every one of the selected documents with every other.
 - **Edit:** Edits the text of the document, or draws on it.
 - **Remove All Drawings:** Removes the drawings from the document.
 - **Remove from Inbox**, **Move to Inbox:** Take a document out of the inbox, or put it back.
@@ -190,6 +195,7 @@ phrase in quotes. A minus in front excludes a word or term. `OR` between two mat
 | `is:inbox` | Is in the inbox |
 | `is:pinned` | Is pinned |
 | `is:annotated` | Has a comment, notes or drawings |
+| `is:linked` | Is linked to another document |
 | `is:unfiled`, `is:untagged` | Is in no group; has no tag |
 | `is:duplicate` | Has the same content as another file |
 | `is:missing` | Its file is gone |

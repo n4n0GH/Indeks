@@ -19,7 +19,7 @@ namespace Indeks
  *
  *   tag:invoice   group:Taxes   kind:pdf   kind:canvas   ext:md   source:Documents
  *   name:report   name:*.pdf   path:invoices   content:"exact phrase"   note:todo
- *   is:inbox  is:annotated  is:pinned  is:unfiled  is:untagged  is:duplicate
+ *   is:inbox  is:annotated  is:pinned  is:linked  is:unfiled  is:untagged  is:duplicate
  *   is:missing  is:local  is:trashed  is:ocr
  *   added:today  added:7d  added:12h  modified:>2026-01-31  size:>5M
  *
