@@ -269,6 +269,8 @@ Kirigami.Dialog {
             Layout.fillWidth: true
             withWords: true
             listed: true
+            // A rule is also for documents that are not there yet.
+            emptyChoices: true
             hint: i18nc("@info", "Nothing yet. Add what a document has to match.")
         }
         QQC2.Label {

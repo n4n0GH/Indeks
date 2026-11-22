@@ -55,6 +55,9 @@ You get the same kinds of documents again and again.
 3. Under *Do this, in this order*, add what should happen: a tag, a group, a pin.
 4. Tick the option to run the rule on new documents.
 
+To have the rule deal with new arrivals only, add the filter *State → In the inbox* and the
+action *Remove from the Inbox*. See *Automation → A rule for the inbox only*.
+
 From then on, every document that arrives and matches is filed by the rule. For anything a
 rule cannot express, such as filing by a year found in the text, write a script.
 

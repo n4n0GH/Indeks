@@ -31,6 +31,13 @@ GridLayout {
     property var within: []
     /** Whether to count at all; counting takes a search for every choice. */
     property bool counting: true
+    /**
+     * Whether a choice that leaves no document can be made. Not where the filters narrow
+     * down a list: such a choice would only empty it. But where they say what something is
+     * for, as in a rule, a choice may well be for documents that are yet to come: the inbox
+     * is empty most of the time, and a new tag has no documents.
+     */
+    property bool emptyChoices: false
     /** Offers words to search for as a filter: for where there is no search field. */
     property bool withWords: false
     /** Shows the filters as a list, one to a line, with the button to add one below it. */
@@ -320,7 +327,7 @@ GridLayout {
                     : i18nc("@item:inmenu a choice and the number of documents it leaves", "%1 (%2)", modelData.label, modelData.count)
                 checkable: true
                 checked: modelData.active
-                enabled: modelData.count !== 0 || modelData.active
+                enabled: modelData.count !== 0 || modelData.active || root.emptyChoices
                 onTriggered: root.toggle({ type: modelData.type, label: modelData.chip, query: modelData.query })
             }
             onObjectAdded: (index, object) => choiceMenu.insertItem(index, object)

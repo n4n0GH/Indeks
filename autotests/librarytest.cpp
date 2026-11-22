@@ -618,6 +618,73 @@ private Q_SLOTS:
         QVERIFY(m_library->rules().isEmpty());
     }
 
+    void rulesCanBeKeptToTheInbox()
+    {
+        // A rule that sorts what comes in: its condition asks for the inbox, so it leaves
+        // alone what was filed, by it or by hand, and lists only what still waits.
+        QTemporaryDir folder;
+        QVERIFY(folder.isValid());
+        writeFile(folder.filePath(u"old-invoice.txt"_s), "An invoice for a harpsichord, long paid.\n");
+        const qint64 source = m_library->addSource(QUrl::fromLocalFile(folder.path()));
+        settle();
+        const QUrl oldUrl = QUrl::fromLocalFile(folder.filePath(u"old-invoice.txt"_s));
+        QVERIFY(!Store::documentByUrl(oldUrl).inbox); // there when the location was added
+
+        const QString condition = u"harpsichord is:inbox"_s;
+        const qint64 rule = m_library->saveRule({
+            {u"name"_s, u"Sort invoices"_s},
+            {u"query"_s, condition},
+            {u"filters"_s,
+             QVariantList{
+                 QVariantMap{{u"type"_s, u"words"_s}, {u"query"_s, u"harpsichord"_s}},
+                 QVariantMap{{u"type"_s, u"state"_s}, {u"query"_s, u"is:inbox"_s}},
+             }},
+            {u"actions"_s,
+             QVariantList{
+                 QVariantMap{{u"type"_s, u"tag"_s}, {u"name"_s, u"sorted"_s}},
+                 QVariantMap{{u"type"_s, u"inbox"_s}},
+             }},
+            {u"onImport"_s, true},
+        });
+        QVERIFY(rule > 0);
+        QCOMPARE(m_library->count(condition), 0);
+
+        // A file that turns up in the location goes to the inbox, and the rule files it.
+        writeFile(folder.filePath(u"new-invoice.txt"_s), "An invoice for tuning the harpsichord.\n");
+        writeFile(folder.filePath(u"postcard.txt"_s), "Greetings from the seaside.\n");
+        m_library->rescanSource(source);
+        settle();
+        const Document fresh = Store::documentByUrl(QUrl::fromLocalFile(folder.filePath(u"new-invoice.txt"_s)));
+        QVERIFY(fresh.isValid());
+        QCOMPARE(tagsOf(fresh.id), QStringList{u"sorted"_s});
+        QVERIFY(!fresh.inbox);
+        // What the rule is not for stays in the inbox.
+        QVERIFY(Store::documentByUrl(QUrl::fromLocalFile(folder.filePath(u"postcard.txt"_s))).inbox);
+        // What was there before is none of its business, also when it is run by hand.
+        QVERIFY(tagsOf(Store::documentByUrl(oldUrl).id).isEmpty());
+        QCOMPARE(m_library->count(condition), 0); // nothing left for the rule to show
+        QCOMPARE(m_library->applyRule(rule), 0);
+        QVERIFY(tagsOf(Store::documentByUrl(oldUrl).id).isEmpty());
+
+        // Put back into the inbox by hand, a document is the rule's again.
+        const qint64 old = Store::documentByUrl(oldUrl).id;
+        m_library->setInbox({old}, true);
+        QCOMPARE(m_library->count(condition), 1);
+        QCOMPARE(m_library->applyRule(rule), 1);
+        QCOMPARE(tagsOf(old), QStringList{u"sorted"_s});
+        QVERIFY(!Store::document(old).inbox);
+
+        m_library->deleteRule(rule);
+        const QVariantList allTags = m_library->tags();
+        for (const QVariant &tag : allTags) {
+            if (tag.toMap().value(u"name"_s).toString() == "sorted"_L1) {
+                m_library->deleteTag(tag.toMap().value(u"id"_s).toLongLong());
+            }
+        }
+        m_library->removeSource(source);
+        settle();
+    }
+
     void scriptsWorkOnDocumentsThroughIndeks()
     {
         QCOMPARE(Scripts::description(u"# -*- coding: utf-8 -*-\n\n\"\"\"\nFiles receipts.\n\nMore about it.\n\"\"\"\nimport os\n"_s), u"Files receipts."_s);

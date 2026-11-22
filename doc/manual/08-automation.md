@@ -21,6 +21,10 @@ bar: name, text, notes, folder, extension, type, dates, size, tag, group, locati
 in the list, with buttons to change and remove it. The dialog says how many documents match
 at the moment.
 
+The choices in these menus say how many documents each would leave. Unlike in the filter
+bar, a choice that leaves none can be made here: a rule is also for documents that are yet
+to come.
+
 **Do this, in this order.** *Add Action* offers:
 
 - *Add Tag* and *Remove Tag*
@@ -35,6 +39,22 @@ by its handle, or use its arrows, to change the order. Adding the opposite of an
 is already there replaces it.
 
 **When.** *Automatically, when a document is added* has the rule run on every new document.
+
+### A rule for the inbox only
+
+A rule can be kept to what still waits in the inbox. This suits rules that sort what turns
+up in your indexed locations.
+
+1. Under *Add Filter*, choose *State → In the inbox*, next to the filters that describe the
+   documents. It can be chosen while the inbox is empty.
+2. Have the rule take the document out of the inbox: add *Remove from the Inbox*, or file it
+   with *Add to Group*, which does the same. *Add Tag* and *Pin* alone leave it there.
+
+Such a rule lets alone what is filed already, by it or by you. Selected in the sidebar, it
+lists only the documents it has still to deal with, and not everything it ever sorted.
+
+> **Note:** What is in a folder when you make it a location does not go to the inbox, so
+> such a rule does not touch it. See *In and Out → The inbox and new files*.
 *Rule is active* switches the rule on and off without deleting it.
 
 ### Running a rule

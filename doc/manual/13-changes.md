@@ -8,6 +8,13 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.2.0
+
+- **Rules for what is not there yet:** In the dialog of a rule, filter choices that no
+  document matches at the moment can be chosen. Before, a rule could not be kept to the
+  inbox while the inbox was empty, or be given a tag that no document had. See *Automation →
+  A rule for the inbox only*.
+
 ## Version 0.2.0
 
 - **First start:** A new installation asks whether to start a new database, in the usual
