@@ -7,6 +7,9 @@
 #include "indeks_core_debug.h"
 #include "paths.h"
 
+#include <QAtomicInt>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -98,6 +101,80 @@ static bool upgradeRules(QSqlDatabase &db)
     return true;
 }
 
+Database::FileState Database::classify(QSqlDatabase &db)
+{
+    FileState state;
+    auto number = [&db](const QString &sql, int *result) {
+        QSqlQuery query(db);
+        if (!query.exec(sql) || !query.next()) {
+            return false;
+        }
+        *result = query.value(0).toInt();
+        return true;
+    };
+    int applicationId = 0;
+    int tables = 0;
+    if (!number(u"PRAGMA application_id"_s, &applicationId) || !number(u"PRAGMA user_version"_s, &state.version)
+        || !number(u"SELECT COUNT(*) FROM sqlite_master"_s, &tables)) {
+        state.kind = FileKind::Unreadable;
+        return state;
+    }
+    if (applicationId == ApplicationId) {
+        state.kind = FileKind::Own;
+    } else if (applicationId != 0) {
+        state.kind = FileKind::Foreign;
+    } else if (tables == 0) {
+        state.kind = FileKind::Blank;
+    } else {
+        // An index from before Indeks marked its files: known by the tables it always had.
+        int own = 0;
+        number(u"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('documents', 'sources')"_s, &own);
+        state.kind = own == 2 ? FileKind::Own : FileKind::Foreign;
+    }
+    return state;
+}
+
+Database::FileState Database::inspectFile(const QString &file)
+{
+    FileState state;
+    QFile raw(file);
+    if (!QFileInfo(file).isFile()) {
+        return state;
+    }
+    if (raw.size() == 0) {
+        state.kind = FileKind::Blank;
+        return state;
+    }
+    // Every SQLite database begins with these words. SQLite itself is only asked once they
+    // are there: it would take any file for a database until the first question fails.
+    if (!raw.open(QIODevice::ReadOnly)) {
+        state.kind = FileKind::Unreadable;
+        return state;
+    }
+    const bool sqlite = raw.read(16) == QByteArray("SQLite format 3\0", 16);
+    raw.close();
+    if (!sqlite) {
+        state.kind = FileKind::Foreign;
+        return state;
+    }
+
+    static QAtomicInt counter;
+    const QString name = u"indeks-probe-%1"_s.arg(counter.fetchAndAddRelaxed(1));
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
+        db.setDatabaseName(file);
+        db.setConnectOptions(u"QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=3000"_s);
+        if (db.open()) {
+            state = classify(db);
+            db.close();
+        } else {
+            state.kind = FileKind::Unreadable;
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    return state;
+}
+
 QSqlDatabase Database::connection()
 {
     const QString name = connectionName();
@@ -110,6 +187,13 @@ QSqlDatabase Database::connection()
     db.setConnectOptions(u"QSQLITE_BUSY_TIMEOUT=30000"_s);
     if (!db.open()) {
         qCCritical(INDEKS_CORE) << "Cannot open index database" << db.databaseName() << db.lastError().text();
+        return db;
+    }
+    // A file that is called like the index but is not one is left exactly as it is. This
+    // comes before everything below, all of which writes to the file.
+    if (classify(db).kind == FileKind::Foreign) {
+        qCCritical(INDEKS_CORE) << db.databaseName() << "is not an index of Indeks; it is not touched";
+        db.close();
         return db;
     }
     // Lets free pages be handed back to the file system in small steps (see Maintenance). It
@@ -188,6 +272,13 @@ bool Database::migrate(QSqlDatabase &db)
     const int version = versionQuery.value(0).toInt();
     versionQuery.finish();
     if (version >= SchemaVersion) {
+        // An index from before Indeks marked its files gets its mark now. Older versions
+        // of Indeks do not look at it, so this takes nothing away from them.
+        QSqlQuery marked(db);
+        if (marked.exec(u"PRAGMA application_id"_s) && marked.next() && marked.value(0).toInt() != ApplicationId) {
+            marked.finish();
+            run(db, u"PRAGMA application_id = %1"_s.arg(ApplicationId));
+        }
         return true;
     }
 
@@ -377,6 +468,7 @@ bool Database::migrate(QSqlDatabase &db)
         return false;
     }
     run(db, u"PRAGMA user_version = %1"_s.arg(SchemaVersion));
+    run(db, u"PRAGMA application_id = %1"_s.arg(ApplicationId));
     return db.commit();
 }
 

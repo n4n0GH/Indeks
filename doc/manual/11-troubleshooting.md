@@ -71,6 +71,9 @@ LibreOffice is not installed, or it could not convert the document. Install Libr
 - **In use:** Another computer has the database open. Close Indeks there.
 - **Made by a newer version:** A database that a newer version of Indeks has opened cannot be
   opened by an older one.
+- **Not an Indeks database:** The file `index.sqlite` in the folder belongs to another
+  program, or is no database. Indeks leaves it alone. Choose the `index.sqlite` of an Indeks
+  database, or start a new database in another folder.
 
 ## Starting over
 

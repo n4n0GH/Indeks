@@ -170,9 +170,6 @@ StatefulApp.StatefulWindow {
             const label = App.sidebar.currentLabel;
 
             switch (what) {
-            case "add_files":
-                fileDialog.open();
-                break;
             case "add_folder":
                 folderDialog.open();
                 break;
@@ -301,6 +298,9 @@ StatefulApp.StatefulWindow {
             case "db_add":
                 addDatabaseDialog.ask();
                 break;
+            case "db_new":
+                newDatabaseDialog.ask();
+                break;
             case "db_rename":
                 // The one that is open.
                 root.askForDatabaseName(App.databaseName, App.library.databaseDir);
@@ -396,17 +396,6 @@ StatefulApp.StatefulWindow {
         }
     }
 
-    Dialogs.FileDialog {
-        id: fileDialog
-
-        title: i18nc("@title:window", "Add Files to Indeks")
-        fileMode: Dialogs.FileDialog.OpenFiles
-        onAccepted: {
-            App.goTo("place:inbox");
-            App.addUrls(selectedFiles);
-        }
-    }
-
     Dialogs.FolderDialog {
         id: folderDialog
 
@@ -429,6 +418,10 @@ StatefulApp.StatefulWindow {
             databaseDialog.close();
             addDatabaseDialog.ask();
         }
+        onNewRequested: {
+            databaseDialog.close();
+            newDatabaseDialog.ask();
+        }
         onRenameRequested: (name, path) => root.askForDatabaseName(name, path)
         onForgetRequested: (name, path) => confirmDialog.ask(
             i18nc("@title:window", "Remove Database from the List?"),
@@ -438,6 +431,9 @@ StatefulApp.StatefulWindow {
     }
     AddDatabaseDialog {
         id: addDatabaseDialog
+    }
+    NewDatabaseDialog {
+        id: newDatabaseDialog
     }
     NameDialog {
         id: nameDialog

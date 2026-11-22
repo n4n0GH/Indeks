@@ -37,9 +37,32 @@ public:
     static bool isOpen();
 
     static constexpr int SchemaVersion = 11;
+    /**
+     * What SQLite calls the application id of a file: a number in its header that says
+     * whose it is. An index of Indeks carries this one ("Indk"). It is how a file that is
+     * merely called like an index is told from one, before anything is written to it.
+     */
+    static constexpr int ApplicationId = 0x496E646B;
+
+    /** What a file that is, or would be, the index turns out to be. */
+    enum class FileKind {
+        Missing, ///< no such file
+        Blank, ///< a file with nothing in it: where a new index can start
+        Own, ///< an index of Indeks
+        Foreign, ///< something else: the database of another program, or no database at all
+        Unreadable, ///< an SQLite database that cannot be looked into right now
+    };
+    struct FileState {
+        FileKind kind = FileKind::Missing;
+        /** The schema version of an index of Indeks. */
+        int version = 0;
+    };
+    /** Looks at @p file without changing it. */
+    static FileState inspectFile(const QString &file);
 
 private:
     static bool migrate(QSqlDatabase &db);
+    static FileState classify(QSqlDatabase &db);
 };
 
 /** RAII transaction on the calling thread's connection; rolls back unless committed. */

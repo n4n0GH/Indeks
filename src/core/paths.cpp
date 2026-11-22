@@ -91,9 +91,14 @@ QString cacheDir()
     return ensured(base + "/databases/"_L1 + QString::fromLatin1(key));
 }
 
+QString indexFileName()
+{
+    return u"index.sqlite"_s;
+}
+
 QString databaseFile()
 {
-    return dataDir() + "/index.sqlite"_L1;
+    return dataDir() + u'/' + indexFileName();
 }
 
 QString uniqueFilePath(const QString &dir, const QString &fileName)

@@ -17,6 +17,8 @@ target_sources(indeks PRIVATE
     app.h
     codelayout.cpp
     codelayout.h
+    databasechoice.cpp
+    databasechoice.h
     documentmodel.cpp
     documentmodel.h
     inkcanvas.cpp
@@ -30,6 +32,8 @@ target_sources(indeks PRIVATE
     sidebarmodel.h
     tablemodel.cpp
     tablemodel.h
+    welcome.cpp
+    welcome.h
 )
 
 kconfig_target_kcfg_file(indeks

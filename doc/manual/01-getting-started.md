@@ -84,7 +84,7 @@ executable and start it.
   fetch only what changed.
 - It uses what is installed on your system for text recognition (Tesseract), for Office
   documents (LibreOffice) and for scripts (Python 3 and bubblewrap).
-- Dolphin has no *Send to Indeks*; drag files onto the window instead.
+- Dolphin has no *Send to Indeks*; drag folders onto the window instead.
 
 Indeks can also be built from its source; the file `README.md` there says how.
 
@@ -92,12 +92,24 @@ Indeks can also be built from its source; the file `README.md` there says how.
 
 ### Starting Indeks
 
-Start Indeks from the application menu. The window opens with an empty list and the message
-*Nothing indexed yet*.
+Start Indeks from the application menu. The first time, Indeks asks where its *database* is
+to be: the folder in which it keeps its index, the documents you create in it and the copies
+it makes for editing. Your files are not moved there.
+
+- **Start a new database:** The folder shown is the usual place, `~/.local/share/indeks`. If
+  you have no other in mind, leave it as it is and choose *Create Database*. *Choose…* opens
+  at that folder and lets you pick another, on a second disk or a share for instance.
+- **Open an existing database:** If you have a database already, on a share or brought along
+  from another computer, choose its file `index.sqlite`, then *Open Database*.
+
+*Quit* leaves without making anything; Indeks asks again the next time. See *Databases* for
+more about both choices.
+
+The window then opens with an empty list and the message *Nothing indexed yet*.
 
 ### Adding your first folder
 
-1. Choose *Add → Add Indexed Folder…* in the toolbar, or press `Ctrl+Shift+O`.
+1. Choose *Add → Add Indexed Folder…* in the toolbar, or press `Ctrl+O`.
 2. Pick a folder, for example your `Documents` folder.
 
 Indeks now reads the folder. The bottom of the left sidebar shows what it is doing; you can

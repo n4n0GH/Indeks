@@ -32,14 +32,14 @@ does the work. It is built as three programs and one library.
 | `indeks` | `src/app` | The application: actions, list models, the QML interface. |
 | `indeks-extractor` | `src/extractor` | Helper program that reads one file after the other and reports what it found. Run several at once by `ExtractorPool`. |
 | `indeks-manualbuilder` | `doc/tools` | Makes the PDF of the manual at build time. Not installed. |
-| *Send to Indeks* | `src/servicemenu` | A service menu for Dolphin that starts `indeks` with the files. |
+| *Send to Indeks* | `src/servicemenu` | A service menu for Dolphin, offered for folders, that starts `indeks` with them. |
 
 ## Core classes
 
 | Class or namespace | File | Role |
 | --- | --- | --- |
 | `Library` | `library.*` | The interface of the core. Everything the application does to documents goes through it, and it says what changed with signals (`changed`, `documentChanged`, `todosChanged`, …). Lives in the main thread. |
-| `Database` | `database.*` | Opens the SQLite file, one connection per thread, and brings older databases up to the current schema (`SchemaVersion`). |
+| `Database` | `database.*` | Opens the SQLite file, one connection per thread, and brings older databases up to the current schema (`SchemaVersion`). Tells an index of Indeks from another file of its name (`inspectFile()`, `ApplicationId`). |
 | `Store` | `store.*` | Reading and writing of documents and what belongs to them, as plain functions on the current thread's connection. |
 | `SearchQuery` | `searchquery.*` | Compiles the search language into an SQL condition and an FTS5 expression. |
 | `Indexer`, `IndexWorker` | `indexer.*` | The indexing thread: scans locations, hands files to the extractor pool, stores the results, takes mailboxes apart, queues text recognition. |
@@ -53,7 +53,7 @@ does the work. It is built as three programs and one library.
 | `Rules` | `rules.*` | Which documents a rule matches, and carrying out its actions. Used from the main thread and the script thread. |
 | `Scripts` | `scripts.*` | The script files of a database, and which of them may run on this computer. |
 | `ScriptHost` | `scripthost.*` | Runs scripts: a thread that talks to `python3` in a sandbox, in lines of JSON. `scriptbridge.py` is the other end, compiled into the library. |
-| `DatabaseFolder` | `databasefolder.*` | A database as a folder: whether it can be reached, whether another computer has it open. |
+| `DatabaseFolder` | `databasefolder.*` | A database as a folder: whether it can be reached, whether it holds an index of Indeks, something else of that name or nothing at all, whether another computer has it open. |
 | `Maintenance` | `maintenance.*` | Gives space back to the file system after documents were removed. |
 | `Paths` | `paths.*` | Where things are: database folder, cache. Honours `INDEKS_DATA_DIR`. |
 
@@ -66,6 +66,8 @@ does the work. It is built as three programs and one library.
 | `SearchWorker` | `searchworker.*` | Runs full text searches in a thread of their own, so that typing is never held up. |
 | `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar, each with its key (`place:inbox`, `group:12`), query and count. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
+| `Welcome` | `welcome.*` | What a new installation is asked before anything is made: start a new database, and where, or open one that exists. Runs in `main()` before there is an `App`, with `WelcomeWindow.qml`, and notes the choice in the settings. |
+| `DatabaseChoice` | `databasechoice.*` | What may be chosen as a database and what is said about a choice, for `App` and `Welcome` alike. |
 | `TableModel` | `tablemodel.*` | CSV and TSV files as a table. |
 | `PdfText` | `pdftext.*` | Text selection on PDF pages that snaps to the nearest text. |
 | `InkCanvas` | `inkcanvas.*` | Freehand drawing on pages and pictures. |
@@ -94,5 +96,11 @@ and with a classic journal on network shares.
   and can be stopped: closing the window ends all of it within moments.
 - **What the user attached is never dropped silently.** A document with user data survives
   its file and its location; see `Store::hasUserData()`.
+- **Files come in through locations.** There is no way to add a single file:
+  `Library::addFolders()`, where drops, *Send to Indeks* and the command line end up, makes
+  folders locations and turns files down with a message. A file that is indexed where it
+  happens to lie is not seen to belong to Indeks, and is easily deleted by a user who is
+  tidying up. Documents with `source_id` 0 that are not Indeks' own are from before this
+  rule, or were kept when their location was removed.
 - **Every function is an action.** Whatever the interface can do is a `QAction` defined in
   `App::setupActions()`, which is what puts it into the command bar.

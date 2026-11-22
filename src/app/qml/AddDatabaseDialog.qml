@@ -7,31 +7,33 @@ import QtQuick.Dialogs as Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// Adds a database: a folder of the user's choosing, on a NAS for example. If the folder holds
-// a database it is opened, otherwise a new one is started there.
+// Adds a database that exists, on a NAS for example, by its index file. The file is what is
+// chosen, not the folder: in a folder dialog a database looks like an empty folder, and a
+// folder without one would be taken for one that was meant. A database that does not exist
+// yet is started with NewDatabaseDialog.
 Kirigami.Dialog {
     id: root
 
-    readonly property var folder: App.inspectDatabaseFolder(folderField.text)
-    readonly property bool canSubmit: (folder.valid ?? false) && (folder.problem ?? "").length === 0
+    readonly property var database: App.inspectDatabaseFile(fileField.text)
+    readonly property bool canSubmit: (database.valid ?? false) && (database.problem ?? "").length === 0
     property string failure
 
     function ask(): void {
         nameField.text = "";
-        folderField.text = "";
+        fileField.text = "";
         failure = "";
         open();
     }
 
     // Not in ask(): a dialog that closes at the same moment would take the focus back.
-    onOpened: folderField.forceActiveFocus()
+    onOpened: fileField.forceActiveFocus()
 
     // Also reached with Enter from the text fields.
     function submit(): void {
         if (!canSubmit) {
             return;
         }
-        failure = App.addDatabase(nameField.text, folderField.text);
+        failure = App.addDatabase(nameField.text, fileField.text);
         if (failure.length === 0) {
             close();
         }
@@ -43,8 +45,8 @@ Kirigami.Dialog {
     standardButtons: Kirigami.Dialog.NoButton
     customFooterActions: [
         Kirigami.Action {
-            text: (root.folder.hasIndex ?? false) ? i18nc("@action:button", "Open Database") : i18nc("@action:button", "Create Database")
-            icon.name: (root.folder.hasIndex ?? false) ? "document-open-folder" : "folder-new"
+            text: i18nc("@action:button", "Open Database")
+            icon.name: "document-open"
             enabled: root.canSubmit
             onTriggered: root.submit()
         },
@@ -62,24 +64,24 @@ Kirigami.Dialog {
             Layout.fillWidth: true
 
             RowLayout {
-                Kirigami.FormData.label: i18nc("@label:textbox", "Folder:")
+                Kirigami.FormData.label: i18nc("@label:textbox", "Index file:")
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
 
                 QQC2.TextField {
-                    id: folderField
+                    id: fileField
 
                     Layout.fillWidth: true
                     Layout.preferredWidth: Kirigami.Units.gridUnit * 16
-                    placeholderText: i18nc("@info:placeholder example of a folder on a mounted network share", "/mnt/nas/Indeks")
+                    placeholderText: i18nc("@info:placeholder example of the index file of a database on a mounted network share", "/mnt/nas/Indeks/index.sqlite")
                     inputMethodHints: Qt.ImhNoAutoUppercase
                     onTextChanged: root.failure = ""
                     onAccepted: root.submit()
                 }
                 QQC2.Button {
-                    icon.name: "document-open-folder"
+                    icon.name: "document-open"
                     text: i18nc("@action:button", "Choose…")
-                    onClicked: folderDialog.open()
+                    onClicked: fileDialog.open()
                 }
             }
             QQC2.TextField {
@@ -97,20 +99,20 @@ Kirigami.Dialog {
             // Long texts wrap instead of making the dialog as wide as they are.
             Layout.preferredWidth: Kirigami.Units.gridUnit * 26
             visible: text.length > 0
-            type: root.failure.length > 0 || (root.folder.problem ?? "").length > 0 ? Kirigami.MessageType.Warning : Kirigami.MessageType.Information
+            type: root.canSubmit ? Kirigami.MessageType.Information : Kirigami.MessageType.Warning
             text: {
                 if (root.failure.length > 0) {
                     return root.failure;
                 }
-                if (!(root.folder.valid ?? false)) {
-                    return folderField.text.trim().length > 0 ? i18nc("@info", "Choose a folder on this computer or on a mounted share.") : "";
+                if (!(root.database.valid ?? false)) {
+                    return fileField.text.trim().length > 0
+                        ? i18nc("@info %1 is a file name", "Choose the file “%1” of a database, on this computer or on a mounted share.", "index.sqlite")
+                        : "";
                 }
-                if ((root.folder.problem ?? "").length > 0) {
-                    return root.folder.problem;
+                if ((root.database.problem ?? "").length > 0) {
+                    return root.database.problem;
                 }
-                return root.folder.hasIndex
-                    ? i18nc("@info", "This folder holds an Indeks database. It will be opened as it is.")
-                    : i18nc("@info", "A new, empty database will be started in this folder.");
+                return i18nc("@info %1 is a folder", "This is the index of the Indeks database in “%1”. It will be opened as it is.", root.database.path);
             }
         }
 
@@ -119,16 +121,20 @@ Kirigami.Dialog {
             Layout.preferredWidth: Kirigami.Units.gridUnit * 26
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.disabledTextColor
-            text: (root.folder.network ?? false)
-                ? i18nc("@info", "This folder is on a network share. The index, the documents you create in Indeks and your working copies are stored there. The database can be open on one computer at a time, and Indeks goes back to the local database when the share cannot be reached.")
-                : i18nc("@info", "The index, the documents you create in Indeks and your working copies are stored in the folder of the database. Files that are only indexed stay where they are.")
+            text: (root.database.network ?? false)
+                ? i18nc("@info", "This database is on a network share. It can be open on one computer at a time, and Indeks goes back to the local database when the share cannot be reached.")
+                : i18nc("@info %1 is a file name", "A database is a folder, and the file “%1” in it is its index. The documents you create in Indeks and your working copies are kept in the same folder.", "index.sqlite")
         }
     }
 
-    Dialogs.FolderDialog {
-        id: folderDialog
+    Dialogs.FileDialog {
+        id: fileDialog
 
-        title: i18nc("@title:window", "Choose a Folder for the Database")
-        onAccepted: folderField.text = App.folderPath(selectedFolder.toString())
+        title: i18nc("@title:window", "Choose the Index File of the Database")
+        fileMode: Dialogs.FileDialog.OpenFile
+        // Nothing but index files is shown, so that a folder shows at a glance whether it
+        // holds a database.
+        nameFilters: [i18nc("@item:inlistbox kind of file in a file dialog; keep the part in brackets as it is", "Indeks database (index.sqlite)")]
+        onAccepted: fileField.text = App.localPath(selectedFile.toString())
     }
 }

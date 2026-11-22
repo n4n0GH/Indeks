@@ -105,8 +105,11 @@ public:
     }
     void setRawView(bool raw);
 
-    /** Adds files and folders, e.g. dropped ones or those sent from Dolphin. */
-    Q_INVOKABLE void addUrls(const QList<QUrl> &urls);
+    /**
+     * Makes folders indexed locations, e.g. dropped ones or those sent from Dolphin, and
+     * shows the last of them. Single files are not taken; see Library::addFolders().
+     */
+    Q_INVOKABLE void addFolders(const QList<QUrl> &urls);
     /** Handles the command line of this or a second instance. */
     void handleArguments(const QStringList &arguments, const QString &workingDirectory);
 
@@ -131,13 +134,22 @@ public:
      */
     Q_INVOKABLE QVariantList databases() const;
     /**
-     * What adding @p folder as a database would do: `path`, `valid`, `hasIndex` (an existing
-     * database would be opened, otherwise a new one started), `network`, `known` (already in
-     * the list) and `problem`.
+     * What adding the database whose index is @p file would do. A database is added by its
+     * index file and in no other way: the file is what shows that a database is there.
+     * `path` (the folder of the database), `valid` (there is something to say about it),
+     * `network`, `known` (already in the list) and `problem`.
      */
-    Q_INVOKABLE QVariantMap inspectDatabaseFolder(const QString &folder) const;
-    /** Adds the database in @p folder, starting one if there is none, and opens it. Returns what went wrong, if anything. */
-    Q_INVOKABLE QString addDatabase(const QString &name, const QString &folder);
+    Q_INVOKABLE QVariantMap inspectDatabaseFile(const QString &file) const;
+    /** Adds the database whose index is @p file and opens it. Returns what went wrong, if anything. */
+    Q_INVOKABLE QString addDatabase(const QString &name, const QString &file);
+    /**
+     * What starting a new database in @p folder would do: `path`, `valid`, `empty` (nothing
+     * is in the folder; the user is warned if something is), `network`, `known` and
+     * `problem`. A folder that holds a database already is a problem here: that one is added.
+     */
+    Q_INVOKABLE QVariantMap inspectNewDatabaseFolder(const QString &folder) const;
+    /** Starts a database in @p folder and opens it. Returns what went wrong, if anything. */
+    Q_INVOKABLE QString createDatabase(const QString &name, const QString &folder);
     /** Opens one of the known databases; an empty @p path is the local one. Returns what went wrong, if anything. */
     Q_INVOKABLE QString openDatabase(const QString &path);
     /**
@@ -148,8 +160,8 @@ public:
     Q_INVOKABLE bool renameDatabase(const QString &path, const QString &name);
     /** Takes a database off the list. Its folder and everything in it stay as they are. */
     Q_INVOKABLE void forgetDatabase(const QString &path);
-    /** A local path for what a folder dialog or the user's typing gave. */
-    Q_INVOKABLE QString folderPath(const QString &input) const;
+    /** A local path for what a file or folder dialog or the user's typing gave. */
+    Q_INVOKABLE QString localPath(const QString &input) const;
 
     /**
      * Name, text and icon of something the toolbar can show: an action, "separator", or one of
@@ -197,6 +209,8 @@ private:
     void updateActions();
     QVariantList selection() const;
     QString localDatabaseName() const;
+    /** Opens the database in @p path, starting it if @p create, and puts it on the list. */
+    QString openAndListDatabase(const QString &name, const QString &path, bool create);
     /** Keeps one action per script, so that each can be run from the command bar. */
     void syncScriptActions();
     void reportScript(const QVariantMap &report);

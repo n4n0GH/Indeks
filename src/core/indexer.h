@@ -37,7 +37,6 @@ public Q_SLOTS:
     /** Brings the index in line with the files below @p directory of a local source. */
     void scanDirectory(qint64 sourceId, const QString &directory, bool recursive);
     void scanSource(qint64 sourceId);
-    void indexFiles(const QList<QUrl> &urls, bool inbox);
     /** Indexes a download of a remote file and deletes the download afterwards. */
     void indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox);
     void reindexDocument(qint64 id);
@@ -156,7 +155,6 @@ public:
     void unsettleSources();
     void scanSource(qint64 sourceId);
     void scanDirectory(qint64 sourceId, const QString &directory, bool recursive);
-    void indexFiles(const QList<QUrl> &urls, bool inbox);
     void indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox);
     void reindexDocument(qint64 id);
     void processOcrQueue();

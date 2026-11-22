@@ -31,11 +31,6 @@ namespace
 // connection. Indeks renews its own every quarter of a minute.
 constexpr qint64 StaleAfterSeconds = 180;
 
-QString indexFile(const QString &dir)
-{
-    return dir + "/index.sqlite"_L1;
-}
-
 QString noteFile(const QString &dir)
 {
     return dir + "/indeks-in-use"_L1;
@@ -76,27 +71,6 @@ QString holderOf(const QString &dir)
     return age <= StaleAfterSeconds ? host : QString();
 }
 
-int schemaVersionOf(const QString &dir)
-{
-    static int counter = 0;
-    const QString name = u"indeks-probe-%1"_s.arg(++counter);
-    int version = 0;
-    {
-        QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, name);
-        db.setDatabaseName(indexFile(dir));
-        db.setConnectOptions(u"QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=3000"_s);
-        if (db.open()) {
-            QSqlQuery query(db);
-            if (query.exec(u"PRAGMA user_version"_s) && query.next()) {
-                version = query.value(0).toInt();
-            }
-            query.finish();
-            db.close();
-        }
-    }
-    QSqlDatabase::removeDatabase(name);
-    return version;
-}
 }
 
 bool isNetworkStorage(const QString &path)
@@ -119,9 +93,13 @@ State inspect(const QString &dir)
     }
     state.writable = info.isWritable();
     state.network = isNetworkStorage(dir);
-    state.hasIndex = QFileInfo(indexFile(dir)).isFile();
+    state.empty = QDir(dir).isEmpty(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
+    const Database::FileState index = Database::inspectFile(dir + u'/' + Paths::indexFileName());
+    state.hasIndex = index.kind == Database::FileKind::Own;
+    state.foreignIndex = index.kind == Database::FileKind::Foreign;
+    state.unreadableIndex = index.kind == Database::FileKind::Unreadable;
     if (state.hasIndex) {
-        state.tooNew = schemaVersionOf(dir) > Database::SchemaVersion;
+        state.tooNew = index.version > Database::SchemaVersion;
         state.inUseBy = holderOf(dir);
     }
     return state;

@@ -32,8 +32,11 @@ public:
 
     void setOptions(const IndexOptions &options);
     void scanSource(qint64 sourceId);
-    /** Adds a single remote file that does not belong to an indexed location. */
-    void addFile(const QUrl &url, bool inbox);
+    /**
+     * Asks the server whether @p url is a folder. folderFound() says that it is; failed()
+     * says that it is a file, or that it cannot be reached.
+     */
+    void checkFolder(const QUrl &url);
 
     bool isBusy() const
     {
@@ -59,6 +62,7 @@ Q_SIGNALS:
     void changed();
     void sourceScanned(qint64 sourceId, bool available);
     void failed(const QString &message);
+    void folderFound(const QUrl &url);
     void filesVanished(const QStringList &names);
 
 private:

@@ -202,6 +202,7 @@ QQC2.Pane {
         QQC2.MenuItem { action: root.actions.renameDatabase }
         QQC2.MenuItem { action: root.actions.databases }
         QQC2.MenuItem { action: root.actions.addDatabase }
+        QQC2.MenuItem { action: root.actions.newDatabase }
     }
 
     QQC2.Menu {

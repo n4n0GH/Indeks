@@ -3,11 +3,13 @@
 
 #include "app.h"
 
+#include "databasechoice.h"
 #include "databasefolder.h"
 #include "indekssettings.h"
 #include "office.h"
 #include "paths.h"
 #include "store.h"
+#include "welcome.h"
 
 #include <KApplicationTrader>
 #include <KIO/ApplicationLauncherJob>
@@ -50,7 +52,10 @@ Library *createLibrary(QObject *parent)
 {
     const QString wanted = Config::self()->activeDatabase();
     if (!wanted.isEmpty()) {
-        const QString problem = Library::databaseProblem(wanted, false);
+        // A database is never started just because its folder is without one: the folder may
+        // be what is left of a share that is not mounted. The one exception is the folder a
+        // new installation was told to start in a moment ago.
+        const QString problem = Library::databaseProblem(wanted, wanted == Welcome::folderToStartIn());
         if (problem.isEmpty()) {
             Paths::setDatabaseDir(wanted);
         } else {
@@ -66,6 +71,9 @@ const QLatin1StringView scriptActionPrefix("run_script_");
 // Actions that have their fixed place in the bar above the preview, where what they do is
 // seen, and are not offered for the toolbar: editing or drawing on the document, and noting.
 const QStringList previewBarActions = {QStringLiteral("doc_edit"), QStringLiteral("doc_note")};
+// Actions Indeks no longer has, which a toolbar that was put together earlier may still
+// name. "Add Files…" went when single files stopped being taken: see Library::addFolders().
+const QStringList formerActions = {QStringLiteral("add_files")};
 // A script that keeps failing for a rule is not complained about more often than this.
 constexpr qint64 ScriptComplaintIntervalSecs = 60;
 
@@ -85,14 +93,15 @@ App::App(QObject *parent)
     s_instance = this;
 
     Config *config = Config::self();
-    // Editing and taking notes have their place in the bar above the preview now. A toolbar
-    // that was put together before still names them: they are taken out of it, and with
-    // them the dividing lines that would stand side by side or at an end for it.
+    // Editing and taking notes have their place in the bar above the preview now, and some
+    // actions are gone. A toolbar that was put together before still names them: they are
+    // taken out of it, and with them the dividing lines that would stand side by side or at
+    // an end for it.
     {
         QStringList toolbar;
         const QStringList chosen = config->toolbarActions();
         for (const QString &name : chosen) {
-            if (previewBarActions.contains(name) || (name == "separator"_L1 && (toolbar.isEmpty() || toolbar.constLast() == "separator"_L1))) {
+            if (previewBarActions.contains(name) || formerActions.contains(name) || (name == "separator"_L1 && (toolbar.isEmpty() || toolbar.constLast() == "separator"_L1))) {
                 continue;
             }
             toolbar.append(name);
@@ -242,14 +251,14 @@ void App::setupActions()
     Config *config = Config::self();
 
     // Adding and creating
-    addRequest(u"add_files"_s, i18nc("@action", "Add Files…"), u"document-open"_s, QKeySequence::Open);
-    addRequest(u"add_folder"_s, i18nc("@action", "Add Indexed Folder…"), u"folder-add"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_O);
+    addRequest(u"add_folder"_s, i18nc("@action", "Add Indexed Folder…"), u"folder-add"_s, QKeySequence::Open);
     addRequest(u"add_remote"_s, i18nc("@action", "Add Remote Location…"), u"folder-remote"_s);
     addRequest(u"new_text"_s, i18nc("@action", "New Plain Text Document…"), u"document-new"_s, QKeySequence::New);
     addRequest(u"new_markdown"_s, i18nc("@action", "New Markdown Document…"), u"text-markdown"_s);
     addRequest(u"new_richtext"_s, i18nc("@action", "New Formatted Document…"), u"x-office-document"_s);
     addRequest(u"db_manage"_s, i18nc("@action", "Databases…"), u"server-database"_s);
-    addRequest(u"db_add"_s, i18nc("@action", "Add Database…"), u"folder-new"_s);
+    addRequest(u"db_add"_s, i18nc("@action", "Add Database…"), u"document-open"_s);
+    addRequest(u"db_new"_s, i18nc("@action", "New Database…"), u"folder-new"_s);
     addRequest(u"db_rename"_s, i18nc("@action", "Rename Database…"), u"edit-rename"_s);
     addAction(u"rescan"_s, i18nc("@action", "Update Index"), u"view-refresh"_s, QKeySequence::Refresh, [this] {
         m_library->rescanAll();
@@ -814,41 +823,28 @@ void App::showDocument(qint64 documentId)
     m_documents->selectId(documentId);
 }
 
-void App::addUrls(const QList<QUrl> &urls)
+void App::addFolders(const QList<QUrl> &urls)
 {
-    if (urls.isEmpty()) {
-        return;
+    // The library says what it did not take, and why.
+    const qint64 location = m_library->addFolders(urls);
+    if (location != 0) {
+        m_documents->setFilter(QString());
+        goTo(u"source:%1"_s.arg(location));
     }
-    m_library->addUrls(urls);
-    Q_EMIT passiveMessage(i18ncp("@info", "Adding %1 item to Indeks.", "Adding %1 items to Indeks.", urls.size()));
 }
 
 void App::handleArguments(const QStringList &arguments, const QString &workingDirectory)
 {
     QCommandLineParser parser;
-    parser.addPositionalArgument(u"urls"_s, QString());
+    parser.addPositionalArgument(u"folders"_s, QString());
     parser.parse(arguments);
 
-    QList<QUrl> files;
-    qint64 location = 0;
+    QList<QUrl> folders;
     const QStringList positional = parser.positionalArguments();
     for (const QString &argument : positional) {
-        const QUrl url = QUrl::fromUserInput(argument, workingDirectory.isEmpty() ? QDir::currentPath() : workingDirectory, QUrl::AssumeLocalFile);
-        if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir()) {
-            // A folder becomes an indexed location.
-            location = m_library->addSource(url);
-        } else {
-            files.append(url);
-        }
+        folders.append(QUrl::fromUserInput(argument, workingDirectory.isEmpty() ? QDir::currentPath() : workingDirectory, QUrl::AssumeLocalFile));
     }
-    if (!files.isEmpty()) {
-        m_documents->setFilter(QString());
-        goTo(u"place:inbox"_s);
-        addUrls(files);
-    } else if (location != 0) {
-        m_documents->setFilter(QString());
-        goTo(u"source:%1"_s.arg(location));
-    }
+    addFolders(folders);
     Q_EMIT raiseWindow();
 }
 
@@ -1018,37 +1014,37 @@ QVariantList App::databases() const
     return list;
 }
 
-QString App::folderPath(const QString &input) const
+QString App::localPath(const QString &input) const
 {
-    const QString trimmed = input.trimmed();
-    if (trimmed.isEmpty()) {
-        return {};
-    }
-    const QUrl url = QUrl::fromUserInput(trimmed, QDir::homePath(), QUrl::AssumeLocalFile);
-    return url.isLocalFile() ? QDir::cleanPath(url.toLocalFile()) : QString();
+    return DatabaseChoice::localPath(input);
 }
 
-QVariantMap App::inspectDatabaseFolder(const QString &folder) const
+QVariantMap App::inspectDatabaseFile(const QString &file) const
 {
-    const QString path = folderPath(folder);
-    if (path.isEmpty()) {
-        return {{u"path"_s, QString()}, {u"valid"_s, false}};
-    }
-    const DatabaseFolder::State state = DatabaseFolder::inspect(path);
-    const bool known = path == cleanedPath(Paths::defaultDataDir()) || Config::self()->databasePaths().contains(path);
-    return {
-        {u"path"_s, path},
-        {u"valid"_s, true},
-        {u"hasIndex"_s, state.hasIndex},
-        {u"network"_s, state.network},
-        {u"known"_s, known},
-        {u"problem"_s, known ? i18nc("@info", "This database is in the list already.") : Library::databaseProblem(path, true)},
-    };
+    return DatabaseChoice::inspectIndexFile(file);
 }
 
-QString App::addDatabase(const QString &name, const QString &folder)
+QString App::addDatabase(const QString &name, const QString &file)
 {
-    const QVariantMap inspected = inspectDatabaseFolder(folder);
+    const QVariantMap inspected = inspectDatabaseFile(file);
+    if (!inspected.value(u"valid"_s).toBool()) {
+        return i18nc("@info %1 is a file name", "Choose the file “%1” of a database, on this computer or on a mounted share.", Paths::indexFileName());
+    }
+    const QString problem = inspected.value(u"problem"_s).toString();
+    if (!problem.isEmpty()) {
+        return problem;
+    }
+    return openAndListDatabase(name, inspected.value(u"path"_s).toString(), false);
+}
+
+QVariantMap App::inspectNewDatabaseFolder(const QString &folder) const
+{
+    return DatabaseChoice::inspectNewFolder(folder);
+}
+
+QString App::createDatabase(const QString &name, const QString &folder)
+{
+    const QVariantMap inspected = inspectNewDatabaseFolder(folder);
     if (!inspected.value(u"valid"_s).toBool()) {
         return i18nc("@info", "Choose a folder on this computer or on a mounted share.");
     }
@@ -1056,23 +1052,16 @@ QString App::addDatabase(const QString &name, const QString &folder)
     if (!problem.isEmpty()) {
         return problem;
     }
-    const QString path = inspected.value(u"path"_s).toString();
-    const QString error = m_library->switchDatabase(path, true);
+    return openAndListDatabase(name, inspected.value(u"path"_s).toString(), true);
+}
+
+QString App::openAndListDatabase(const QString &name, const QString &path, bool create)
+{
+    const QString error = m_library->switchDatabase(path, create);
     if (!error.isEmpty()) {
         return error;
     }
-    Config *config = Config::self();
-    QStringList paths = config->databasePaths();
-    QStringList names = config->databaseNames();
-    while (names.size() < paths.size()) {
-        names.append(QDir(paths.at(names.size())).dirName());
-    }
-    paths.append(path);
-    names.append(name.trimmed().isEmpty() ? QDir(path).dirName() : name.trimmed());
-    config->setDatabasePaths(paths);
-    config->setDatabaseNames(names);
-    config->setActiveDatabase(path);
-    config->save();
+    DatabaseChoice::list(name, path);
     Q_EMIT databasesChanged();
     return {};
 }

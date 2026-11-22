@@ -18,6 +18,7 @@ Kirigami.Dialog {
     property string problem
 
     signal addRequested()
+    signal newRequested()
     /** The user wants to call the database at @p path something else; the caller asks what. */
     signal renameRequested(string name, string path)
     /** The user wants @p path off the list; the caller asks whether they are sure. */
@@ -40,8 +41,13 @@ Kirigami.Dialog {
     customFooterActions: [
         Kirigami.Action {
             text: i18nc("@action:button", "Add Database…")
-            icon.name: "folder-new"
+            icon.name: "document-open"
             onTriggered: root.addRequested()
+        },
+        Kirigami.Action {
+            text: i18nc("@action:button", "New Database…")
+            icon.name: "folder-new"
+            onTriggered: root.newRequested()
         }
     ]
 

@@ -11,8 +11,8 @@ this changes the file.
 
 ## The inbox
 
-The inbox holds documents that still need your attention: files you added by hand, documents
-you created, and files that turned up in an indexed location.
+The inbox holds documents that still need your attention: documents you created, and files
+that turned up in an indexed location.
 
 **Working with a document takes it out of the inbox.** Any of the following does:
 

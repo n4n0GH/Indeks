@@ -860,7 +860,7 @@ QQC2.Pane {
                             : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "The inbox is empty")
                             : i18nc("@info:placeholder", "No documents here")
                         explanation: searching ? i18nc("@info:placeholder", "Nothing in “%1” matches the search.", App.sidebar.currentLabel)
-                            : nothingIndexed ? i18nc("@info:placeholder", "Add a folder to index its files where they are, or drop files here to put them into the inbox.")
+                            : nothingIndexed ? i18nc("@info:placeholder", "Add a folder, or drop one here, to index its files where they are.")
                             : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "New files wait here until you work with them: put one into a group, tag it, pin it or write a note on it, and it leaves the inbox.")
                             : ""
                         helpfulAction: nothingIndexed ? root.actions.addFolder : null
@@ -900,7 +900,8 @@ QQC2.Pane {
             Accessible.name: i18nc("@info:progress", "Searching…")
         }
 
-        // Files dropped from elsewhere are added to Indeks.
+        // Folders dropped from elsewhere become indexed locations. Files are not taken, and
+        // Indeks says so: a drop that is simply refused would leave the user guessing.
         DropArea {
             anchors.fill: parent
             onEntered: drag => {
@@ -910,7 +911,7 @@ QQC2.Pane {
             }
             onDropped: drop => {
                 if (drop.hasUrls && !drop.formats.includes("application/x-indeks-documents")) {
-                    App.addUrls(drop.urls);
+                    App.addFolders(drop.urls);
                     drop.accept(Qt.LinkAction);
                 }
             }

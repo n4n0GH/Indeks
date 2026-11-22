@@ -16,6 +16,11 @@ namespace Indeks::DatabaseFolder
 struct State {
     bool reachable = false; ///< the folder is there right now
     bool hasIndex = false; ///< it holds a database already
+    /** The file that would be its index is something else; nothing of Indeks' can go here. */
+    bool foreignIndex = false;
+    /** The index is an SQLite database, but could not be looked into just now. */
+    bool unreadableIndex = false;
+    bool empty = false; ///< there is nothing in the folder
     bool writable = false;
     bool network = false; ///< on a share rather than a disk of this computer
     bool tooNew = false; ///< written by a newer Indeks than this one

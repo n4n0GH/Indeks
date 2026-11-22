@@ -20,7 +20,7 @@
       <li>Originals are never modified: editing and drawing happen on a copy kept by Indeks</li>
       <li>Documents on unplugged drives and unreachable servers stay searchable</li>
       <li>Every function is available from the command bar with Ctrl+Alt+I</li>
-      <li>“Send to Indeks” in the context menu of the Dolphin file manager</li>
+      <li>“Send to Indeks” for folders in the context menu of the Dolphin file manager</li>
     </ul>
   </description>
   <url type="homepage">https://github.com/n4n0GH/Indeks</url>

@@ -60,8 +60,7 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 
 | Keys | Command |
 | --- | --- |
-| `Ctrl+O` | Add Files… |
-| `Ctrl+Shift+O` | Add Indexed Folder… |
+| `Ctrl+O` | Add Indexed Folder… |
 | `Ctrl+N` | New Plain Text Document… |
 | `Ctrl+Shift+G` | New Group… |
 | `Ctrl+Shift+S` | Save Search… |
@@ -107,7 +106,6 @@ Every command is in the command bar. This list says what each one does.
 
 ### Adding and creating
 
-- **Add Files…:** Adds files to the inbox.
 - **Add Indexed Folder…:** Makes a folder an indexed location.
 - **Add Remote Location…:** Makes a folder on a server an indexed location.
 - **New Plain Text Document…**, **New Markdown Document…**, **New Formatted Document…:**
@@ -159,7 +157,9 @@ Every command is in the command bar. This list says what each one does.
 
 - **Scripts…**, **Show Script Output**, **Stop Running Scripts:** See *Automation*.
 - **Remove Completed To-Dos:** Removes the to-dos that are done.
-- **Databases…**, **Add Database…**, **Rename Database…:** See *Databases*.
+- **Databases…**, **Rename Database…:** See *Databases*.
+- **Add Database…:** Opens a database that exists, chosen by its file `index.sqlite`.
+- **New Database…:** Starts an empty database in a folder.
 
 ### Application
 

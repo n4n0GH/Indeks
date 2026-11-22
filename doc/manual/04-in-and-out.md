@@ -13,9 +13,13 @@ for, and what happens when a file goes away.
 An *indexed location* is a folder whose files Indeks knows about. The files stay where they
 are.
 
-**Adding a folder.** Choose *Add → Add Indexed Folder…* (`Ctrl+Shift+O`), drop a folder onto
+**Adding a folder.** Choose *Add → Add Indexed Folder…* (`Ctrl+O`), drop a folder onto
 the window, or use *Send to Indeks* on a folder in Dolphin. Indeks reads the folder and all
-folders inside it.
+folders inside it. Starting Indeks with the names of folders adds them too:
+
+```
+indeks ~/Documents
+```
 
 **Keeping up.** Folders on this computer are watched while Indeks runs: new, changed and
 removed files are noticed within moments. When Indeks starts, it looks through all locations
@@ -46,23 +50,27 @@ written to the server. Files larger than the limit set under *Settings → Index
 indexed by name only. While the server cannot be reached, its documents stay searchable.
 Remote locations are checked for changes from time to time and when you choose *Update Now*.
 
-## Single files
+## Folders, not single files
 
-*Add → Add Files…* (`Ctrl+O`) adds files that are not in an indexed location. So does
-dropping files onto the window, *Send to Indeks* in Dolphin, and starting Indeks with file
-names:
+Indeks takes folders, not single files. A file comes into Indeks through the indexed
+location it is in. To have a file in Indeks, put it into a folder that is indexed, or add
+the folder it is in.
 
-```
-indeks report.pdf notes.md
-```
+This is on purpose. A file that is indexed where it happens to lie, among your downloads for
+instance, looks like every other file there. Nothing shows that Indeks knows it, and it is
+easily tidied away. A folder you made a location is a place you know Indeks looks after.
 
-Files added this way go to the inbox.
+- **Dropping a file** onto the window adds nothing, and so does starting Indeks with the name
+  of a file. Indeks says so.
+- **Dolphin** offers *Send to Indeks* for folders only.
+- **Documents from before:** Files that were added one by one with an earlier version of
+  Indeks stay as they are.
 
 ## The inbox and new files
 
 The inbox collects what still needs your attention.
 
-- Files you add by hand and documents you create in Indeks start out in the inbox.
+- Documents you create in Indeks start out in the inbox.
 - A file that turns up in an indexed location *after* the location was first read is put into
   the inbox as well. What was already there when you added the location is not.
 - Rules that run on new documents see a new file first, so a rule can file it and take it

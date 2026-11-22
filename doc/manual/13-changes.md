@@ -12,6 +12,17 @@ chapters before this one always describe the version named on the cover.
 
 The first release. What it brings, the latest additions first:
 
+- **First start:** A new installation asks whether to start a new database, in the usual
+  folder or one you choose, or to open one that exists.
+- **Adding and starting databases:** *Add Database…* now opens a database by its file
+  `index.sqlite` and never starts one. Starting one is *New Database…*, which warns when the
+  folder is not empty. Indeks marks its index files as its own and leaves a file of that name
+  that belongs to another program untouched.
+- **Folders, not single files:** Files come into Indeks through indexed locations only.
+  *Add Files…* is gone, a file dropped onto the window or named when Indeks is started is no
+  longer added, and Dolphin offers *Send to Indeks* for folders only. Documents that were
+  added as single files before stay. See *In and Out → Folders, not single files*.
+  *Add Indexed Folder…* is now on `Ctrl+O`.
 - **Flatpak and AppImage:** Releases are built in both forms, and both update themselves.
 - **Manual:** This manual. *Indeks Manual* (`F1`) opens it. Its table of contents can be
   clicked, and it has bookmarks for chapters and sections.

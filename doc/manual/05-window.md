@@ -23,7 +23,7 @@ From left to right, the toolbar holds:
 - **The menu**, which holds every command, sorted into *Go*, *Document*, *Preview*, *Sidebar*
   and *Scripts*.
 
-**The Add menu.** *Add Files…*, *Add Indexed Folder…*, *Add Remote Location…* and *Add
+**The Add menu.** *Add Indexed Folder…*, *Add Remote Location…*, *Add Database…* and *New
 Database…*.
 
 **The New menu.** New plain text, Markdown and formatted documents; *New Group…*, *New Tag…*
@@ -58,7 +58,7 @@ Search…*. A right-click on a section title offers to make a new entry of that 
 or the trash.
 
 **The database button.** The bottom of the sidebar names the open database. A click lists
-the others; a right-click offers *Rename Database…*, *Databases…* and *Add Database…*.
+the others; a right-click offers *Rename Database…*, *Databases…*, *Add Database…* and *New Database…*.
 
 **The activity display.** While Indeks reads files, recognises text, fetches remote files or
 runs scripts, a line above the database button says what it is doing. A click on it lists

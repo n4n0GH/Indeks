@@ -37,7 +37,7 @@ tag, group and annotate what is in them.
   work on a copy; a file that is deleted elsewhere shows up in the trash instead of vanishing
   from the index.
 - **Keyboard first.** `Ctrl+Alt+I` opens the command bar with every function.
-- **Dolphin.** *Send to Indeks* in the context menu.
+- **Dolphin.** *Send to Indeks* in the context menu of folders.
 
 ## Documentation
 

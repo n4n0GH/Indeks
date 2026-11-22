@@ -35,7 +35,6 @@ Installing is needed for the entry in the application menu, the icon in the icon
 
 ```sh
 indeks                      # start, or raise the running window
-indeks report.pdf notes.md  # put files into the inbox
 indeks ~/Documents          # index a folder
 ```
 
@@ -93,6 +92,9 @@ INDEKS_DATA_DIR=/tmp/indeks-try/data XDG_CONFIG_HOME=/tmp/indeks-try/config \
 WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" XDG_RUNTIME_DIR=/tmp/indeks-try/run \
     dbus-run-session -- build/bin/indeks
 ```
+
+An Indeks that has no data yet begins with the window of a new installation; *Create
+Database* there starts the database in the folder `INDEKS_DATA_DIR` names.
 
 Do not leave the runtime folder out. Services that are started in the new D-Bus session
 otherwise share `/run/user/<uid>` with your real session. The document portal is one of

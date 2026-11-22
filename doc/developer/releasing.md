@@ -74,6 +74,8 @@ repository nobody has installed from yet.
   repository ever move, AppImages that are already out there keep looking in the old place.
 - **The address of the Flatpak repository** (`SITE_URL` in the workflow). Installed copies
   remember it.
+- **The name and the mark of the index:** `index.sqlite` and `Database::ApplicationId`.
+  Every database that exists is found by the one and recognised by the other.
 - **The runtime.** `runtime-version` in `flatpak/io.github.n4n0gh.indeks.yml`,
   `base-version` below it and the tag of the container image in the workflow belong
   together.

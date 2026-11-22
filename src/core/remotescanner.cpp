@@ -226,28 +226,24 @@ void RemoteScanner::finishListing(qint64 sourceId, KJob *job)
     updateStatus();
 }
 
-void RemoteScanner::addFile(const QUrl &url, bool inbox)
+void RemoteScanner::checkFolder(const QUrl &url)
 {
     if (m_stopped) {
         return;
     }
     ++m_listing;
-    KIO::StatJob *job = KIO::stat(url, KIO::StatJob::SourceSide, KIO::StatBasic | KIO::StatTime, KIO::HideProgressInfo);
+    KIO::StatJob *job = KIO::stat(url, KIO::StatJob::SourceSide, KIO::StatBasic, KIO::HideProgressInfo);
     track(job);
-    connect(job, &KJob::result, this, [this, url, inbox, job] {
+    connect(job, &KJob::result, this, [this, url, job] {
         --m_listing;
         if (job->error()) {
             Q_EMIT failed(i18nc("@info", "Cannot add %1: %2", url.toDisplayString(), job->errorString()));
         } else if (job->statResult().isDir()) {
-            Q_EMIT failed(i18nc("@info", "%1 is a folder. Add it as an indexed location instead.", url.toDisplayString()));
+            Q_EMIT folderFound(url);
         } else {
-            RemoteFile file;
-            file.url = url;
-            file.size = job->statResult().numberValue(KIO::UDSEntry::UDS_SIZE, 0);
-            file.mtime = job->statResult().numberValue(KIO::UDSEntry::UDS_MODIFICATION_TIME, 0);
-            file.inbox = inbox;
-            enqueue(file);
-            startNextDownload();
+            Q_EMIT failed(i18nc("@info %1 is the address of a file",
+                                "%1 is a file. Indeks takes folders, not single files: add the folder it is in as an indexed location.",
+                                url.toDisplayString()));
         }
         updateStatus();
     });

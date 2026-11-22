@@ -76,6 +76,7 @@ rule cannot express, such as filing by a year found in the text, write a script.
 
 ## Using Indeks on several computers
 
-Put a database into a folder that all computers can reach, for example on a NAS, and open it
-with *Add Database…* on each of them. Only one computer can have the database open at a time.
+Start a database in a folder that all computers can reach, for example on a NAS, with *New
+Database…* on one of them. On the others, open it with *Add Database…* and choose its file
+`index.sqlite`. Only one computer can have the database open at a time.
 See *Databases* for what to keep in mind.

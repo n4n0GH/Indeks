@@ -17,7 +17,6 @@ Item {
     }
 
     // Adding and creating
-    readonly property Kirigami.Action addFiles: Wrapped { name: "add_files" }
     readonly property Kirigami.Action addFolder: Wrapped { name: "add_folder" }
     readonly property Kirigami.Action addRemote: Wrapped { name: "add_remote" }
     readonly property Kirigami.Action newText: Wrapped { name: "new_text" }
@@ -26,6 +25,7 @@ Item {
     readonly property Kirigami.Action rescan: Wrapped { name: "rescan" }
     readonly property Kirigami.Action databases: Wrapped { name: "db_manage" }
     readonly property Kirigami.Action addDatabase: Wrapped { name: "db_add" }
+    readonly property Kirigami.Action newDatabase: Wrapped { name: "db_new" }
     readonly property Kirigami.Action renameDatabase: Wrapped { name: "db_rename" }
 
     // Documents

@@ -6,8 +6,21 @@
 # Databases
 
 A *database* is a folder in which Indeks keeps everything it knows: the index, the documents
-you created, the copies it made for editing and drawing, and your scripts. Indeks starts with
-one database, the *local database*. You can add more, for example one on a network share.
+you created, the copies it made for editing and drawing, and your scripts. Every installation
+has the *local database*, in a folder of this computer. You can add more, for example one on
+a network share.
+
+## The first start
+
+A new installation asks which database to begin with, before it makes anything:
+
+- **Start a new database** in the usual folder, which is the local database, or in a folder
+  you choose. What is said under *Starting a new database* below goes here too.
+- **Open an existing database** by its file `index.sqlite`, as under *Adding a database*.
+
+If you begin with a database elsewhere, the local database is still in the list. It is
+empty, and is only made when it is first opened: by you, or by Indeks when the other one
+cannot be reached.
 
 ## What a database holds
 
@@ -20,6 +33,9 @@ one database, the *local database*. You can add more, for example one on a netwo
 
 The local database is in `~/.local/share/indeks`.
 
+`index.sqlite` is what makes a folder a database. Indeks marks the file as its own. A file
+of that name that belongs to another program is not opened and not changed.
+
 The files of indexed locations are **not** in the database. The index only records where they
 are.
 
@@ -28,13 +44,45 @@ are.
 One database is open at a time. The button at the bottom of the sidebar says which.
 
 - **Switching:** Click the button and choose another database.
-- **Adding:** *Add → Add Database…* opens the database in a folder you choose, or starts a new
-  one there.
+- **Adding:** *Add → Add Database…* opens a database that exists. See *Adding a database*
+  below.
+- **Starting a new one:** *Add → New Database…*. See *Starting a new database* below.
 - **Renaming:** *Rename Database…* in the menu, the pencil in the list of databases, or a
   right-click on the button. The name is this computer's word for the database; the folder
   keeps its own name.
 - **Managing:** *Databases…* lists all databases and lets you remove one from the list. The
   folder is not deleted.
+
+## Adding a database
+
+*Add Database…* is for a database that is there already, on a share or an external drive for
+instance.
+
+1. Choose *Add → Add Database…*.
+2. Choose the file `index.sqlite` of the database, with *Choose…* or by typing its path. The
+   file dialog leaves out files that have nothing to do with a database, so a folder that
+   holds one is told from one that does not at a glance.
+3. Give the database a name if you like, and choose *Open Database*.
+
+You choose the file and not the folder because the file is the proof that a database is
+there. Indeks does not start a database here: if what you chose is not the index of an Indeks
+database, the dialog says so and nothing is opened.
+
+- **A file with another name**, such as a copy called `backup.sqlite`, is not taken. A
+  database is a folder with a file called `index.sqlite` in it.
+- **Several SQLite files in one folder** are no trouble: only `index.sqlite` is the index,
+  and Indeks does not touch the others.
+
+## Starting a new database
+
+1. Choose *Add → New Database…*.
+2. Choose the folder for it, and a name if you like.
+3. Choose *Create Database*.
+
+Give a database a folder of its own. If the folder you choose is not empty, the dialog warns
+that the database would put its files among what is there, and the button reads *Create
+Database Here Anyway*. A folder that holds an Indeks database already is turned down; add
+that database instead.
 
 ## Databases on network shares
 

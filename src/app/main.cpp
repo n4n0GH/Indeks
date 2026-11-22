@@ -4,6 +4,7 @@
 #include "app.h"
 #include "indeks-version.h"
 #include "indekssettings.h"
+#include "welcome.h"
 
 #include <KAboutData>
 #include <KCrash>
@@ -17,6 +18,7 @@
 #include <QCommandLineParser>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QIcon>
 #include <QNetworkAccessManager>
 #include <QQmlApplicationEngine>
@@ -97,13 +99,43 @@ int main(int argc, char *argv[])
 
     QCommandLineParser parser;
     about.setupCommandLine(&parser);
-    parser.addPositionalArgument(u"urls"_s, i18nc("@info:shell", "Files to put into the inbox and folders to index"), u"[urls…]"_s);
+    parser.addPositionalArgument(u"folders"_s, i18nc("@info:shell", "Folders to index"), u"[folders…]"_s);
     parser.process(app);
     about.processCommandLine(&parser);
 
-    // A second start, for instance through "Send to Indeks" in Dolphin, hands its files to the
-    // running instance and quits.
+    // A second start, for instance through "Send to Indeks" in Dolphin, hands its folders to
+    // the running instance and quits.
     KDBusService service(KDBusService::Unique);
+
+    // A new installation is asked where its database is to be, or which one to open, before
+    // anything is made. Closing the window without an answer is leaving.
+    if (Welcome::isNeeded()) {
+        Welcome welcome;
+        QQmlApplicationEngine asking;
+        KLocalization::setupLocalizedContext(&asking);
+        asking.setInitialProperties({{u"backend"_s, QVariant::fromValue(&welcome)}});
+        asking.loadFromModule("io.github.n4n0gh.indeks", "WelcomeWindow");
+        auto window = asking.rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(asking.rootObjects().constFirst());
+        if (!window) {
+            return 1;
+        }
+        // The window that closes here is not the last one of this run.
+        const bool quitsWithLastWindow = QGuiApplication::quitOnLastWindowClosed();
+        QGuiApplication::setQuitOnLastWindowClosed(false);
+        QEventLoop loop;
+        QObject::connect(&welcome, &Welcome::decided, &loop, &QEventLoop::quit);
+        QObject::connect(window, &QWindow::visibleChanged, &loop, [&loop, window] {
+            if (!window->isVisible()) {
+                loop.quit();
+            }
+        });
+        loop.exec();
+        window->hide();
+        QGuiApplication::setQuitOnLastWindowClosed(quitsWithLastWindow);
+        if (!welcome.isDecided()) {
+            return 0;
+        }
+    }
 
     App indeks(nullptr);
 

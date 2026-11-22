@@ -97,7 +97,7 @@ QQC2.ToolBar {
 
                 text: i18nc("@action:intoolbar", "Add")
                 icon.name: "list-add"
-                children: [root.actions.addFiles, root.actions.addFolder, root.actions.addRemote, addMenuSeparator, root.actions.addDatabase]
+                children: [root.actions.addFolder, root.actions.addRemote, addMenuSeparator, root.actions.addDatabase, root.actions.newDatabase]
             }
             Kirigami.Action {
                 id: newMenu

@@ -5,9 +5,8 @@
 
 # Documents
 
-A *document* in Indeks stands for a file: one in an indexed location, one you added by hand,
-or one you created in Indeks. This chapter describes the kinds of documents and how each is
-shown in the preview.
+A *document* in Indeks stands for a file: one in an indexed location, or one you created in
+Indeks. This chapter describes the kinds of documents and how each is shown in the preview.
 
 ## General
 

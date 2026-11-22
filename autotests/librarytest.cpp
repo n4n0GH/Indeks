@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "database.h"
+#include "databasefolder.h"
 #include "email.h"
 #include "extractor.h"
 #include "extractorpool.h"
@@ -133,6 +134,15 @@ class LibraryTest : public QObject
     {
         QTRY_VERIFY_WITH_TIMEOUT(!m_library->scriptsRunning(), 60000);
         QCoreApplication::processEvents();
+    }
+    /**
+     * Reads what the tests of single file formats wrote into "formats". They run after the
+     * location the other tests share is gone, so their folder is a location of its own.
+     */
+    void indexFormats()
+    {
+        QVERIFY(m_library->addSource(QUrl::fromLocalFile(m_docs.filePath(u"formats"_s))) > 0);
+        settle();
     }
     QStringList tagsOf(qint64 id) const
     {
@@ -507,20 +517,45 @@ private Q_SLOTS:
         QVERIFY(!m_library->documentInfo(id).value(u"inbox"_s).toBool()); // filing empties the inbox
     }
 
-    void addsSingleFilesToTheInbox()
+    void takesFoldersNotSingleFiles()
     {
         QTemporaryDir elsewhere;
-        writeFile(elsewhere.filePath(u"loose.txt"_s), "A loose leaf about a submarine.\n");
-        m_library->addUrls({QUrl::fromLocalFile(elsewhere.filePath(u"loose.txt"_s))});
+        const QUrl loose = QUrl::fromLocalFile(elsewhere.filePath(u"loose.txt"_s));
+        writeFile(loose.toLocalFile(), "A loose leaf about a submarine.\n");
+        writeFile(elsewhere.filePath(u"second.txt"_s), "Another one.\n");
+
+        // A file by itself is turned down, with a word on what to do instead.
+        QSignalSpy told(m_library.get(), &Library::message);
+        QCOMPARE(m_library->addFolders({loose}), 0);
         settle();
-        QCOMPARE(m_library->count(u"is:inbox submarine"_s), 1);
-        const Document doc = Store::documentByUrl(QUrl::fromLocalFile(elsewhere.filePath(u"loose.txt"_s)));
-        QCOMPARE(doc.sourceId, 0);
-        QVERIFY(!doc.owned);
-        m_library->moveToTrash(ids({doc.id}));
-        m_library->emptyTrash();
-        QVERIFY(!Store::document(doc.id).isValid());
-        QVERIFY(QFile::exists(elsewhere.filePath(u"loose.txt"_s))); // the file itself is left alone
+        QCOMPARE(told.size(), 1);
+        QVERIFY(told.constFirst().constFirst().toString().contains(u"loose.txt"_s));
+        QVERIFY(!Store::documentByUrl(loose).isValid());
+        QCOMPARE(m_library->count(u"submarine"_s), 0);
+
+        // Several are turned down in one go, and what is not there is said to be not there.
+        told.clear();
+        QCOMPARE(m_library->addFolders({loose, QUrl::fromLocalFile(elsewhere.filePath(u"second.txt"_s)), QUrl::fromLocalFile(elsewhere.filePath(u"nothing"_s))}), 0);
+        settle();
+        QCOMPARE(told.size(), 2);
+        QCOMPARE(m_library->count(u"submarine"_s), 0);
+
+        // The folder it is in is what Indeks takes: it becomes a location, the file with it.
+        told.clear();
+        const qint64 location = m_library->addFolders({loose, QUrl::fromLocalFile(elsewhere.path())});
+        QVERIFY(location > 0);
+        settle();
+        QCOMPARE(told.size(), 1); // about the file that was named beside the folder
+        QCOMPARE(Store::documentByUrl(loose).sourceId, location);
+        QCOMPARE(m_library->count(u"submarine"_s), 1);
+        // Naming it again adds no second location.
+        QCOMPARE(m_library->addFolders({QUrl::fromLocalFile(elsewhere.path())}), location);
+        settle();
+
+        m_library->removeSource(location);
+        settle();
+        QVERIFY(!Store::documentByUrl(loose).isValid());
+        QVERIFY(QFile::exists(loose.toLocalFile())); // the file itself is left alone
     }
 
     void rulesRunOnImport()
@@ -1534,6 +1569,31 @@ def process(document):
         QVERIFY(fetched.startsWith(Paths::cacheDir()));
         QCOMPARE(readFile(fetched), QByteArray("A faraway file about a dirigible.\n"));
 
+        // Dropped onto the window or sent from the file manager, a folder on a server becomes
+        // a location once the server has said that it is a folder. A file there is not taken.
+        const QString second = m_data.filePath(u"second.tar"_s);
+        QCOMPARE(QProcess::execute(u"tar"_s, {u"-cf"_s, second, u"-C"_s, remote.path(), u"deep"_s}), 0);
+        QUrl folderUrl = url;
+        folderUrl.setPath(second + "/deep"_L1);
+        QUrl looseUrl = url;
+        looseUrl.setPath(second + "/deep/further.md"_L1);
+        const int sourcesBefore = m_library->sources().size();
+        QSignalSpy told(m_library.get(), &Library::message);
+        QCOMPARE(m_library->addFolders({looseUrl}), 0);
+        QVERIFY(told.wait(20000));
+        QVERIFY(told.constFirst().constFirst().toString().contains(u"further.md"_s));
+        QVERIFY(!Store::documentByUrl(looseUrl).isValid());
+        QCOMPARE(m_library->sources().size(), sourcesBefore);
+
+        QCOMPARE(m_library->addFolders({folderUrl}), 0); // not yet: the server is asked first
+        QVERIFY(QTest::qWaitFor([&] { return m_library->sources().size() == sourcesBefore + 1; }, 20000));
+        QVERIFY(QTest::qWaitFor([&] { return Store::documentByUrl(looseUrl).isValid() && !m_library->isBusy(); }, 20000));
+        const qint64 sent = Store::documentByUrl(looseUrl).sourceId;
+        QVERIFY(sent > 0 && sent != source);
+        m_library->removeSource(sent);
+        QCOMPARE(m_library->sources().size(), sourcesBefore);
+        QVERIFY(QFile::remove(second));
+
         // When the location cannot be reached its documents stay in the index.
         QVERIFY(QFile::remove(archive));
         m_library->rescanSource(source);
@@ -1594,18 +1654,18 @@ def process(document):
 
     void jsonLinesDocuments()
     {
+        QVERIFY(QDir(m_docs.path()).mkpath(u"formats"_s));
         // Records that quote markup made the type detection take the file for a web page.
         QByteArray content;
         for (int i = 1; i <= 30; ++i) {
             content += "{\"url\": \"https://example.org/" + QByteArray::number(i)
                 + "\", \"snip\": \"<html><head><title>Moved</title></head><body><h1>quokka</h1></body></html>\"}\n";
         }
-        const QString path = m_docs.filePath(u"routes.jsonl"_s);
+        const QString path = m_docs.filePath(u"formats/routes.jsonl"_s);
         writeFile(path, content);
-        writeFile(m_docs.filePath(u"small.json"_s), "{\n  \"pretty\": true\n}\n");
-        writeFile(m_docs.filePath(u"packed.json"_s), "{\"packed\":\"" + QByteArray(600, 'y') + "\",\"n\":[1,2]}");
-        m_library->addUrls({QUrl::fromLocalFile(path), QUrl::fromLocalFile(m_docs.filePath(u"small.json"_s)), QUrl::fromLocalFile(m_docs.filePath(u"packed.json"_s))});
-        settle();
+        writeFile(m_docs.filePath(u"formats/small.json"_s), "{\n  \"pretty\": true\n}\n");
+        writeFile(m_docs.filePath(u"formats/packed.json"_s), "{\"packed\":\"" + QByteArray(600, 'y') + "\",\"n\":[1,2]}");
+        indexFormats();
 
         const Document doc = Store::documentByUrl(QUrl::fromLocalFile(path));
         QVERIFY(doc.isValid());
@@ -1623,8 +1683,8 @@ def process(document):
         QCOMPARE(m_library->formattedText(doc.id, 0).value(u"shown"_s).toInt(), 30);
 
         // JSON that is already laid out is left alone, packed JSON is opened up.
-        QVERIFY(m_library->formattedText(idOf(u"small.json"_s), 0).isEmpty());
-        const QVariantMap packed = m_library->formattedText(idOf(u"packed.json"_s), 0);
+        QVERIFY(m_library->formattedText(idOf(u"formats/small.json"_s), 0).isEmpty());
+        const QVariantMap packed = m_library->formattedText(idOf(u"formats/packed.json"_s), 0);
         QVERIFY(!packed.value(u"lines"_s).toBool());
         QVERIFY(packed.value(u"text"_s).toString().endsWith(u"\"n\": [\n    1,\n    2\n  ]\n}"_s));
         QVERIFY(m_library->formattedText(idOf(u"shopping.txt"_s), 0).isEmpty());
@@ -1632,6 +1692,7 @@ def process(document):
 
     void countsTheRecordsOfLargeFilesLater()
     {
+        QVERIFY(QDir(m_docs.path()).mkpath(u"formats"_s));
         // More than the preview reads: its records are not counted while the user waits for
         // the document to show, but afterwards, away from the user interface.
         QByteArray content;
@@ -1641,11 +1702,10 @@ def process(document):
             content += "{\"n\": " + QByteArray::number(++records) + ", \"filler\": \"" + filler + "\"}\n";
         }
         content += "\n   \n"; // lines with nothing on them are no records
-        const QString path = m_docs.filePath(u"long.jsonl"_s);
+        const QString path = m_docs.filePath(u"formats/long.jsonl"_s);
         writeFile(path, content);
-        m_library->addUrls({QUrl::fromLocalFile(path)});
-        settle();
-        const qint64 id = idOf(u"long.jsonl"_s);
+        indexFormats();
+        const qint64 id = idOf(u"formats/long.jsonl"_s);
         QVERIFY(id != 0);
 
         const QVariantMap formatted = m_library->formattedText(id, 10);
@@ -1660,26 +1720,26 @@ def process(document):
         QCOMPARE(counted.constFirst().at(1).toInt(), records);
 
         // A file the preview reads whole is counted on the spot, as before.
-        const QVariantMap small = m_library->formattedText(idOf(u"routes.jsonl"_s), 10);
+        const QVariantMap small = m_library->formattedText(idOf(u"formats/routes.jsonl"_s), 10);
         QCOMPARE(small.value(u"total"_s).toInt(), 30);
         QVERIFY(small.value(u"more"_s).toBool());
-        QVERIFY(!m_library->formattedText(idOf(u"routes.jsonl"_s), 0).value(u"more"_s).toBool());
+        QVERIFY(!m_library->formattedText(idOf(u"formats/routes.jsonl"_s), 0).value(u"more"_s).toBool());
     }
 
     void officeDocuments()
     {
+        QVERIFY(QDir(m_docs.path()).mkpath(u"formats"_s));
         QVERIFY(Office::isOfficeDocument(u"application/vnd.openxmlformats-officedocument.wordprocessingml.document"_s));
         QVERIFY(Office::isOfficeDocument(u"application/vnd.ms-excel"_s));
         QVERIFY(!Office::isOfficeDocument(u"application/pdf"_s));
         QVERIFY(!Office::isOfficeDocument(u"text/plain"_s));
 
         // RTF is the one Office format that can be written out by hand here.
-        const QString path = m_docs.filePath(u"memo.rtf"_s);
+        const QString path = m_docs.filePath(u"formats/memo.rtf"_s);
         const QByteArray content = "{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}}\\f0 Memo about the \\b okapi\\b0  enclosure.\\par Second paragraph.}";
         writeFile(path, content);
-        m_library->addUrls({QUrl::fromLocalFile(path)});
-        settle();
-        const qint64 id = idOf(u"memo.rtf"_s);
+        indexFormats();
+        const qint64 id = idOf(u"formats/memo.rtf"_s);
         QVERIFY(id > 0);
         QVERIFY(m_library->documentInfo(id).value(u"office"_s).toBool());
         QCOMPARE(m_library->count(u"okapi"_s), 1);
@@ -1761,6 +1821,117 @@ def process(document):
         QVERIFY(!m_library->switchDatabase(second).isEmpty());
         QCOMPARE(QDir::cleanPath(m_library->databaseDir()), home);
         QCOMPARE(m_library->count(QString()), before);
+    }
+
+    void tellsItsIndexFromOtherFiles()
+    {
+        QTemporaryDir share;
+        QVERIFY(share.isValid());
+        const QString home = QDir::cleanPath(m_library->databaseDir());
+        const QString indexName = Paths::indexFileName();
+        // Runs one statement on an SQLite file, the way another program would.
+        auto sqlite = [](const QString &file, const QString &sql) {
+            QVariant result;
+            {
+                QSqlDatabase db = QSqlDatabase::addDatabase(u"QSQLITE"_s, u"librarytest-other"_s);
+                db.setDatabaseName(file);
+                if (db.open()) {
+                    QSqlQuery query(db);
+                    if (query.exec(sql) && query.next()) {
+                        result = query.value(0);
+                    }
+                    query.finish();
+                    db.close();
+                }
+            }
+            QSqlDatabase::removeDatabase(u"librarytest-other"_s);
+            return result;
+        };
+
+        // The index that is open carries the mark of Indeks.
+        QCOMPARE(Database::value(u"PRAGMA application_id"_s).toInt(), Database::ApplicationId);
+        QCOMPARE(Database::inspectFile(home + u'/' + indexName).kind, Database::FileKind::Own);
+
+        // The database of another program that happens to be called like an index: it is
+        // not opened, nothing is started beside it, and not a byte of it changes.
+        const QString other = share.filePath(u"other"_s);
+        QVERIFY(QDir().mkpath(other));
+        const QString otherIndex = other + u'/' + indexName;
+        sqlite(otherIndex, u"CREATE TABLE recipes (id INTEGER PRIMARY KEY, name TEXT)"_s);
+        sqlite(otherIndex, u"INSERT INTO recipes (name) VALUES ('Borscht')"_s);
+        const QByteArray untouched = readFile(otherIndex);
+        QVERIFY(!untouched.isEmpty());
+        QCOMPARE(Database::inspectFile(otherIndex).kind, Database::FileKind::Foreign);
+        QVERIFY(Library::databaseProblem(other, false).contains(indexName));
+        QVERIFY(Library::databaseProblem(other, true).contains(indexName));
+        QVERIFY(!m_library->switchDatabase(other, true).isEmpty());
+        QVERIFY(!m_library->switchDatabase(other, false).isEmpty());
+        QCOMPARE(QDir::cleanPath(m_library->databaseDir()), home);
+        QCOMPARE(readFile(otherIndex), untouched);
+        QCOMPARE(QDir(other).entryList(QDir::AllEntries | QDir::NoDotAndDotDot), QStringList{indexName});
+
+        // So with another program's mark on it, and with a file that is no database at all.
+        const QString marked = share.filePath(u"marked"_s);
+        QVERIFY(QDir().mkpath(marked));
+        sqlite(marked + u'/' + indexName, u"PRAGMA application_id = 4711"_s);
+        QCOMPARE(Database::inspectFile(marked + u'/' + indexName).kind, Database::FileKind::Foreign);
+        const QString scribble = share.filePath(u"scribble"_s);
+        QVERIFY(QDir().mkpath(scribble));
+        writeFile(scribble + u'/' + indexName, "Not a database, just called like one.\n");
+        QCOMPARE(Database::inspectFile(scribble + u'/' + indexName).kind, Database::FileKind::Foreign);
+        QVERIFY(!m_library->switchDatabase(scribble, true).isEmpty());
+        QCOMPARE(readFile(scribble + u'/' + indexName), QByteArray("Not a database, just called like one.\n"));
+
+        // A file with nothing in it is where a start was cut short: no database, but one
+        // can begin there.
+        const QString blank = share.filePath(u"blank"_s);
+        QVERIFY(QDir().mkpath(blank));
+        writeFile(blank + u'/' + indexName, QByteArray());
+        QCOMPARE(Database::inspectFile(blank + u'/' + indexName).kind, Database::FileKind::Blank);
+        QVERIFY(!Library::databaseProblem(blank, false).isEmpty());
+        QCOMPARE(Library::databaseProblem(blank, true), QString());
+        QCOMPARE(Database::inspectFile(share.filePath(u"nowhere/"_s) + indexName).kind, Database::FileKind::Missing);
+
+        // An index from before Indeks marked its files is known by what is in it, and gets
+        // its mark when it is opened.
+        const QString old = share.filePath(u"old"_s);
+        QVERIFY(QDir().mkpath(old));
+        QCOMPARE(m_library->switchDatabase(old, true), QString());
+        QCOMPARE(m_library->switchDatabase(QString()), QString());
+        const QString oldIndex = old + u'/' + indexName;
+        QCOMPARE(sqlite(oldIndex, u"PRAGMA application_id"_s).toInt(), Database::ApplicationId);
+        sqlite(oldIndex, u"PRAGMA application_id = 0"_s);
+        QCOMPARE(sqlite(oldIndex, u"PRAGMA application_id"_s).toInt(), 0);
+        const Database::FileState before = Database::inspectFile(oldIndex);
+        QCOMPARE(before.kind, Database::FileKind::Own);
+        QCOMPARE(before.version, Database::SchemaVersion);
+        QCOMPARE(Library::databaseProblem(old, false), QString());
+        QCOMPARE(m_library->switchDatabase(old), QString());
+        QCOMPARE(Database::value(u"PRAGMA application_id"_s).toInt(), Database::ApplicationId);
+        QCOMPARE(m_library->switchDatabase(QString()), QString());
+        QCOMPARE(QDir::cleanPath(m_library->databaseDir()), home);
+
+        // A database is added by its index file: the folder is not enough, and neither is
+        // another file in it.
+        QString problem;
+        QCOMPARE(Library::databaseOfIndexFile(oldIndex, &problem), old);
+        QCOMPARE(problem, QString());
+        QCOMPARE(Library::databaseOfIndexFile(old, &problem), QString());
+        QVERIFY(problem.contains(indexName));
+        writeFile(old + "/backup.sqlite"_L1, readFile(oldIndex));
+        QCOMPARE(Library::databaseOfIndexFile(old + "/backup.sqlite"_L1, &problem), QString());
+        QVERIFY(problem.contains(u"backup.sqlite"_s));
+        QCOMPARE(Library::databaseOfIndexFile(old + "/missing.sqlite"_L1, &problem), QString());
+        QVERIFY(!problem.isEmpty());
+
+        // Whether there is anything in a folder, for the warning before a database is
+        // started among other things.
+        const QString bare = share.filePath(u"bare"_s);
+        QVERIFY(QDir().mkpath(bare));
+        QVERIFY(DatabaseFolder::inspect(bare).empty);
+        writeFile(bare + "/.hidden"_L1, "x");
+        QVERIFY(!DatabaseFolder::inspect(bare).empty);
+        QVERIFY(!DatabaseFolder::inspect(old).empty);
     }
 
     void documentsKeptForTheUsersWorkGoWithIt()

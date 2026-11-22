@@ -5,8 +5,46 @@
 
 # The database
 
-A database is a folder. The index in it is one SQLite file, `index.sqlite`; beside it are
-`files/` (documents created in Indeks), `copies/` (working copies) and `scripts/`.
+A database is a folder. The index in it is one SQLite file, `index.sqlite`
+(`Paths::indexFileName()`); beside it are `files/` (documents created in Indeks), `copies/`
+(working copies) and `scripts/`.
+
+## Whose file it is
+
+The name alone does not make a file the index. `PRAGMA application_id` of an index is
+`Database::ApplicationId` (`0x496E646B`, "Indk"); `Database::migrate()` sets it when it makes
+a database, and puts it on an index from before the mark the first time that is opened. This
+is no change of the schema: older versions of Indeks do not look at the number.
+
+`Database::inspectFile()` says what a file is, without changing it:
+
+| `FileKind` | Means | What follows |
+| --- | --- | --- |
+| `Missing` | No such file. | A database can be started in the folder. |
+| `Blank` | An empty file, or an SQLite database without a table: a start that was cut short. | As `Missing`. |
+| `Own` | It has the mark, or it has no mark and the tables `documents` and `sources`. | It is opened. |
+| `Foreign` | Another mark, other tables, or no SQLite database at all. | Nothing is opened or started in the folder (`Library::databaseProblem()`). |
+| `Unreadable` | An SQLite database that could not be asked, locked for instance. | Refused for now. |
+
+`Database::connection()` asks the same question of the file it has just opened, before any
+of the statements that write to it, and closes a foreign one again. That is the second line
+of defence; `databaseProblem()` is asked first wherever a database is chosen.
+
+The interface follows from this. *Add Database…* takes the index file itself
+(`Library::databaseOfIndexFile()`, `App::addDatabase()`) and never starts a database. *New
+Database…* takes a folder (`App::createDatabase()`), turns down one that holds a database
+and warns about one that is not empty (`DatabaseFolder::State::empty`).
+
+A new installation has neither a local database nor one in its list (`Welcome::isNeeded()`).
+`main()` then shows `WelcomeWindow.qml` before it makes the `App`, so that no database is
+started before the user has said where. The answer goes into the settings, and start-up
+goes on as always. Two things follow from a start elsewhere than in the local folder:
+
+- The chosen folder has no index yet when `App` picks the database to open. That one folder
+  (`Welcome::folderToStartIn()`) may be started in; any other folder without an index is
+  still taken for a share that is not mounted, and Indeks opens the local database.
+- The local database may not exist when Indeks goes back to it. `Library::switchDatabase()`
+  starts it then, whatever `create` says.
 
 ## Schema
 
@@ -32,7 +70,7 @@ step, in one transaction. A database from a newer Indeks is refused.
 
 | Column | Meaning |
 | --- | --- |
-| `source_id` | The location it belongs to; 0 for documents added by hand or created in Indeks. |
+| `source_id` | The location it belongs to; 0 for documents created in Indeks, for those kept when their location was removed, and for files that were added one by one before Indeks stopped taking single files. |
 | `url` | Where the file is. Unique. Messages of a mailbox have `indeks-part:<mailbox>/<id>`. |
 | `mime`, `kind` | MIME type and the kind derived from it (`Kind` in `types.h`). |
 | `size`, `mtime`, `hash` | Of the file as it was read. A scan compares size and time; the hash recognises moved files and duplicates. `mtime = 0` marks a file to be read again. |

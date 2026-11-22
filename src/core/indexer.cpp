@@ -512,47 +512,6 @@ void IndexWorker::indexMailbox(qint64 mailboxId, const QueueItem &item)
     notifyChanged(true);
 }
 
-void IndexWorker::indexFiles(const QList<QUrl> &urls, bool inbox)
-{
-    Q_EMIT jobStarted();
-    QList<QUrl> files;
-    QList<QueueItem> items;
-    for (const QUrl &url : urls) {
-        const QFileInfo info(url.toLocalFile());
-        if (url.isLocalFile() && info.isFile()) {
-            files.append(url);
-            items.append(queueItemForUrl(url, info.size()));
-        }
-    }
-    if (!items.isEmpty()) {
-        Q_EMIT batchStarted(items);
-    }
-
-    QList<Indexing::FileJob> jobs;
-    jobs.reserve(files.size());
-    for (const QUrl &url : std::as_const(files)) {
-        Indexing::FileJob job;
-        job.path = url.toLocalFile();
-        job.url = url;
-        job.inbox = inbox;
-        job.owned = job.path.startsWith(Paths::filesDir() + u'/');
-        jobs.append(job);
-    }
-    const bool ocrWanted = indexJobs(jobs, items, true, [inbox](const Indexing::FileJob &, const Indexing::Result &result) {
-        if (inbox && !result.created && result.id != 0) {
-            // Adding a document by hand that Indeks already knows still puts it up for filing.
-            Database::exec(u"UPDATE documents SET inbox = 1, trashed = 0 WHERE id = ?"_s, {result.id});
-        }
-    });
-    flushAdded();
-    notifyChanged(true);
-    Q_EMIT progress(Idle, {}, 0, 0);
-    Q_EMIT jobFinished();
-    if (ocrWanted && !aborted()) {
-        processOcrQueue();
-    }
-}
-
 void IndexWorker::indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox)
 {
     Q_EMIT jobStarted();
@@ -990,20 +949,6 @@ void Indexer::scanDirectory(qint64 sourceId, const QString &directory, bool recu
     description.state = QueueItem::WaitingForScan;
     post(description, [worker = m_worker, sourceId, directory, recursive] {
         worker->scanDirectory(sourceId, directory, recursive);
-    });
-}
-
-void Indexer::indexFiles(const QList<QUrl> &urls, bool inbox)
-{
-    QueueItem description;
-    if (urls.size() == 1) {
-        const QUrl url = urls.constFirst();
-        description = queueItemForUrl(url, url.isLocalFile() ? QFileInfo(url.toLocalFile()).size() : -1);
-    } else {
-        description.name = i18ncp("@item several files that wait to be read", "%1 file", "%1 files", urls.size());
-    }
-    post(description, [worker = m_worker, urls, inbox] {
-        worker->indexFiles(urls, inbox);
     });
 }
 

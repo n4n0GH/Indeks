@@ -232,6 +232,9 @@ Library::Library(QObject *parent)
     connect(m_remote, &RemoteScanner::busyChanged, this, &Library::busyChanged);
     connect(m_remote, &RemoteScanner::statusChanged, this, &Library::statusChanged);
     connect(m_remote, &RemoteScanner::failed, this, &Library::message);
+    connect(m_remote, &RemoteScanner::folderFound, this, [this](const QUrl &url) {
+        addSource(url);
+    });
     const auto vanished = [this](const QStringList &names) {
         Q_EMIT message(names.size() == 1
                            ? i18nc("@info", "“%1” is gone from where it was. It is in the trash now, and leaves it by itself if the file comes back.", names.constFirst())
@@ -334,6 +337,15 @@ QString Library::databaseProblem(const QString &dir, bool create)
     if (!state.reachable) {
         return i18nc("@info", "The folder “%1” cannot be reached. If it is on a network share or an external drive, connect that first.", dir);
     }
+    if (state.foreignIndex) {
+        return i18nc("@info %1 is a file name, %2 a folder",
+                     "The file “%1” in “%2” is not an Indeks database. Indeks leaves it as it is.",
+                     Paths::indexFileName(),
+                     dir);
+    }
+    if (state.unreadableIndex) {
+        return i18nc("@info", "The database in “%1” cannot be read right now.", dir);
+    }
     if (!state.hasIndex && !create) {
         return i18nc("@info", "There is no Indeks database in “%1”.", dir);
     }
@@ -349,6 +361,26 @@ QString Library::databaseProblem(const QString &dir, bool create)
     return {};
 }
 
+QString Library::databaseOfIndexFile(const QString &file, QString *problem)
+{
+    const QFileInfo info(file);
+    QString reason;
+    if (info.isDir()) {
+        reason = i18nc("@info %1 is a file name", "Choose the file “%1” of the database, not its folder.", Paths::indexFileName());
+    } else if (!info.isFile()) {
+        reason = i18nc("@info", "There is no file “%1”.", file);
+    } else if (info.fileName() != Paths::indexFileName()) {
+        reason = i18nc("@info %1 is the file chosen, %2 the name it would have to have",
+                       "“%1” is not the index of an Indeks database. That file is called “%2”.",
+                       info.fileName(),
+                       Paths::indexFileName());
+    }
+    if (problem) {
+        *problem = reason;
+    }
+    return reason.isEmpty() ? QDir::cleanPath(info.absolutePath()) : QString();
+}
+
 QString Library::switchDatabase(const QString &dir, bool create)
 {
     const QString target = QDir::cleanPath(dir.isEmpty() ? Paths::defaultDataDir() : dir);
@@ -356,7 +388,11 @@ QString Library::switchDatabase(const QString &dir, bool create)
     if (target == previous && Database::isOpen()) {
         return {};
     }
-    const QString problem = databaseProblem(target, create);
+    // The local database is the one that is always to be had: Indeks goes back to it when
+    // another cannot be reached. It is started on the way if it was never used, as on an
+    // installation that began with a database elsewhere.
+    const bool local = target == QDir::cleanPath(Paths::defaultDataDir());
+    const QString problem = databaseProblem(target, create || local);
     if (!problem.isEmpty()) {
         return problem;
     }
@@ -858,29 +894,41 @@ void Library::dispatchPendingDirectories()
 // ---------------------------------------------------------------------------------------------
 // Adding documents
 
-void Library::addUrls(const QList<QUrl> &urls)
+qint64 Library::addFolders(const QList<QUrl> &urls)
 {
-    QList<QUrl> files;
+    qint64 added = 0;
+    QStringList files;
     for (const QUrl &url : urls) {
         if (!url.isValid()) {
             continue;
         }
         if (!url.isLocalFile()) {
-            m_remote->addFile(url, true);
+            // Only the server knows whether this is a folder; see folderFound().
+            m_remote->checkFolder(url);
             continue;
         }
         const QFileInfo info(url.toLocalFile());
         if (info.isDir()) {
-            addSource(url);
-        } else if (info.isFile()) {
-            files.append(QUrl::fromLocalFile(QDir::cleanPath(info.absoluteFilePath())));
+            if (const qint64 id = addSource(url); id != 0) {
+                added = id;
+            }
+        } else if (info.exists()) {
+            files.append(info.fileName());
         } else {
             Q_EMIT message(i18nc("@info", "“%1” does not exist.", url.toLocalFile()));
         }
     }
-    if (!files.isEmpty()) {
-        m_indexer->indexFiles(files, true);
+    if (files.size() == 1) {
+        Q_EMIT message(i18nc("@info %1 is the name of a file",
+                             "“%1” is a file. Indeks takes folders, not single files: add the folder it is in as an indexed location.",
+                             files.constFirst()));
+    } else if (!files.isEmpty()) {
+        Q_EMIT message(i18ncp("@info",
+                              "%1 file was not added. Indeks takes folders, not single files: add the folder it is in as an indexed location.",
+                              "%1 files were not added. Indeks takes folders, not single files: add the folders they are in as indexed locations.",
+                              files.size()));
     }
+    return added;
 }
 
 qint64 Library::adoptOwnedFile(const QString &path)

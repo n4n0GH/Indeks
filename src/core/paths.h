@@ -30,6 +30,11 @@ QString copiesDir();
 /** Downloads of remote documents; safe to delete at any time. */
 QString cacheDir();
 QString databaseFile();
+/**
+ * What the index of a database is called, in whatever folder the database is. The name is
+ * fixed: the folder is the database, and this is the one file in it that is its index.
+ */
+QString indexFileName();
 
 /** Returns a path inside @p dir for @p fileName that does not exist yet. */
 QString uniqueFilePath(const QString &dir, const QString &fileName);

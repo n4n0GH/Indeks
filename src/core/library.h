@@ -87,6 +87,13 @@ public:
      * started there.
      */
     static QString databaseProblem(const QString &dir, bool create);
+    /**
+     * The folder of the database whose index @p file is. A database is added by pointing at
+     * its index, which is what shows that there is one. Empty, with the reason in
+     * @p problem, if the file is not called like an index; whether it is one,
+     * databaseProblem() says of the folder.
+     */
+    static QString databaseOfIndexFile(const QString &file, QString *problem = nullptr);
 
     /**
      * Closes the database that is open and opens the one in @p dir (empty: the default one)
@@ -124,8 +131,17 @@ public:
     bool isSourceAvailable(qint64 id) const;
 
     // Adding documents
-    /** Files go to the inbox, folders become indexed locations. */
-    Q_INVOKABLE void addUrls(const QList<QUrl> &urls);
+    /**
+     * Makes folders indexed locations, as addSource() does one by one: what was dropped onto
+     * the window, sent from Dolphin or named when Indeks was started. Returns the last local
+     * one, 0 if there was none. A folder on a server is added once the server has said that
+     * it is one.
+     *
+     * Single files are turned down with a message(): files come into Indeks through the
+     * folders they are in. A file that is indexed where it happens to lie is not seen to
+     * belong to Indeks, and is all too easily tidied away.
+     */
+    Q_INVOKABLE qint64 addFolders(const QList<QUrl> &urls);
     /** Creates a document in Indeks' own directory. @p format is "text", "markdown" or "html". */
     Q_INVOKABLE qint64 createDocument(const QString &name, const QString &format, const QString &content = QString());
 
