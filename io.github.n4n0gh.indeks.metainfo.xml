@@ -36,6 +36,18 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-11-22">
+      <description>
+        <p>Files now come into Indeks through indexed folders only, and databases are chosen with more care.</p>
+        <ul>
+          <li>A new installation asks whether to start a new database or to open one that exists</li>
+          <li>“Add Database…” opens a database by its file index.sqlite; “New Database…” starts one and warns when the folder is not empty</li>
+          <li>Indeks marks its index files as its own and leaves a file of that name from another program untouched</li>
+          <li>Single files can no longer be added: “Add Files…” is gone, and “Send to Indeks” in Dolphin is for folders</li>
+          <li>“Add Indexed Folder…” is on Ctrl+O</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-21">
       <description>
         <p>The first release: indexing in place, search, groups, tags and rules, previews of many kinds of documents, notes and drawing, a to-do list, scripts, and a manual.</p>
