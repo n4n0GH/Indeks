@@ -117,6 +117,10 @@ dist/Indeks-*-x86_64.AppImage
 - The C library of the build system is newer than what many systems have. The AppImage
   carries it and starts through it on a system with an older one; on any other it uses
   the system's. The helper program that reads files goes the same way.
+- The container image and the package repository of Tumbleweed are not always of the same
+  day. The workflow therefore begins with `zypper dup --allow-downgrade`, which puts the
+  image at what the repository has. Without it, a day on which the image is ahead ends
+  with packages that cannot be installed, before anything is built.
 - A package the workflow is missing shows as a build that fails, or as an AppImage that
   starts without something: a QML module, an icon engine, a way to reach servers. What
   the script copies by hand is listed in it with the reason; packages for it go into the

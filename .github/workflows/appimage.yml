@@ -34,6 +34,11 @@ jobs:
       - name: Install what Indeks is built and bundled with
         run: |
           zypper --non-interactive refresh
+          # The image and the repository are not always of the same day. Where
+          # the image is ahead, the packages to build with ask for older
+          # libraries than it has, and nothing can be installed. This puts
+          # what is in the image at what the repository has, older or newer.
+          zypper --non-interactive dup --allow-downgrade --no-recommends
           zypper --non-interactive install --no-recommends \
             git tar gzip curl file binutils gawk findutils \
             cmake ninja gcc-c++ rsvg-convert desktop-file-utils \
