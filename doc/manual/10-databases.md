@@ -103,12 +103,48 @@ A database can live in a folder on a mounted share, for example on a NAS.
 
 ## Where Indeks keeps things
 
+Installed with the system, or run as an AppImage:
+
 | Path | Content |
 | --- | --- |
 | `~/.local/share/indeks/` | The local database |
 | `~/.cache/indeks/` | Downloads of remote documents, PDFs made of Office documents, messages taken out of mailboxes. Safe to delete. |
 | `~/.config/indeksrc` | Settings, including the list of databases |
 | `~/.config/indeks-allowed-scripts` | Which scripts of shared databases may run on this computer |
+| `~/.local/state/indeksstaterc` | The size and place of the window, and the folders last used in file dialogs |
+
+The Flatpak keeps all of this in one folder of its own,
+`~/.var/app/io.github.n4n0gh.indeks/`:
+
+| Path in that folder | Content |
+| --- | --- |
+| `data/indeks/` | The local database |
+| `cache/indeks/` | The cache. Safe to delete. |
+| `config/indeksrc` | Settings, including the list of databases |
+| `config/indeks-allowed-scripts` | Which scripts of shared databases may run on this computer |
+
+Databases you started or added somewhere else are in the folders you chose for them, with
+either kind of installation. *Databases…* lists where each one is.
+
+## Uninstalling Indeks
+
+Uninstalling removes the program and nothing else. Your databases and settings stay, so that
+nothing of yours is lost by it, and Indeks finds everything again if you install it anew. To
+clean up as well:
+
+- **Flatpak:** In a terminal, `flatpak uninstall --delete-data io.github.n4n0gh.indeks`
+  removes Indeks together with its folder. If Indeks is uninstalled already, Discover says on
+  its page that it still has user data and settings present, and offers *Move to Trash*; or
+  delete the folder `~/.var/app/io.github.n4n0gh.indeks` yourself.
+- **Installed with the system, or AppImage:** Delete the paths of the first table above,
+  and the AppImage file.
+- **Databases in other folders:** No uninstalling touches them. Look up where they are under
+  *Databases…* before you uninstall, and delete the folder of each database you no longer
+  want.
+
+> **Note:** A database holds the documents you created in Indeks, in its folder `files`, and
+> your tags, notes and drawings. Copy out what you want to keep before you delete it. The
+> files of indexed locations are not in the database; they stay where they are.
 
 ## Space
 
