@@ -36,6 +36,18 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-11-22">
+      <description>
+        <p>Documents can be linked to one another.</p>
+        <ul>
+          <li>“Manage Linked Documents…” (Ctrl+L), in the context menu and in the Information tab, shows the documents a document is linked to and finds others to link</li>
+          <li>“Link Selected Documents” links several documents with one another at once</li>
+          <li>The search term is:linked finds the documents that have links</li>
+          <li>In a rule, filter choices that no document matches yet can be chosen, so a rule can be kept to the inbox while the inbox is empty</li>
+          <li>Opening a database with this version brings it up to date; version 0.2.0 and older cannot open it afterwards</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-11-22">
       <description>
         <p>Files now come into Indeks through indexed folders only, and databases are chosen with more care.</p>

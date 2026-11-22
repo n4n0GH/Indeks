@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.2.0
+## Version 0.3.0
 
 - **Linked documents:** Documents can be linked to one another, for papers that belong
   together although they are separate files. *Manage Linked Documents…* (`Ctrl+L`), in the
