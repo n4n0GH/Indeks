@@ -83,15 +83,20 @@ Useful environment variables:
 ## Trying the interface without touching your own data
 
 Indeks is one instance per session: a second start only hands its arguments to the first. To
-run a second, independent Indeks, give it its own data, settings, D-Bus session and runtime
-folder:
+run a second, independent Indeks, give it its own data, settings, state, D-Bus session and
+runtime folder:
 
 ```sh
 mkdir -p -m 700 /tmp/indeks-try/run
 INDEKS_DATA_DIR=/tmp/indeks-try/data XDG_CONFIG_HOME=/tmp/indeks-try/config \
+XDG_STATE_HOME=/tmp/indeks-try/state \
 WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" XDG_RUNTIME_DIR=/tmp/indeks-try/run \
     dbus-run-session -- build/bin/indeks
 ```
+
+`XDG_STATE_HOME` is where the size and place of the window and the folders last used in file
+dialogs are kept (`indeksstaterc`). Without it the second Indeks writes its own into the
+file of the first.
 
 An Indeks that has no data yet begins with the window of a new installation; *Create
 Database* there starts the database in the folder `INDEKS_DATA_DIR` names.
