@@ -84,12 +84,23 @@ Useful environment variables:
 ## Trying the interface without touching your own data
 
 Indeks is one instance per session: a second start only hands its arguments to the first. To
-run a second, independent Indeks, give it its own data, settings and D-Bus session:
+run a second, independent Indeks, give it its own data, settings, D-Bus session and runtime
+folder:
 
 ```sh
+mkdir -p -m 700 /tmp/indeks-try/run
 INDEKS_DATA_DIR=/tmp/indeks-try/data XDG_CONFIG_HOME=/tmp/indeks-try/config \
+WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" XDG_RUNTIME_DIR=/tmp/indeks-try/run \
     dbus-run-session -- build/bin/indeks
 ```
+
+Do not leave the runtime folder out. Services that are started in the new D-Bus session
+otherwise share `/run/user/<uid>` with your real session. The document portal is one of
+them: it mounts itself on `$XDG_RUNTIME_DIR/doc` and takes that mount away again when the
+test session ends, and from then on no Flatpak application starts
+(`bwrap: Can't find source path /run/user/<uid>/doc/by-app/…`) until
+`systemctl --user restart xdg-document-portal.service`. `WAYLAND_DISPLAY` is given as a full
+path because the Wayland socket stays in the real runtime folder.
 
 ## Conventions
 
