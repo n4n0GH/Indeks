@@ -8,6 +8,33 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.3.0
+
+- **Rules and scripts have their own tab:** The sidebar has two tabs now, *Database* and
+  *Automation*. Under *Automation*, *Rules* and *Scripts* are listed in the middle of the
+  window, and the one that is selected is changed where the preview is, instead of in a
+  dialog. Rules are no longer a section of the database list; *Show Matching Documents*
+  lists what a rule matches. `Ctrl+5` and `Ctrl+6` go there. Indeks asks before changes to
+  a rule or script are lost, also when it is closed. See *Automation*.
+- **The whole toolbar can be arranged:** The search field, the filter button, *Save Search…*
+  and the preview buttons are placed and removed like every other button, and a *Flexible
+  Space* says what stands at the right end. In *Settings → Toolbar* entries are dragged to
+  where they belong. A toolbar you put together before keeps its buttons and gets these at
+  the right, where they were.
+- **New Script… in the New menu:** The *New* button of the toolbar offers *New Script…* too.
+- **Preview beside the list:** A button beside the preview button in the toolbar, also
+  *Menu → Preview → Preview Beside the List*, puts the preview to the right of the list
+  instead of below it, for wide screens. See *The Window → Preview*.
+- **Websites:** A new kind of document that holds the address of a page on the web. Copy
+  the address, choose *New Document from Clipboard…*, and the document opens the page in
+  your browser from then on; it takes tags, notes and links like every other. `kind:website`
+  finds them. Internet shortcuts (`.url`) and `.webloc` files in indexed locations are
+  websites too. See *Documents → Websites*.
+- **Documents from the clipboard:** *New → New Document from Clipboard…* (`Ctrl+Shift+V`)
+  makes a document of text or a picture that you copied in another program: plain text,
+  Markdown, a formatted document or a PNG file, stored in Indeks. See *Documents →
+  Documents created in Indeks*.
+
 ## Version 0.3.0
 
 - **Linked documents:** Documents can be linked to one another, for papers that belong

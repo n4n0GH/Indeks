@@ -13,7 +13,7 @@ class Library;
 
 /**
  * Content of the left sidebar: the inbox and other fixed places, smart groups, saved searches,
- * groups, tags, rules and indexed locations. Every entry stands for a search query; selecting
+ * groups, tags and indexed locations. Every entry stands for a search query; selecting
  * one shows the matching documents in the file browser.
  */
 class SidebarModel : public QAbstractListModel
@@ -59,9 +59,9 @@ public:
     QString currentQuery() const;
     QString currentLabel() const;
     QString currentIcon() const;
-    /** "place", "smart", "search", "group", "tag", "rule" or "source". */
+    /** "place", "smart", "search", "group", "tag" or "source". */
     QString currentKind() const;
-    /** Database id of the current group, tag, search, rule or location; 0 otherwise. */
+    /** Database id of the current group, tag, search or location; 0 otherwise. */
     qint64 currentId() const;
 
     QStringList collapsedSections() const

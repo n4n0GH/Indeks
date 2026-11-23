@@ -246,6 +246,8 @@ int kindFromName(const QString &name)
         {u"email"_s, Kind::Email},
         {u"mail"_s, Kind::Email},
         {u"canvas"_s, Kind::Canvas},
+        {u"website"_s, Kind::Website},
+        {u"web"_s, Kind::Website},
         {u"other"_s, Kind::Other},
     };
     const auto it = kinds.constFind(name.toLower());

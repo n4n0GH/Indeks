@@ -8,24 +8,49 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// Creates or edits a rule: which documents it is for, and what happens to them. Both are lists
-// put together entry by entry: the conditions from the same filters the filter bar has, the
-// actions from a menu. A new rule starts with neither.
-Kirigami.Dialog {
+// Changes a rule, or puts a new one together: which documents it is for, and what happens to
+// them. Both are lists put together entry by entry: the conditions from the same filters the
+// filter bar has, the actions from a menu. A new rule starts with neither. Nothing is stored
+// before save(); `dirty` says whether there is something to store.
+Item {
     id: root
 
+    /** The rule being changed; 0 for one that was never saved. */
     property real ruleId: 0
+    /** Whether there is a rule here at all, a new one included. */
+    property bool loaded: false
     property var tags: []
     property var groups: []
     property var scripts: []
 
-    /** A new script is wanted as an action; whoever writes it calls addAction() with it. */
-    signal scriptRequested()
+    /** The rule was stored, under this id. */
+    signal saved(real id)
 
-    function ask(ruleId: real): void {
-        root.ruleId = ruleId;
+    readonly property string name: nameField.text.trim()
+    /** What the conditions come to, in the search language. */
+    readonly property string query: stack.query
+
+    // Everything that is stored, as one text: what differs from what was loaded is unsaved.
+    property int actionRevision: 0
+    readonly property string snapshot: JSON.stringify({
+        "name": name,
+        "filters": stack.filters,
+        "actions": actionRevision >= 0 ? actions() : [],
+        "onImport": onImportBox.checked,
+        "enabled": enabledBox.checked
+    })
+    property string savedSnapshot
+    readonly property bool dirty: loaded && snapshot !== savedSnapshot
+    /** How many documents the conditions find at the moment; -1 while that is not known. */
+    readonly property int matchCount: matches.countable ? matches.count : -1
+    readonly property bool complete: name.length > 0 && stack.query.trim().length > 0 && actionModel.count > 0
+    readonly property bool canSave: complete && (dirty || ruleId === 0)
+
+    /** Shows the rule @p id for changing, or a new one for 0. What was here before is gone. */
+    function load(id: real): void {
+        ruleId = id;
         reloadChoices();
-        const rule = ruleId > 0 ? App.library.rule(ruleId) : {};
+        const rule = id > 0 ? App.library.rule(id) : {};
         nameField.text = rule.name ?? "";
         const filters = rule.filters ?? [];
         // A rule from before conditions were put together from filters has its search only.
@@ -36,7 +61,25 @@ Kirigami.Dialog {
         }
         onImportBox.checked = rule.onImport ?? true;
         enabledBox.checked = rule.enabled ?? true;
-        open();
+        loaded = true;
+        savedSnapshot = snapshot;
+    }
+
+    /** Back to how the rule is stored. */
+    function revert(): void {
+        load(ruleId);
+    }
+
+    function clear(): void {
+        loaded = false;
+        ruleId = 0;
+        nameField.text = "";
+        stack.filters = [];
+        actionModel.clear();
+        savedSnapshot = snapshot;
+    }
+
+    function focusName(): void {
         nameField.forceActiveFocus();
     }
 
@@ -60,12 +103,11 @@ Kirigami.Dialog {
         }
     }
 
-    readonly property bool canSubmit: nameField.text.trim().length > 0 && stack.query.trim().length > 0 && actionModel.count > 0
-
-    // Also reached with Enter from the name field.
-    function submit(): void {
-        if (!canSubmit) {
-            return;
+    // Also reached with Enter from the name field. Returns the rule's id, 0 if it was not
+    // stored.
+    function save(): real {
+        if (!canSave) {
+            return 0;
         }
         const id = App.library.saveRule({
             "id": root.ruleId,
@@ -77,9 +119,11 @@ Kirigami.Dialog {
             "enabled": enabledBox.checked
         });
         if (id > 0) {
-            App.goTo("rule:" + id);
-            root.close();
+            ruleId = id;
+            savedSnapshot = snapshot;
+            saved(id);
         }
+        return id;
     }
 
     // ------------------------------------------------------------------------ the actions
@@ -89,6 +133,11 @@ Kirigami.Dialog {
     // keeps them as entries which all have the same members, as a list model wants it.
     ListModel {
         id: actionModel
+
+        // Whatever happens to the list is a change to the rule.
+        onCountChanged: root.actionRevision++
+        onRowsMoved: root.actionRevision++
+        onDataChanged: root.actionRevision++
     }
 
     function entryOf(action: var): var {
@@ -197,24 +246,6 @@ Kirigami.Dialog {
         actionModel.append(entryOf(action));
     }
 
-    title: ruleId > 0 ? i18nc("@title:window", "Edit Rule") : i18nc("@title:window", "New Rule")
-    padding: Kirigami.Units.largeSpacing
-    preferredWidth: Kirigami.Units.gridUnit * 34
-    standardButtons: Kirigami.Dialog.NoButton
-    customFooterActions: [
-        Kirigami.Action {
-            text: i18nc("@action:button", "Save")
-            icon.name: "document-save"
-            enabled: root.canSubmit
-            onTriggered: root.submit()
-        },
-        Kirigami.Action {
-            text: i18nc("@action:button", "Cancel")
-            icon.name: "dialog-cancel"
-            onTriggered: root.close()
-        }
-    ]
-
     // A submenu to pick one of a list from, filled when it opens.
     component PickMenu: QQC2.Menu {
         id: pickMenu
@@ -238,163 +269,181 @@ Kirigami.Dialog {
         }
     }
 
-    ColumnLayout {
-        spacing: Kirigami.Units.largeSpacing
+    QQC2.ScrollView {
+        id: scroll
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Kirigami.Units.smallSpacing
+        anchors.fill: parent
+        contentWidth: availableWidth
+        contentHeight: form.implicitHeight + Kirigami.Units.largeSpacing * 2
+        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
-            QQC2.Label {
-                text: i18nc("@label:textbox", "Name:")
+        ColumnLayout {
+            id: form
+
+            // Not wider than reads well, however wide the pane is.
+            x: Kirigami.Units.largeSpacing
+            y: Kirigami.Units.largeSpacing
+            width: Math.min(scroll.availableWidth - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 40)
+            spacing: Kirigami.Units.largeSpacing
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+
+                QQC2.Label {
+                    text: i18nc("@label:textbox", "Name:")
+                }
+                QQC2.TextField {
+                    id: nameField
+
+                    Layout.fillWidth: true
+                    onAccepted: root.save()
+                }
             }
-            QQC2.TextField {
-                id: nameField
+
+            // ---------------------------------------------------------------- the conditions
+            Kirigami.Heading {
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                level: 4
+                text: i18nc("@title:group", "For documents that match all of this")
+            }
+            FilterStack {
+                id: stack
 
                 Layout.fillWidth: true
-                onAccepted: root.submit()
+                withWords: true
+                listed: true
+                // A rule is also for documents that are not there yet.
+                emptyChoices: true
+                hint: i18nc("@info", "Nothing yet. Add what a document has to match.")
             }
-        }
+            QQC2.Label {
+                id: matches
 
-        // ---------------------------------------------------------------- the conditions
-        Kirigami.Heading {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            level: 4
-            text: i18nc("@title:group", "For documents that match all of this")
-        }
-        FilterStack {
-            id: stack
+                // How many documents the conditions find at the moment. Looked up a moment after
+                // they change; not at all with a word of one or two letters among them, which
+                // takes seconds in a large index.
+                property int count: -1
+                readonly property bool countable: stack.query.trim().length > 0
+                    && !stack.filters.some(filter => (filter.type === "words" || filter.type === "content")
+                                                     && (filter.data?.text ?? "").split(/\s+/).some(word => word.replace(/"/g, "").length < 3))
 
-            Layout.fillWidth: true
-            withWords: true
-            listed: true
-            // A rule is also for documents that are not there yet.
-            emptyChoices: true
-            hint: i18nc("@info", "Nothing yet. Add what a document has to match.")
-        }
-        QQC2.Label {
-            id: matches
+                Layout.fillWidth: true
+                visible: count >= 0 && countable
+                font: Kirigami.Theme.smallFont
+                color: Kirigami.Theme.disabledTextColor
+                text: i18ncp("@info", "%1 document matches at the moment.", "%1 documents match at the moment.", Math.max(0, count))
 
-            // How many documents the conditions find at the moment. Looked up a moment after
-            // they change; not at all with a word of one or two letters among them, which
-            // takes seconds in a large index.
-            property int count: -1
-            readonly property bool countable: stack.query.trim().length > 0
-                && !stack.filters.some(filter => (filter.type === "words" || filter.type === "content")
-                                                 && (filter.data?.text ?? "").split(/\s+/).some(word => word.replace(/"/g, "").length < 3))
-
-            Layout.fillWidth: true
-            visible: count >= 0 && countable
-            font: Kirigami.Theme.smallFont
-            color: Kirigami.Theme.disabledTextColor
-            text: i18ncp("@info", "%1 document matches at the moment.", "%1 documents match at the moment.", Math.max(0, count))
-
-            Connections {
-                target: stack
-                function onQueryChanged(): void {
-                    matches.count = -1;
-                    counter.restart();
-                }
-            }
-            Timer {
-                id: counter
-
-                interval: Kirigami.Units.humanMoment / 8
-                onTriggered: matches.count = matches.countable && root.visible ? App.library.count(stack.query) : -1
-            }
-        }
-
-        // ------------------------------------------------------------------- the actions
-        Kirigami.Heading {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            level: 4
-            text: i18nc("@title:group", "Do this, in this order")
-        }
-        EntryFrame {
-            Layout.fillWidth: true
-            hint: i18nc("@info", "Nothing yet. Add what is to happen to the documents.")
-            empty: actionModel.count === 0
-            implicitHeight: Math.max(actionList.contentHeight + 2, addActionButton.height + Kirigami.Units.smallSpacing)
-
-            contentItem: ListView {
-                id: actionList
-
-                interactive: false
-                model: actionModel
-
-                moveDisplaced: Transition {
-                    YAnimator {
-                        duration: Kirigami.Units.shortDuration
-                        easing.type: Easing.InOutQuad
+                Connections {
+                    target: stack
+                    function onQueryChanged(): void {
+                        matches.count = -1;
+                        counter.restart();
                     }
                 }
+                Timer {
+                    id: counter
 
-                // The line itself is a child of the delegate: the handle takes it out of its
-                // place while it is dragged.
-                delegate: Item {
-                    id: line
+                    interval: Kirigami.Units.humanMoment / 8
+                    onTriggered: matches.count = matches.countable && root.visible ? App.library.count(stack.query) : -1
+                }
+            }
 
-                    required property int index
-                    required property var model
+            // ------------------------------------------------------------------- the actions
+            Kirigami.Heading {
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                level: 4
+                text: i18nc("@title:group", "Do this, in this order")
+            }
+            EntryFrame {
+                Layout.fillWidth: true
+                hint: i18nc("@info", "Nothing yet. Add what is to happen to the documents.")
+                empty: actionModel.count === 0
+                implicitHeight: Math.max(actionList.contentHeight + 2, addActionButton.height + Kirigami.Units.smallSpacing)
 
-                    width: actionList.width
-                    height: entry.implicitHeight + (index > 0 ? 1 : 0)
+                contentItem: ListView {
+                    id: actionList
 
-                    Kirigami.Separator {
-                        width: parent.width
-                        visible: line.index > 0
+                    interactive: false
+                    model: actionModel
+
+                    moveDisplaced: Transition {
+                        YAnimator {
+                            duration: Kirigami.Units.shortDuration
+                            easing.type: Easing.InOutQuad
+                        }
                     }
-                    EntryRow {
-                        id: entry
 
-                        y: line.index > 0 ? 1 : 0
-                        width: line.width
-                        index: line.index
-                        count: actionModel.count
-                        label: root.actionLabel(root.actionOf(line.model))
-                        iconName: root.actionIcon(line.model.type)
-                        reorderView: actionList
-                        onMoveRequested: (from, to) => actionModel.move(from, to, 1)
-                        onRemoveRequested: actionModel.remove(line.index)
+                    // The line itself is a child of the delegate: the handle takes it out of its
+                    // place while it is dragged.
+                    delegate: Item {
+                        id: line
+
+                        required property int index
+                        required property var model
+
+                        width: actionList.width
+                        height: entry.implicitHeight + (index > 0 ? 1 : 0)
+
+                        Kirigami.Separator {
+                            width: parent.width
+                            visible: line.index > 0
+                        }
+                        EntryRow {
+                            id: entry
+
+                            y: line.index > 0 ? 1 : 0
+                            width: line.width
+                            index: line.index
+                            count: actionModel.count
+                            label: root.actionLabel(root.actionOf(line.model))
+                            iconName: root.actionIcon(line.model.type)
+                            reorderView: actionList
+                            onMoveRequested: (from, to) => actionModel.move(from, to, 1)
+                            onRemoveRequested: actionModel.remove(line.index)
+                        }
                     }
                 }
             }
-        }
-        QQC2.Button {
-            id: addActionButton
+            QQC2.Button {
+                id: addActionButton
 
-            text: i18nc("@action:button", "Add Action")
-            icon.name: "list-add"
-            down: actionMenu.visible
-            onClicked: actionMenu.popup(addActionButton, 0, addActionButton.height)
-        }
+                text: i18nc("@action:button", "Add Action")
+                icon.name: "list-add"
+                down: actionMenu.visible
+                onClicked: actionMenu.popup(addActionButton, 0, addActionButton.height)
+            }
 
-        // ------------------------------------------------------------------------- when
-        Kirigami.Heading {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            level: 4
-            text: i18nc("@title:group", "When")
-        }
-        QQC2.CheckBox {
-            id: onImportBox
+            // ------------------------------------------------------------------------- when
+            Kirigami.Heading {
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.smallSpacing
+                level: 4
+                text: i18nc("@title:group", "When")
+            }
+            QQC2.CheckBox {
+                id: onImportBox
 
-            text: i18nc("@option:check", "Automatically, when a document is added")
-        }
-        QQC2.CheckBox {
-            id: enabledBox
+                text: i18nc("@option:check", "Automatically, when a document is added")
+            }
+            QQC2.CheckBox {
+                id: enabledBox
 
-            text: i18nc("@option:check", "Rule is active")
-        }
-        QQC2.Label {
-            Layout.fillWidth: true
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 30
-            text: i18nc("@info", "Selecting the rule in the sidebar shows the documents it applies to; from there it can also be run on all of them by hand.")
-            wrapMode: Text.Wrap
-            font: Kirigami.Theme.smallFont
-            color: Kirigami.Theme.disabledTextColor
+                text: i18nc("@option:check", "Rule is active")
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                text: i18nc("@info", "A rule that is not run automatically waits to be applied by hand, with Apply Selected Rule above.")
+                wrapMode: Text.Wrap
+                font: Kirigami.Theme.smallFont
+                color: Kirigami.Theme.disabledTextColor
+            }
+            // Room below the last line when the pane is scrolled to its end.
+            Item {
+                implicitHeight: Kirigami.Units.largeSpacing
+            }
         }
     }
 
@@ -491,16 +540,8 @@ Kirigami.Dialog {
             icon.name: "system-run"
             entries: root.scripts.map(script => ({ label: script.name, file: script.file }))
             onPicked: entry => root.addAction({ type: "script", name: entry.file })
-
-            QQC2.MenuSeparator {
-                visible: root.scripts.length > 0
-                height: visible ? implicitHeight : 0
-            }
-            QQC2.MenuItem {
-                text: i18nc("@action:inmenu", "New Script…")
-                icon.name: "list-add"
-                onTriggered: root.scriptRequested()
-            }
+            // Scripts are written in their own list; a rule picks from what is there.
+            enabled: root.scripts.length > 0
         }
     }
 

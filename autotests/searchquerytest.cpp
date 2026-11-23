@@ -154,6 +154,7 @@ private Q_SLOTS:
     void kinds()
     {
         QCOMPARE(SearchQuery(u"kind:canvas"_s).binds().at(0).toInt(), 6);
+        QCOMPARE(SearchQuery(u"kind:website"_s).binds().at(0).toInt(), 7);
         QCOMPARE(SearchQuery(u"kind:email"_s).binds().at(0).toInt(), 5);
         // An unknown kind is searched for as text rather than silently matching everything.
         QVERIFY(SearchQuery(u"kind:hologram"_s).binds().at(0).toString().contains("hologram"_L1));

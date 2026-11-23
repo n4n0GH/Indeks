@@ -37,7 +37,7 @@ words and with each other.
 | `tag:none` | documents without any tag |
 | `group:Taxes` | documents in that group |
 | `group:none` | documents in no group |
-| `kind:text` `kind:rich` `kind:pdf` `kind:image` `kind:email` `kind:canvas` | documents of a kind |
+| `kind:text` `kind:rich` `kind:pdf` `kind:image` `kind:email` `kind:canvas` `kind:website` | documents of a kind |
 | `ext:md` | by file name extension |
 | `name:report` | a word in the name only |
 | `name:*.pdf`, `name:scan_??.png` | a pattern for the whole name: `*` any characters, `?` one |

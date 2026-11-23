@@ -1011,6 +1011,12 @@ QQC2.Pane {
         QQC2.MenuItem { action: root.actions.openWith }
         QQC2.MenuItem { action: root.actions.showInFileManager }
         QQC2.MenuItem { action: root.actions.copyLocation }
+        QQC2.MenuItem {
+            // For a website only.
+            action: root.actions.copyAddress
+            visible: enabled
+            height: visible ? implicitHeight : 0
+        }
         QQC2.MenuSeparator {}
         QQC2.MenuItem { action: root.actions.tag }
         QQC2.MenuItem { action: root.actions.group }

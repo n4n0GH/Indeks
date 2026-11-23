@@ -177,19 +177,6 @@ void SidebarModel::reload()
         }
     }
 
-    // Rules
-    const QString rules = u"rules"_s;
-    addHeader(items, rules, i18nc("@title:group sidebar", "Rules"));
-    const QVariantList ruleList = m_library->rules();
-    for (const QVariant &entry : ruleList) {
-        const QVariantMap rule = entry.toMap();
-        const QString query = rule.value(u"query"_s).toString();
-        if (Item *item = add(rules, u"rule"_s, "rule:"_L1 + rule.value(u"id"_s).toString(), rule.value(u"name"_s).toString(), u"run-build-configure"_s, query)) {
-            item->id = rule.value(u"id"_s).toLongLong();
-            item->count = m_library->count(query);
-        }
-    }
-
     // Where the documents are
     const QString sources = u"sources"_s;
     addHeader(items, sources, i18nc("@title:group sidebar", "Locations"));
@@ -227,7 +214,7 @@ void SidebarModel::reload()
         const QString prefix = m_currentKey.section(u':', 0, 0);
         static const QHash<QString, QString> sectionOfKind = {
             {u"smart"_s, u"smart"_s}, {u"search"_s, u"searches"_s}, {u"group"_s, u"groups"_s},
-            {u"tag"_s, u"tags"_s},     {u"rule"_s, u"rules"_s},      {u"source"_s, u"sources"_s},
+            {u"tag"_s, u"tags"_s},     {u"source"_s, u"sources"_s},
         };
         currentCollapsed = m_collapsed.contains(sectionOfKind.value(prefix));
     }

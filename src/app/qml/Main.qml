@@ -12,13 +12,41 @@ import org.kde.kirigamiaddons.settings as KirigamiSettings
 import org.kde.kirigamiaddons.statefulapp as StatefulApp
 
 // The main window: toolbar on top, the sidebar with places on the left, file browser and
-// preview in the middle, information about the selected document on the right.
+// preview in the middle, information about the selected document on the right. While the
+// sidebar shows its Automation tab, the middle lists rules or scripts instead of documents,
+// and the one that is selected is changed where the preview is otherwise.
 StatefulApp.StatefulWindow {
     id: root
 
     windowName: "Main"
     application: App
-    title: App.sidebar.currentLabel
+
+    /** What the middle of the window is about, for its title. */
+    readonly property string placeLabel: !App.automation ? App.sidebar.currentLabel
+        : App.automationPage === "rules" ? i18nc("@title:window", "Rules") : i18nc("@title:window", "Scripts")
+
+    title: placeLabel
+
+    // A rule or a script that was changed and not saved is asked about before the window
+    // goes, however it was told to go.
+    property bool closeConfirmed: false
+    onClosing: close => {
+        if (!closeConfirmed && automationPane.dirty) {
+            close.accepted = false;
+            root.quitWhenSaved();
+        }
+    }
+
+    function quitWhenSaved(): void {
+        if (automationPane.dirty) {
+            // What the question is about is to be seen behind it.
+            App.sidebarTab = "automation";
+        }
+        automationPane.guardedAll(() => {
+            root.closeConfirmed = true;
+            Qt.quit();
+        });
+    }
 
     minimumWidth: Kirigami.Units.gridUnit * 40
     minimumHeight: Kirigami.Units.gridUnit * 26
@@ -36,7 +64,7 @@ StatefulApp.StatefulWindow {
         id: mainPage
 
         padding: 0
-        title: App.sidebar.currentLabel
+        title: root.placeLabel
 
         header: MainToolBar {
             id: toolBar
@@ -65,44 +93,85 @@ StatefulApp.StatefulWindow {
                 id: centreColumn
 
                 QQC2.SplitView.fillWidth: true
-                QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 18
+                // Room for list and preview side by side, where they stand so.
+                QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * (centreSplit.beside && paneStack.visible ? 19 : 18)
                 spacing: 0
 
                 // The search form sits above what it finds.
                 AdvancedSearchPanel {
                     Layout.fillWidth: true
-                    visible: App.advancedSearch
+                    visible: App.advancedSearch && !App.automation
                     actions: appActions
                     onCloseRequested: App.advancedSearch = false
                 }
                 Kirigami.Separator {
                     Layout.fillWidth: true
-                    visible: App.advancedSearch
+                    visible: App.advancedSearch && !App.automation
                 }
 
                 QQC2.SplitView {
                     id: centreSplit
 
-                    orientation: Qt.Vertical
+                    /** The preview stands to the right of the list, not below it. */
+                    readonly property bool beside: Config.previewBeside
+
+                    // Of the sizes below, the split view looks at those of the direction it
+                    // lies in; list and preview carry both, and keep what was dragged in one
+                    // direction while they stand in the other.
+                    orientation: beside ? Qt.Horizontal : Qt.Vertical
                     handle: PanelBorder {}
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    DocumentList {
-                        id: documentList
+                    // Two things share each half, one at a time: the documents and their
+                    // preview, or the rules and scripts and where they are changed. The
+                    // sizes belong to the halves, so that the border stays where it was
+                    // dragged to whichever is shown.
+                    StackLayout {
+                        id: listStack
 
-                        actions: appActions
+                        currentIndex: App.automation ? 1 : 0
                         QQC2.SplitView.fillHeight: true
+                        QQC2.SplitView.fillWidth: true
                         QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 7
+                        QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 8
+
+                        DocumentList {
+                            id: documentList
+
+                            actions: appActions
+                        }
+                        AutomationList {
+                            id: automationList
+
+                            actions: appActions
+                            onRuleRequested: id => automationPane.editRule(id)
+                            onScriptRequested: file => automationPane.editScript(file)
+                            onActivated: root.showEditor()
+                        }
                     }
 
-                    PreviewPane {
-                        id: previewPane
+                    StackLayout {
+                        id: paneStack
 
+                        currentIndex: App.automation ? 1 : 0
                         visible: Config.previewVisible
-                        actions: appActions
                         QQC2.SplitView.preferredHeight: Kirigami.Units.gridUnit * 26
                         QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 8
+                        // Half of the room, until the border is dragged.
+                        QQC2.SplitView.preferredWidth: Math.round(centreSplit.width / 2)
+                        QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 10
+
+                        PreviewPane {
+                            id: previewPane
+
+                            actions: appActions
+                        }
+                        AutomationPane {
+                            id: automationPane
+
+                            actions: appActions
+                        }
                     }
                 }
             }
@@ -143,17 +212,29 @@ StatefulApp.StatefulWindow {
         ResizeGrip {
             id: previewGrip
 
-            // Between file list and preview; only as wide as the two are.
+            // Between file list and preview, whichever way the two stand; only as long as
+            // they are.
+            readonly property bool beside: centreSplit.beside
             readonly property real splitTop: mainSplit.y + centreColumn.y + centreSplit.y
-            readonly property real line: previewPane.y - documentList.y - documentList.height
+            readonly property real splitLeft: mainSplit.x + centreColumn.x + centreSplit.x
+            readonly property real line: beside ? paneStack.x - listStack.x - listStack.width : paneStack.y - listStack.y - listStack.height
 
-            visible: previewPane.visible
-            horizontalBorder: true
-            border: splitTop + documentList.y + documentList.height
-            x: mainSplit.x + centreColumn.x
-            width: centreColumn.width
-            onMoved: position => previewPane.QQC2.SplitView.preferredHeight = Math.max(previewPane.QQC2.SplitView.minimumHeight,
-                Math.min(centreSplit.height - documentList.QQC2.SplitView.minimumHeight, splitTop + previewPane.y + previewPane.height - position - line))
+            visible: paneStack.visible
+            horizontalBorder: !beside
+            border: beside ? splitLeft + listStack.x + listStack.width : splitTop + listStack.y + listStack.height
+            x: beside ? border : splitLeft
+            y: beside ? splitTop : border
+            width: beside ? reach : centreSplit.width
+            height: beside ? centreSplit.height : reach
+            onMoved: position => {
+                if (beside) {
+                    paneStack.QQC2.SplitView.preferredWidth = Math.max(paneStack.QQC2.SplitView.minimumWidth,
+                        Math.min(centreSplit.width - listStack.QQC2.SplitView.minimumWidth, splitLeft + paneStack.x + paneStack.width - position - line));
+                } else {
+                    paneStack.QQC2.SplitView.preferredHeight = Math.max(paneStack.QQC2.SplitView.minimumHeight,
+                        Math.min(centreSplit.height - listStack.QQC2.SplitView.minimumHeight, splitTop + paneStack.y + paneStack.height - position - line));
+                }
+            }
         }
     }
 
@@ -184,6 +265,9 @@ StatefulApp.StatefulWindow {
                 break;
             case "new_richtext":
                 root.askForNewDocument("html", i18nc("@title:window", "New Formatted Document"));
+                break;
+            case "new_clipboard":
+                clipboardDialog.ask();
                 break;
             case "doc_rename":
                 nameDialog.ask(i18nc("@title:window", "Rename Document"), i18nc("@info", "New name:"), App.library.documentInfo(currentId).name,
@@ -265,16 +349,34 @@ StatefulApp.StatefulWindow {
             case "save_search":
                 searchDialog.ask(0, "", root.currentSearchText());
                 break;
-            case "new_rule":
-                ruleDialog.ask(0);
+            case "go_rules":
+                App.automationPage = "rules";
+                App.sidebarTab = "automation";
                 break;
             case "scripts_manage":
-            case "doc_run_script":
-                // Running one means picking one, and the list is where they are.
-                scriptsDialog.show();
+                App.automationPage = "scripts";
+                App.sidebarTab = "automation";
+                break;
+            case "new_rule":
+                App.automationPage = "rules";
+                App.sidebarTab = "automation";
+                root.showEditor();
+                automationPane.editRule(0);
                 break;
             case "new_script":
-                scriptEditor.create(null);
+                App.automationPage = "scripts";
+                App.sidebarTab = "automation";
+                root.showEditor();
+                automationPane.editScript("");
+                break;
+            case "automation_delete":
+                root.deleteAutomationItem();
+                break;
+            case "file_quit":
+                root.quitWhenSaved();
+                break;
+            case "doc_run_script":
+                runScriptDialog.show();
                 break;
             case "scripts_output":
                 scriptOutput.show();
@@ -286,8 +388,10 @@ StatefulApp.StatefulWindow {
                 root.deleteSidebarItem(kind, itemId, label);
                 break;
             case "focus_search":
-                toolBar.searchField.forceActiveFocus();
-                toolBar.searchField.selectAll();
+                if (!toolBar.focusSearch()) {
+                    // A toolbar without the search field: the filter bar finds as well.
+                    App.advancedSearch = true;
+                }
                 break;
             case "view_activity":
                 activityDialog.open();
@@ -370,8 +474,41 @@ StatefulApp.StatefulWindow {
             nameDialog.ask(i18nc("@title:window", "Rename Tag"), i18nc("@info", "New name:"), label, name => App.library.renameTag(itemId, name));
         } else if (kind === "search") {
             searchDialog.ask(itemId, label, App.sidebar.currentQuery);
-        } else if (kind === "rule") {
-            ruleDialog.ask(itemId);
+        }
+    }
+
+    // The pane in which rules and scripts are changed is where the preview is, and hidden
+    // with it.
+    function showEditor(): void {
+        if (!Config.previewVisible) {
+            appActions.preview.trigger();
+        }
+    }
+
+    // The rule or the script that is selected in its list.
+    function deleteAutomationItem(): void {
+        if (App.automationPage === "rules") {
+            const rule = App.library.rule(App.currentRule);
+            if (rule.id === undefined) {
+                return;
+            }
+            confirmDialog.ask(i18nc("@title:window", "Delete Rule?"),
+                              i18nc("@info", "The rule “%1” is deleted. What it did to documents so far stays.", rule.name),
+                              i18nc("@action:button", "Delete Rule"), "edit-delete", () => App.library.deleteRule(rule.id));
+        } else {
+            const script = App.library.scripts().find(entry => entry.file === App.currentScript);
+            if (!script) {
+                return;
+            }
+            const rules = script.rules;
+            confirmDialog.ask(
+                i18nc("@title:window", "Move Script to the Trash?"),
+                rules.length > 0
+                    ? i18ncp("@info", "The script “%2” is moved to the trash. The rule %3 runs it and will skip it from then on.",
+                             "The script “%2” is moved to the trash. The rules %3 run it and will skip it from then on.", rules.length, script.name, rules.join(", "))
+                    : i18nc("@info", "The script “%1” is moved to the trash. What it did to documents so far stays.", script.name),
+                i18nc("@action:button", "Move to Trash"), "edit-delete",
+                () => App.library.deleteScript(script.file));
         }
     }
 
@@ -388,10 +525,6 @@ StatefulApp.StatefulWindow {
             confirmDialog.ask(i18nc("@title:window", "Delete Saved Search?"),
                               i18nc("@info", "The saved search “%1” is deleted. No documents are affected.", label),
                               i18nc("@action:button", "Delete Search"), "edit-delete", () => App.library.deleteSearch(itemId));
-        } else if (kind === "rule") {
-            confirmDialog.ask(i18nc("@title:window", "Delete Rule?"),
-                              i18nc("@info", "The rule “%1” is deleted. What it did to documents so far stays.", label),
-                              i18nc("@action:button", "Delete Rule"), "edit-delete", () => App.library.deleteRule(itemId));
         } else if (kind === "source") {
             confirmDialog.ask(i18nc("@title:window", "Stop Indexing This Location?"),
                               i18nc("@info", "“%1” will no longer be indexed. Its documents leave Indeks, except those you tagged, grouped or annotated. The files themselves are not touched.", label),
@@ -459,6 +592,9 @@ StatefulApp.StatefulWindow {
     LinkDialog {
         id: linkDialog
     }
+    ClipboardDialog {
+        id: clipboardDialog
+    }
     GroupDialog {
         id: groupDialog
 
@@ -467,29 +603,10 @@ StatefulApp.StatefulWindow {
     SearchDialog {
         id: searchDialog
     }
-    RuleDialog {
-        id: ruleDialog
+    RunScriptDialog {
+        id: runScriptDialog
 
-        // A script written from inside a rule becomes an action of that rule.
-        onScriptRequested: scriptEditor.create(file => ruleDialog.addAction({ type: "script", name: file }))
-    }
-    ScriptsDialog {
-        id: scriptsDialog
-
-        onCreateRequested: scriptEditor.create(null)
-        onEditRequested: file => scriptEditor.edit(file)
-        onOutputRequested: scriptOutput.show()
-        onDeleteRequested: (file, name, rules) => confirmDialog.ask(
-            i18nc("@title:window", "Move Script to the Trash?"),
-            rules.length > 0
-                ? i18ncp("@info", "The script “%2” is moved to the trash. The rule %3 runs it and will skip it from then on.",
-                         "The script “%2” is moved to the trash. The rules %3 run it and will skip it from then on.", rules.length, name, rules.join(", "))
-                : i18nc("@info", "The script “%1” is moved to the trash. What it did to documents so far stays.", name),
-            i18nc("@action:button", "Move to Trash"), "edit-delete",
-            () => App.library.deleteScript(file))
-    }
-    ScriptEditor {
-        id: scriptEditor
+        actions: appActions
     }
     ScriptOutputDialog {
         id: scriptOutput

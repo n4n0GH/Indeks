@@ -172,6 +172,11 @@ QVariant DocumentModel::data(const QModelIndex &index, int role) const
         return row.name;
     case IconRole:
         // There is no icon for the type of a mailbox file; it holds mail like a folder does.
+        if (row.kind == int(Kind::Website)) {
+            // One icon for all of them, whatever kind of file holds the address, and not the
+            // one of an HTML file, which is what icon themes give an internet shortcut.
+            return u"globe"_s;
+        }
         return isContainerMimeType(row.mime) ? u"folder-mail"_s : mimeInfo(row.mime).icon;
     case KindRole:
         return row.kind;
@@ -179,6 +184,9 @@ QVariant DocumentModel::data(const QModelIndex &index, int role) const
         if (row.parts > 0) {
             // What it is, and how much is in it.
             return i18ncp("@info type of a document that holds others, e.g. 'Mailbox', and how many", "%2, %1 message", "%2, %1 messages", row.parts, mimeInfo(row.mime).comment);
+        }
+        if (row.kind == int(Kind::Website)) {
+            return i18nc("@info type of document", "Website");
         }
         return row.kind == int(Kind::Canvas) ? i18nc("@info type of document", "Obsidian canvas") : mimeInfo(row.mime).comment;
     case SizeTextRole:

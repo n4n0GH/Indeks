@@ -18,6 +18,7 @@
 #include "scripthost.h"
 #include "scripts.h"
 #include "store.h"
+#include "weblink.h"
 
 #include <QElapsedTimer>
 #include <QFile>
@@ -515,6 +516,128 @@ private Q_SLOTS:
         const qint64 group = m_library->createGroup(u"Ideas"_s);
         m_library->addToGroup(ids({id}), group);
         QVERIFY(!m_library->documentInfo(id).value(u"inbox"_s).toBool()); // filing empties the inbox
+    }
+
+    void makesDocumentsOfWhatComesFromElsewhere()
+    {
+        // HTML as a browser or an office program puts it on the clipboard: a whole page, with
+        // things in it that would have a viewer ask the network.
+        const QString html = u"<!DOCTYPE html><html><head><title>Birds</title><style>p { color: red; }</style></head>"
+                             "<body bgcolor=\"#ffffff\"><p onclick=\"hop()\" style=\"background: url(http://example.org/b.png)\">A bittern stands "
+                             "in the reeds.</p><img src=\"http://example.org/pixel.png\"><script>hop()</script>"
+                             "<p>In a page it is written &lt;img src=&quot;bird.png&quot;&gt; and url(bird.png).</p></body></html>"_s;
+        const qint64 id = m_library->createDocumentFromHtml(u"Birds"_s, html);
+        QVERIFY(id > 0);
+        QVariantMap info = m_library->documentInfo(id);
+        QCOMPARE(info.value(u"name"_s).toString(), u"Birds.html"_s);
+        QVERIFY(info.value(u"owned"_s).toBool());
+        QVERIFY(info.value(u"inbox"_s).toBool());
+        QCOMPARE(m_library->count(u"bittern"_s), 1);
+
+        const QString stored = m_library->readText(id);
+        QVERIFY(stored.startsWith(u"<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head><body>\n<p"_s));
+        QVERIFY(stored.endsWith(u"</p>\n</body></html>\n"_s));
+        QCOMPARE(stored.count(u"<body"_s), 1);
+        for (const QString &gone : {u"<img"_s, u"script"_s, u"onclick"_s, u"hop()"_s, u"pixel.png"_s, u"url(http"_s, u"<title"_s, u"color: red"_s}) {
+            QVERIFY2(!stored.contains(gone), qPrintable(gone));
+        }
+        // What the text itself says is not a tag, and stays.
+        QVERIFY(stored.contains(u"&lt;img src=&quot;bird.png&quot;&gt; and url(bird.png)"_s));
+
+        // A piece of a page, as most programs copy it.
+        const qint64 piece = m_library->createDocumentFromHtml(u"Piece.html"_s, u"<meta charset=\"utf-8\"><b>Nightjar</b> at dusk"_s);
+        QVERIFY(piece > 0);
+        QCOMPARE(m_library->documentInfo(piece).value(u"name"_s).toString(), u"Piece.html"_s);
+        QVERIFY(m_library->readText(piece).contains(u"<body>\n<b>Nightjar</b> at dusk\n</body>"_s));
+
+        // A picture is stored as a PNG file.
+        QImage image(40, 30, QImage::Format_ARGB32);
+        image.fill(Qt::darkCyan);
+        const qint64 picture = m_library->createPicture(u"Screen"_s, image);
+        QVERIFY(picture > 0);
+        info = m_library->documentInfo(picture);
+        QCOMPARE(info.value(u"name"_s).toString(), u"Screen.png"_s);
+        QCOMPARE(info.value(u"mime"_s).toString(), u"image/png"_s);
+        QVERIFY(info.value(u"owned"_s).toBool());
+        QVERIFY(info.value(u"inbox"_s).toBool());
+        const QImage read(info.value(u"contentPath"_s).toString());
+        QCOMPARE(read.size(), QSize(40, 30));
+        QCOMPARE(read.pixelColor(5, 5), QColor(Qt::darkCyan));
+
+        // No picture, no document; and the reason is given.
+        QSignalSpy told(m_library.get(), &Library::message);
+        QCOMPARE(m_library->createPicture(u"Nothing"_s, QImage()), 0);
+        QCOMPARE(told.size(), 1);
+        QVERIFY(told.constFirst().constFirst().toString().contains(u"Nothing"_s));
+    }
+
+    void keepsWebsitesAsDocuments()
+    {
+        // What counts as the address of a website: one word, http or https, with a host.
+        QCOMPARE(WebLink::addressOfText(u"  https://example.org/harbour/log?day=3  \n"_s), QUrl(u"https://example.org/harbour/log?day=3"_s));
+        QCOMPARE(WebLink::addressOfText(u"HTTP://Example.org"_s).host(), u"example.org"_s);
+        for (const QString &text : {u"example.org"_s, u"https://"_s, u"ftp://example.org/a"_s, u"file:///etc/passwd"_s, u"see https://example.org"_s,
+                                    u"https://example.org and more"_s, u"https://example.org\nhttps://example.com"_s, u"javascript:alert(1)"_s, QString()}) {
+            QVERIFY2(!WebLink::addressOfText(text).isValid(), qPrintable(text));
+        }
+        QCOMPARE(WebLink::nameFor(QUrl(u"https://www.example.org/harbour/log?day=3"_s)), u"example.org harbour log"_s);
+        QCOMPARE(WebLink::nameFor(QUrl(u"https://example.org/"_s)), u"example.org"_s);
+
+        const QString address = u"https://example.org/harbour/log?day=3&berth=a%20b"_s;
+        const qint64 id = m_library->createWebLink(u"Harbour log"_s, QUrl(address));
+        QVERIFY(id > 0);
+        const QVariantMap info = m_library->documentInfo(id);
+        QCOMPARE(info.value(u"name"_s).toString(), u"Harbour log.url"_s);
+        QCOMPARE(info.value(u"kind"_s).toInt(), int(Kind::Website));
+        QCOMPARE(info.value(u"mimeComment"_s).toString(), u"Website"_s);
+        QCOMPARE(info.value(u"webAddress"_s).toString(), address);
+        QVERIFY(info.value(u"owned"_s).toBool());
+        QVERIFY(info.value(u"inbox"_s).toBool());
+        // The file is an internet shortcut, as other programs know it.
+        QCOMPARE(readFile(info.value(u"contentPath"_s).toString()), QByteArray("[InternetShortcut]\r\nURL=") + address.toUtf8() + "\r\n");
+        // Found by its kind, and by the words of its address.
+        QCOMPARE(m_library->count(u"kind:website"_s), 1);
+        QCOMPARE(m_library->count(u"kind:website berth"_s), 1);
+        QCOMPARE(m_library->count(u"kind:other berth"_s), 0);
+
+        // Only what a browser is the right program for becomes a website.
+        QSignalSpy told(m_library.get(), &Library::message);
+        QCOMPARE(m_library->createWebLink(u"Passwords"_s, QUrl(u"file:///etc/passwd"_s)), 0);
+        QCOMPARE(told.size(), 1);
+        QCOMPARE(m_library->count(u"kind:website"_s), 1);
+
+        // Link files that lie in an indexed folder are websites too: as Windows writes them,
+        // also in UTF-16, and as macOS does.
+        QTemporaryDir folder;
+        QVERIFY(folder.isValid());
+        writeFile(folder.filePath(u"windows.url"_s),
+                  "[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,2\r\n[InternetShortcut]\r\nIDList=\r\nurl=https://example.com/ketch\r\n");
+        const QString wide = u"[InternetShortcut]\r\nURL=https://example.com/wide\r\n"_s;
+        writeFile(folder.filePath(u"wide.url"_s),
+                  QByteArray("\xff\xfe") + QByteArray(reinterpret_cast<const char *>(wide.utf16()), wide.size() * 2));
+        writeFile(folder.filePath(u"mac.webloc"_s),
+                  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n\t<key>URL</key>\n"
+                  "\t<string>https://example.com/quay?a=1&amp;b=2</string>\n</dict>\n</plist>\n");
+        // A shortcut to something that is not on the web is of the kind, but has no address.
+        writeFile(folder.filePath(u"folder.url"_s), "[InternetShortcut]\r\nURL=file:///C:/Users/someone/Documents\r\n");
+        const qint64 source = m_library->addSource(QUrl::fromLocalFile(folder.path()));
+        settle();
+        const auto addressOf = [&](const QString &name) {
+            const qint64 found = Store::documentByUrl(QUrl::fromLocalFile(folder.filePath(name))).id;
+            const QVariantMap found_info = m_library->documentInfo(found);
+            return found_info.value(u"kind"_s).toInt() == int(Kind::Website) ? found_info.value(u"webAddress"_s).toString() : u"not a website"_s;
+        };
+        QCOMPARE(addressOf(u"windows.url"_s), u"https://example.com/ketch"_s);
+        QCOMPARE(addressOf(u"wide.url"_s), u"https://example.com/wide"_s);
+        QCOMPARE(addressOf(u"mac.webloc"_s), u"https://example.com/quay?a=1&b=2"_s);
+        QCOMPARE(addressOf(u"folder.url"_s), QString());
+        QCOMPARE(m_library->count(u"kind:website"_s), 5);
+        QCOMPARE(m_library->count(u"kind:website quay"_s), 1);
+        QCOMPARE(m_library->count(u"kind:website Users"_s), 0);
+
+        m_library->removeSource(source);
+        settle();
+        QCOMPARE(m_library->count(u"kind:website"_s), 1);
     }
 
     void takesFoldersNotSingleFiles()

@@ -9,6 +9,7 @@
 #include "ocr.h"
 #include "office.h"
 #include "task.h"
+#include "weblink.h"
 
 #include <KFileMetaData/Extractor>
 #include <KFileMetaData/ExtractorCollection>
@@ -328,6 +329,13 @@ Extracted extractContent(const QString &path, const QString &mimeType, Kind kind
         if (canvas.valid) {
             result.metadata.insert(u"canvasCards"_s, QString::number(canvas.nodes.size()));
             result.metadata.insert(u"canvasConnections"_s, QString::number(canvas.edges.size()));
+        }
+    } else if (kind == Kind::Website) {
+        // The address is all there is to find such a document by, beside its name.
+        const QUrl address = WebLink::read(path);
+        if (address.isValid()) {
+            result.text = address.toDisplayString();
+            result.metadata.insert(u"webAddress"_s, result.text);
         }
     } else if (mimeType == "text/html"_L1 || mimeType == "application/xhtml+xml"_L1) {
         QFile file(path);

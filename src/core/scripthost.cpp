@@ -328,6 +328,8 @@ QString kindName(Kind kind)
         return u"email"_s;
     case Kind::Canvas:
         return u"canvas"_s;
+    case Kind::Website:
+        return u"website"_s;
     case Kind::Other:
         break;
     }

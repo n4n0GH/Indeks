@@ -25,6 +25,7 @@
 #include "searchquery.h"
 #include "store.h"
 #include "task.h"
+#include "weblink.h"
 
 #include <KDirWatch>
 #include <KFileMetaData/PropertyInfo>
@@ -33,8 +34,10 @@
 #include <KIO/FileCopyJob>
 #include <KLocalizedString>
 
+#include <QBuffer>
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 #include <QLineF>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -97,6 +100,9 @@ QString metadataLabel(const QString &key)
     if (key == "canvasConnections"_L1) {
         return i18nc("@label number of connections on a canvas", "Connections");
     }
+    if (key == "webAddress"_L1) {
+        return i18nc("@label the address of a website", "Address");
+    }
     const QString label = KFileMetaData::PropertyInfo::fromName(key).displayName();
     return label.isEmpty() ? key : label;
 }
@@ -106,20 +112,64 @@ QString formatDate(const QDateTime &dateTime)
     return dateTime.isValid() ? QLocale().toString(dateTime.toLocalTime(), QLocale::ShortFormat) : QString();
 }
 
-/** Removes everything from mail HTML that would make the viewer load something from the network. */
-QString sanitizeMailHtml(QString html)
+/**
+ * Removes everything from HTML that would make the viewer load something from the network.
+ * Attributes and style sheets are only looked at inside tags: what the text itself says,
+ * in a page about HTML for instance, stays as it is.
+ */
+QString sanitizeHtml(QString html)
 {
     static const QRegularExpression blocks(u"<(script|style|head|iframe|object|embed)\\b.*?</\\1\\s*>"_s,
                                            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    static const QRegularExpression tags(u"<(img|link|meta|base|iframe|object|embed|script)\\b[^>]*>"_s, QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression unwanted(u"<(img|link|meta|base|iframe|object|embed|script)\\b[^>]*>"_s, QRegularExpression::CaseInsensitiveOption);
+    // A tag, with quoted values that may hold a ">"; where the quotes do not add up, up to
+    // the next ">".
+    static const QRegularExpression tag(u"<[a-zA-Z](?:\"[^\"]*\"|'[^']*'|[^'\">])*>|<[a-zA-Z][^>]*>"_s);
     static const QRegularExpression attributes(u"\\s(background|src|srcset|on\\w+)\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)"_s,
                                                QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression cssUrl(u"url\\s*\\("_s, QRegularExpression::CaseInsensitiveOption);
     html.remove(blocks);
-    html.remove(tags);
-    html.remove(attributes);
-    html.replace(cssUrl, u"none("_s);
-    return html;
+    html.remove(unwanted);
+
+    QString cleaned;
+    cleaned.reserve(html.size());
+    qsizetype done = 0;
+    QRegularExpressionMatchIterator tags = tag.globalMatch(html);
+    while (tags.hasNext()) {
+        const QRegularExpressionMatch match = tags.next();
+        cleaned += QStringView(html).mid(done, match.capturedStart() - done);
+        QString text = match.captured();
+        text.remove(attributes);
+        text.replace(cssUrl, u"none("_s);
+        cleaned += text;
+        done = match.capturedEnd();
+    }
+    cleaned += QStringView(html).mid(done);
+    return cleaned;
+}
+
+/**
+ * HTML from elsewhere, the clipboard for instance, as a page to keep: what its body holds,
+ * without what would load something from the network, in a frame that says how it is
+ * encoded.
+ */
+QString pageOfForeignHtml(const QString &html)
+{
+    static const QRegularExpression bodyStart(u"<body\\b[^>]*>"_s, QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression bodyEnd(u"</body\\s*>"_s, QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression frame(u"<!DOCTYPE[^>]*>|</?html\\b[^>]*>"_s, QRegularExpression::CaseInsensitiveOption);
+
+    QString body = sanitizeHtml(html);
+    const QRegularExpressionMatch start = bodyStart.match(body);
+    if (start.hasMatch()) {
+        body = body.mid(start.capturedEnd());
+    }
+    const QRegularExpressionMatch end = bodyEnd.match(body);
+    if (end.hasMatch()) {
+        body.truncate(end.capturedStart());
+    }
+    body.remove(frame);
+    return u"<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head><body>\n"_s + body.trimmed() + u"\n</body></html>\n"_s;
 }
 
 QString cleanName(const QString &name)
@@ -956,9 +1006,8 @@ qint64 Library::adoptOwnedFile(const QString &path)
     return result.id;
 }
 
-qint64 Library::createDocument(const QString &name, const QString &format, const QString &content)
+qint64 Library::createOwnedFile(const QString &name, const QString &extension, const QByteArray &data)
 {
-    const QString extension = format == "markdown"_L1 ? u".md"_s : format == "html"_L1 ? u".html"_s : u".txt"_s;
     QString fileName = cleanName(name);
     if (fileName.isEmpty()) {
         fileName = i18nc("default name of a new document", "Untitled");
@@ -969,11 +1018,54 @@ qint64 Library::createDocument(const QString &name, const QString &format, const
     const QString path = Paths::uniqueFilePath(Paths::filesDir(), fileName);
 
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(content.toUtf8()) < 0 || !file.commit()) {
+    if (!file.open(QIODevice::WriteOnly) || file.write(data) < 0 || !file.commit()) {
         Q_EMIT message(i18nc("@info", "Cannot create “%1”: %2", fileName, file.errorString()));
         return 0;
     }
     return adoptOwnedFile(path);
+}
+
+qint64 Library::createDocument(const QString &name, const QString &format, const QString &content)
+{
+    const QString extension = format == "markdown"_L1 ? u".md"_s : format == "html"_L1 ? u".html"_s : u".txt"_s;
+    return createOwnedFile(name, extension, content.toUtf8());
+}
+
+qint64 Library::createDocumentFromHtml(const QString &name, const QString &html)
+{
+    return createOwnedFile(name, u".html"_s, pageOfForeignHtml(html).toUtf8());
+}
+
+qint64 Library::createWebLink(const QString &name, const QUrl &address)
+{
+    // Asked again here: only an address a browser is the right program for is kept.
+    const QUrl checked = WebLink::addressOfText(QString::fromUtf8(address.toEncoded()));
+    if (!checked.isValid()) {
+        Q_EMIT message(i18nc("@info", "Cannot create “%1”: “%2” is not the address of a website.", name, address.toDisplayString()));
+        return 0;
+    }
+    return createOwnedFile(name, u".url"_s, WebLink::fileContent(checked));
+}
+
+QString Library::webAddress(qint64 id) const
+{
+    const Document doc = Store::document(id);
+    if (!doc.isValid() || doc.kind != Kind::Website) {
+        return {};
+    }
+    const QString path = contentPath(id);
+    return path.isEmpty() ? QString() : QString::fromUtf8(WebLink::read(path).toEncoded());
+}
+
+qint64 Library::createPicture(const QString &name, const QImage &image)
+{
+    QByteArray data;
+    QBuffer buffer(&data);
+    if (image.isNull() || !buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) {
+        Q_EMIT message(i18nc("@info", "Cannot create “%1”: the picture could not be written.", name));
+        return 0;
+    }
+    return createOwnedFile(name, u".png"_s, data);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1037,9 +1129,14 @@ QVariantMap Library::documentInfo(qint64 id) const
         {u"location"_s, doc.owned ? i18nc("@info where a document is stored", "Stored in Indeks") : location},
         {u"local"_s, local},
         {u"mime"_s, doc.mimeType},
-        {u"mimeComment"_s, doc.kind == Kind::Canvas ? i18nc("@info type of document", "Obsidian canvas") : mime.isValid() ? mime.comment() : doc.mimeType},
+        {u"mimeComment"_s, doc.kind == Kind::Canvas    ? i18nc("@info type of document", "Obsidian canvas")
+                               : doc.kind == Kind::Website ? i18nc("@info type of document", "Website")
+                               : mime.isValid()            ? mime.comment()
+                                                           : doc.mimeType},
+        // For a website: where it is on the web. Empty if the file holds no such address.
+        {u"webAddress"_s, doc.kind == Kind::Website ? webAddress(doc.id) : QString()},
         {u"kind"_s, int(doc.kind)},
-        {u"icon"_s, container ? u"folder-mail"_s : mime.isValid() ? mime.iconName() : kindIconName(doc.kind)},
+        {u"icon"_s, container ? u"folder-mail"_s : doc.kind == Kind::Website ? u"globe"_s : mime.isValid() ? mime.iconName() : kindIconName(doc.kind)},
         {u"size"_s, doc.size},
         {u"sizeText"_s, KFormat().formatByteSize(double(doc.size))},
         {u"modifiedText"_s, formatDate(doc.modified)},
@@ -2598,7 +2695,7 @@ QVariantMap Library::email(qint64 documentId, int message) const
         {u"bcc"_s, mail.bcc},
         {u"date"_s, formatDate(mail.date)},
         {u"text"_s, mail.textBody},
-        {u"html"_s, mail.htmlBody.isEmpty() ? QString() : sanitizeMailHtml(mail.htmlBody)},
+        {u"html"_s, mail.htmlBody.isEmpty() ? QString() : sanitizeHtml(mail.htmlBody)},
         {u"attachments"_s, attachments},
     };
 }

@@ -98,6 +98,10 @@
         <entry name="previewVisible" type="Bool">
             <default>true</default>
         </entry>
+        <entry name="previewBeside" type="Bool">
+            <label>Whether the preview stands to the right of the list of documents instead of below it.</label>
+            <default>false</default>
+        </entry>
         <entry name="previewTextZoom" type="Double">
             <label>How large text is shown in the preview, 1 being the size of the desktop's fonts.</label>
             <default>1</default>
@@ -128,8 +132,12 @@
             <default></default>
         </entry>
         <entry name="toolbarActions" type="StringList">
-            <label>What the toolbar shows between the panel buttons and the search field: names of actions, "menu_add", "menu_new" and "separator".</label>
-            <default>menu_add,menu_new,separator,doc_tag,doc_group,doc_flag,separator,doc_open,doc_trash</default>
+            <label>What the toolbar shows between the buttons for the sidebar and the side panel: names of actions, "menu_add", "menu_new", "separator", "search_field", and "spacer", after which everything stands at the far end.</label>
+            <default>menu_add,menu_new,separator,doc_tag,doc_group,doc_flag,separator,doc_open,doc_trash,spacer,search_field,search_advanced,save_search,view_preview,view_preview_beside</default>
+        </entry>
+        <entry name="toolbarLayout" type="Int">
+            <label>Which form toolbarActions is in. From 2 on it names the search field and the buttons beside it, which had fixed places before.</label>
+            <default>1</default>
         </entry>
         <entry name="toolbarIconsOnly" type="Bool">
             <label>Show the toolbar buttons without their text.</label>

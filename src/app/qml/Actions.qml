@@ -22,6 +22,8 @@ Item {
     readonly property Kirigami.Action newText: Wrapped { name: "new_text" }
     readonly property Kirigami.Action newMarkdown: Wrapped { name: "new_markdown" }
     readonly property Kirigami.Action newRichText: Wrapped { name: "new_richtext" }
+    readonly property Kirigami.Action newFromClipboard: Wrapped { name: "new_clipboard" }
+    readonly property Kirigami.Action copyAddress: Wrapped { name: "doc_copy_address" }
     readonly property Kirigami.Action rescan: Wrapped { name: "rescan" }
     readonly property Kirigami.Action databases: Wrapped { name: "db_manage" }
     readonly property Kirigami.Action addDatabase: Wrapped { name: "db_add" }
@@ -56,11 +58,18 @@ Item {
     // Organizing
     readonly property Kirigami.Action newGroup: Wrapped { name: "new_group" }
     readonly property Kirigami.Action newTag: Wrapped { name: "new_tag" }
-    readonly property Kirigami.Action saveSearch: Wrapped { name: "save_search" }
+    readonly property Kirigami.Action saveSearch: Wrapped {
+        name: "save_search"
+        // In the toolbar by its icon alone, like the others that belong to the search field
+        // and the panels.
+        displayHint: Kirigami.DisplayHint.IconOnly
+    }
     readonly property Kirigami.Action newRule: Wrapped { name: "new_rule" }
     readonly property Kirigami.Action editSidebarItem: Wrapped { name: "edit_sidebar_item" }
     readonly property Kirigami.Action deleteSidebarItem: Wrapped { name: "delete_sidebar_item" }
     readonly property Kirigami.Action applyRule: Wrapped { name: "apply_rule" }
+    readonly property Kirigami.Action goRules: Wrapped { name: "go_rules" }
+    readonly property Kirigami.Action automationDelete: Wrapped { name: "automation_delete" }
     readonly property Kirigami.Action newTodo: Wrapped { name: "new_todo" }
     readonly property Kirigami.Action docTodo: Wrapped { name: "doc_todo" }
     readonly property Kirigami.Action clearDoneTodos: Wrapped { name: "todos_clear_done" }
@@ -78,12 +87,23 @@ Item {
     readonly property Kirigami.Action goFlagged: Wrapped { name: "go_flagged" }
     readonly property Kirigami.Action goTrash: Wrapped { name: "go_trash" }
     readonly property Kirigami.Action focusSearch: Wrapped { name: "focus_search" }
-    readonly property Kirigami.Action advancedSearch: Wrapped { name: "search_advanced" }
+    readonly property Kirigami.Action advancedSearch: Wrapped {
+        name: "search_advanced"
+        displayHint: Kirigami.DisplayHint.IconOnly
+        tooltip: i18nc("@info:tooltip", "Filters: narrow the list down by name, content, type, date, size, tags and more")
+    }
 
     // View
     readonly property Kirigami.Action leftSidebar: Wrapped { name: "view_left_sidebar" }
     readonly property Kirigami.Action rightSidebar: Wrapped { name: "view_right_sidebar" }
-    readonly property Kirigami.Action preview: Wrapped { name: "view_preview" }
+    readonly property Kirigami.Action preview: Wrapped {
+        name: "view_preview"
+        displayHint: Kirigami.DisplayHint.IconOnly
+    }
+    readonly property Kirigami.Action previewBeside: Wrapped {
+        name: "view_preview_beside"
+        displayHint: Kirigami.DisplayHint.IconOnly
+    }
     readonly property Kirigami.Action showInfo: Wrapped { name: "view_info" }
     readonly property Kirigami.Action showTodos: Wrapped { name: "view_todos" }
     readonly property Kirigami.Action activity: Wrapped { name: "view_activity" }

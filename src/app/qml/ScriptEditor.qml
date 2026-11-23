@@ -10,40 +10,48 @@ import org.kde.kirigami as Kirigami
 import org.kde.syntaxhighlighting as Syntax
 
 // Writes a script: its name, its text, and a way to try it on the selected document without
-// anything being done to that document.
-Kirigami.Dialog {
+// anything being done to that document. Nothing is stored before save(); `dirty` says
+// whether there is something to store.
+Item {
     id: root
 
     /** The file of the script being edited; empty for one that was never saved. */
     property string file
+    /** Whether there is a script here at all, a new one included. */
+    property bool loaded: false
     property string savedName
     property string savedSource
     /** Whether the script may run on this computer as it is stored; see Scripts. */
     property bool allowed: true
-    /** Called with the script's file once it is saved for the first time. */
-    property var whenCreated: null
     /** How the last try went: what ScriptHost reports. */
     property var trial: null
     property bool trying: false
 
-    readonly property bool dirty: codeView.text !== savedSource || nameField.text.trim() !== savedName
-    readonly property bool canSave: nameField.text.trim().length > 0 && (dirty || file.length === 0)
-    readonly property real currentDocument: App.documents.currentId
-    readonly property string problem: visible ? App.library.scriptsProblem() : ""
+    /** The script was stored, in this file. */
+    signal saved(string file)
 
-    function create(whenCreated: var): void {
+    readonly property string name: nameField.text.trim()
+    readonly property bool dirty: loaded && (codeView.text !== savedSource || name !== savedName)
+    readonly property bool canSave: loaded && name.length > 0 && (dirty || file.length === 0)
+    readonly property real currentDocument: App.documents.currentId
+    readonly property string currentDocumentName: currentDocument > 0 ? (App.library.documentInfo(currentDocument).name ?? "") : ""
+    readonly property string problem: visible ? App.library.scriptsProblem() : ""
+    readonly property bool canTry: loaded && currentDocument > 0 && !trying && problem.length === 0
+
+    /** A new script, with the text every script starts from. What was here before is gone. */
+    function create(): void {
         load("", "", App.library.newScriptText(), true);
-        root.whenCreated = whenCreated;
         nameField.forceActiveFocus();
     }
 
-    function edit(file: string): void {
+    /** Shows the script in @p file for changing. False if there is no such script. */
+    function edit(file: string): bool {
         const script = App.library.script(file);
         if (script.file === undefined) {
-            return;
+            return false;
         }
         load(script.file, script.name, script.source, script.allowed);
-        codeView.editor.forceActiveFocus();
+        return true;
     }
 
     function load(file: string, name: string, source: string, allowed: bool): void {
@@ -51,12 +59,29 @@ Kirigami.Dialog {
         root.savedName = name;
         root.savedSource = source;
         root.allowed = allowed;
-        root.whenCreated = null;
         root.trial = null;
         root.trying = false;
         nameField.text = name;
-        open();
         codeView.show(source, [], []);
+        root.loaded = true;
+    }
+
+    /** Back to how the script is stored, or to the starting text for a new one. */
+    function revert(): void {
+        if (file.length > 0) {
+            edit(file);
+        } else {
+            create();
+        }
+    }
+
+    function clear(): void {
+        load("", "", "", true);
+        loaded = false;
+    }
+
+    function showReference(): void {
+        reference.open();
     }
 
     function save(): bool {
@@ -67,17 +92,12 @@ Kirigami.Dialog {
         if (saved.length === 0) {
             return false; // the library has said why
         }
-        const created = file.length === 0;
         file = saved;
         savedName = saved.slice(0, -3);
         nameField.text = savedName;
         savedSource = codeView.text;
         allowed = true; // what is saved here may run here
-        if (created && whenCreated) {
-            const callback = whenCreated;
-            whenCreated = null;
-            callback(saved);
-        }
+        root.saved(saved);
         return true;
     }
 
@@ -85,15 +105,6 @@ Kirigami.Dialog {
         trial = null;
         trying = true;
         App.library.tryScript(nameField.text, codeView.text, [currentDocument]);
-    }
-
-    // Leaving with changes that were not saved takes a second thought.
-    function leave(): void {
-        if (dirty) {
-            discard.open();
-        } else {
-            close();
-        }
     }
 
     // What the last try came to, as text.
@@ -127,39 +138,6 @@ Kirigami.Dialog {
         return lines.join("\n");
     }
 
-    title: file.length > 0 ? i18nc("@title:window", "Edit Script") : i18nc("@title:window", "New Script")
-    padding: Kirigami.Units.largeSpacing
-    // Text that took a while to write is not lost to a click beside the dialog.
-    closePolicy: QQC2.Popup.NoAutoClose
-    showCloseButton: false
-    standardButtons: Kirigami.Dialog.NoButton
-    customFooterActions: [
-        Kirigami.Action {
-            text: i18nc("@action:button", "Reference")
-            icon.name: "help-contents"
-            onTriggered: reference.open()
-        },
-        Kirigami.Action {
-            text: i18nc("@action:button", "Try on Selected Document")
-            icon.name: "debug-run"
-            enabled: root.currentDocument > 0 && !root.trying && root.problem.length === 0
-            tooltip: root.currentDocument > 0 ? i18nc("@info:tooltip", "Shows what the script would do to the selected document, without doing it")
-                                             : i18nc("@info:tooltip", "Select a document in the list first")
-            onTriggered: root.tryOut()
-        },
-        Kirigami.Action {
-            text: i18nc("@action:button", "Save")
-            icon.name: "document-save"
-            enabled: root.canSave
-            onTriggered: root.save()
-        },
-        Kirigami.Action {
-            text: i18nc("@action:button", "Close")
-            icon.name: "dialog-close"
-            onTriggered: root.leave()
-        }
-    ]
-
     ScriptTexts {
         id: texts
     }
@@ -173,11 +151,9 @@ Kirigami.Dialog {
         }
     }
 
-    // As much room as the window has to give, and no more: the text scrolls by itself. A layout
-    // works out its own size, so the size is stated by an item around it.
     Item {
-        implicitWidth: Math.max(Kirigami.Units.gridUnit * 24, Math.min(Kirigami.Units.gridUnit * 52, (root.parent?.width ?? 0) - Kirigami.Units.gridUnit * 6))
-        implicitHeight: Math.max(Kirigami.Units.gridUnit * 14, Math.min(Kirigami.Units.gridUnit * 36, (root.parent?.height ?? 0) - Kirigami.Units.gridUnit * 10))
+        anchors.fill: parent
+        anchors.margins: Kirigami.Units.largeSpacing
 
         ColumnLayout {
             anchors.fill: parent
@@ -235,7 +211,6 @@ Kirigami.Dialog {
                     indentWidth: 4
                     syntax: Syntax.Repository.definitionForName("Python")
                     onSaveRequested: root.save()
-                    onEscapePressed: root.leave()
                 }
             }
 
@@ -264,38 +239,11 @@ Kirigami.Dialog {
         }
     }
 
-    Kirigami.PromptDialog {
-        id: discard
-
-        title: i18nc("@title:window", "Discard Changes?")
-        subtitle: i18nc("@info", "The changes to this script have not been saved.")
-        standardButtons: Kirigami.Dialog.Cancel
-        customFooterActions: [
-            Kirigami.Action {
-                text: i18nc("@action:button", "Save")
-                icon.name: "document-save"
-                enabled: nameField.text.trim().length > 0
-                onTriggered: {
-                    discard.close();
-                    if (root.save()) {
-                        root.close();
-                    }
-                }
-            },
-            Kirigami.Action {
-                text: i18nc("@action:button", "Discard")
-                icon.name: "edit-delete"
-                onTriggered: {
-                    discard.close();
-                    root.close();
-                }
-            }
-        ]
-    }
-
     Kirigami.Dialog {
         id: reference
 
+        // In the middle of the window, not of the pane the editor is in.
+        parent: root.QQC2.Overlay.overlay
         title: i18nc("@title:window", "What a Script Can Do")
         padding: Kirigami.Units.largeSpacing
         preferredWidth: Kirigami.Units.gridUnit * 46

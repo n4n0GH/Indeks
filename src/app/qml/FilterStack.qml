@@ -274,6 +274,7 @@ GridLayout {
         { query: "kind:image", label: i18nc("@item file type", "Images") },
         { query: "kind:email", label: i18nc("@item file type", "E-mails") },
         { query: "kind:canvas", label: i18nc("@item file type", "Obsidian canvases") },
+        { query: "kind:website", label: i18nc("@item file type", "Websites") },
         { query: "kind:other", label: i18nc("@item file type", "Everything else") }
     ]
     readonly property var states: [

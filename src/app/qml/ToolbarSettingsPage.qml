@@ -9,7 +9,8 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.formcard as FormCard
 
-// What the toolbar shows between the panel buttons and the search field, and in which order.
+// What the toolbar shows between the buttons for the sidebar and the side panel, and in which
+// order. Entries are dragged by their handle, or moved a place at a time with the arrows.
 // Changes take effect at once.
 FormCard.FormCardPage {
     id: root
@@ -46,8 +47,35 @@ FormCard.FormCardPage {
         apply(Array.from(names).concat([name]));
     }
 
+    // The list is shown from a model of its own: an entry that is being dragged moves in the
+    // model at once, and the toolbar follows when it is let go.
+    function shownNames(): list<string> {
+        const list = [];
+        for (let i = 0; i < entries.count; ++i) {
+            list.push(entries.get(i).name);
+        }
+        return list;
+    }
+
+    function showNames(): void {
+        if (shownNames().join(",") === names.join(",")) {
+            return;
+        }
+        entries.clear();
+        for (const name of names) {
+            entries.append({name: name});
+        }
+    }
+
+    onNamesChanged: showNames()
+    Component.onCompleted: showNames()
+
+    ListModel {
+        id: entries
+    }
+
     FormCard.FormHeader {
-        title: i18nc("@title:group", "Buttons, from left to right")
+        title: i18nc("@title:group", "In the toolbar, from left to right")
     }
     FormCard.FormCard {
         FormCard.FormPlaceholderMessageDelegate {
@@ -56,63 +84,109 @@ FormCard.FormCardPage {
             text: i18nc("@info:placeholder", "The toolbar has no buttons")
             explanation: i18nc("@info:placeholder", "Every function is still in the menu and in the command bar.")
         }
-        Repeater {
-            model: root.names
+        ListView {
+            id: entryList
 
-            FormCard.AbstractFormDelegate {
-                id: entry
+            Layout.fillWidth: true
+            implicitHeight: contentHeight
+            // The page scrolls, not this list in it.
+            interactive: false
+            model: entries
+
+            moveDisplaced: Transition {
+                YAnimator {
+                    duration: Kirigami.Units.longDuration
+                    easing.type: Easing.InOutQuad
+                }
+            }
+
+            // What is dragged is the entry inside; its place in the list stays behind.
+            delegate: Item {
+                id: slot
 
                 required property int index
-                required property string modelData
-                readonly property var item: App.toolbarItem(modelData)
-                readonly property bool separator: modelData === "separator"
+                required property string name
 
-                background: null
-                Accessible.name: item.text ?? ""
+                width: entryList.width
+                height: entry.implicitHeight
 
-                contentItem: RowLayout {
-                    spacing: Kirigami.Units.smallSpacing
+                FormCard.AbstractFormDelegate {
+                    id: entry
 
-                    Kirigami.Icon {
-                        source: entry.item.icon ?? ""
-                        opacity: entry.separator ? 0.5 : 1
-                        implicitWidth: Kirigami.Units.iconSizes.smallMedium
-                        implicitHeight: implicitWidth
-                    }
-                    QQC2.Label {
-                        Layout.fillWidth: true
-                        text: entry.item.text ?? ""
-                        elide: Text.ElideRight
-                        color: entry.separator ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.textColor
-                    }
-                    QQC2.ToolButton {
-                        icon.name: "go-up"
-                        text: i18nc("@action:button move a toolbar button towards the start", "Move Up")
-                        display: QQC2.AbstractButton.IconOnly
-                        enabled: entry.index > 0
-                        onClicked: root.move(entry.index, -1)
-                        QQC2.ToolTip.text: text
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                    }
-                    QQC2.ToolButton {
-                        icon.name: "go-down"
-                        text: i18nc("@action:button move a toolbar button towards the end", "Move Down")
-                        display: QQC2.AbstractButton.IconOnly
-                        enabled: entry.index < root.names.length - 1
-                        onClicked: root.move(entry.index, 1)
-                        QQC2.ToolTip.text: text
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                    }
-                    QQC2.ToolButton {
-                        icon.name: "list-remove"
-                        text: i18nc("@action:button", "Remove from Toolbar")
-                        display: QQC2.AbstractButton.IconOnly
-                        onClicked: root.remove(entry.index)
-                        QQC2.ToolTip.text: text
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    readonly property var item: App.toolbarItem(slot.name)
+                    // Lines and room, not buttons.
+                    readonly property bool layout: slot.name === "separator" || slot.name === "spacer"
+
+                    width: slot.width
+                    // Low rows: the whole list is to be in view while one of them is dragged.
+                    topPadding: Kirigami.Units.smallSpacing
+                    bottomPadding: Kirigami.Units.smallSpacing
+                    background: null
+                    Accessible.name: item.text ?? ""
+
+                    contentItem: RowLayout {
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.ListItemDragHandle {
+                            listItem: entry
+                            listView: entryList
+                            onMoveRequested: (oldIndex, newIndex) => entries.move(oldIndex, newIndex, 1)
+                            onDropped: root.apply(root.shownNames())
+                        }
+                        Kirigami.Icon {
+                            source: entry.item.icon ?? ""
+                            opacity: entry.layout ? 0.5 : 1
+                            implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                            implicitHeight: implicitWidth
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: entry.item.text ?? ""
+                                elide: Text.ElideRight
+                                color: entry.layout ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.textColor
+                            }
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                visible: slot.name === "spacer"
+                                text: i18nc("@info what the flexible space in the toolbar does", "What comes after it stands at the right end of the toolbar")
+                                elide: Text.ElideRight
+                                font: Kirigami.Theme.smallFont
+                                color: Kirigami.Theme.disabledTextColor
+                            }
+                        }
+                        QQC2.ToolButton {
+                            icon.name: "go-up"
+                            text: i18nc("@action:button move a toolbar button towards the start", "Move Up")
+                            display: QQC2.AbstractButton.IconOnly
+                            enabled: slot.index > 0
+                            onClicked: root.move(slot.index, -1)
+                            QQC2.ToolTip.text: text
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
+                        QQC2.ToolButton {
+                            icon.name: "go-down"
+                            text: i18nc("@action:button move a toolbar button towards the end", "Move Down")
+                            display: QQC2.AbstractButton.IconOnly
+                            enabled: slot.index < entries.count - 1
+                            onClicked: root.move(slot.index, 1)
+                            QQC2.ToolTip.text: text
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
+                        QQC2.ToolButton {
+                            icon.name: "list-remove"
+                            text: i18nc("@action:button", "Remove from Toolbar")
+                            display: QQC2.AbstractButton.IconOnly
+                            onClicked: root.remove(slot.index)
+                            QQC2.ToolTip.text: text
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
                     }
                 }
             }
@@ -132,6 +206,15 @@ FormCard.FormCardPage {
             text: i18nc("@action:button", "Add Separator")
             icon.name: "distribute-horizontal-x"
             onClicked: root.add("separator")
+        }
+        FormCard.FormDelegateSeparator {}
+        FormCard.FormButtonDelegate {
+            text: i18nc("@action:button", "Add Flexible Space")
+            description: i18nc("@info", "What comes after it stands at the right end of the toolbar.")
+            icon.name: "distribute-horizontal-gaps"
+            // There is one right end.
+            enabled: !root.names.includes("spacer")
+            onClicked: root.add("spacer")
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
@@ -158,7 +241,7 @@ FormCard.FormCardPage {
     }
 
     FormCard.FormSectionText {
-        text: i18nc("@info", "The buttons for the panels, the search field and the menu keep their places. Buttons that do not fit the window move into a menu at the end of the toolbar.")
+        text: i18nc("@info", "Drag an entry by its handle to move it. The buttons for the sidebar and the side panel and the menu keep their places. Buttons that do not fit the window move into a menu.")
     }
 
     Kirigami.Dialog {
@@ -212,7 +295,8 @@ FormCard.FormCardPage {
             delegate: QQC2.ItemDelegate {
                 required property var modelData
 
-                width: offeredList.width
+                // The list is gone before its last entries are when the window closes.
+                width: ListView.view?.width ?? 0
                 text: modelData.text
                 icon.name: modelData.icon
                 onClicked: root.add(modelData.name)

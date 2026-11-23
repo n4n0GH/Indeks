@@ -6,12 +6,41 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// Left sidebar. Every entry is a place to look at: clicking one changes what the file browser
-// shows. Documents can be dropped on groups, tags, the inbox and the trash.
+// Left sidebar, which serves more than one purpose, as the panel on the right does. Tabs at
+// its top lead to the database, where every entry is a place to look at and clicking one
+// changes what the list of documents shows, and to automation, whose two entries put the
+// rules or the scripts where the documents are listed otherwise. Documents can be dropped on
+// groups, tags, the inbox and the trash.
 QQC2.Pane {
     id: root
 
     required property Actions actions
+
+    // In the order of the tabs.
+    readonly property list<string> tabs: ["database", "automation"]
+    readonly property int tabIndex: Math.max(0, tabs.indexOf(App.sidebarTab))
+    property int ruleCount: 0
+    property int scriptCount: 0
+
+    function countAutomation(): void {
+        ruleCount = App.library.rules().length;
+        scriptCount = App.library.scripts().length;
+    }
+
+    Component.onCompleted: countAutomation()
+
+    Connections {
+        target: App.library
+        function onChanged(): void {
+            root.countAutomation();
+        }
+        function onScriptsChanged(): void {
+            root.countAutomation();
+        }
+        function onDatabaseChanged(): void {
+            root.countAutomation();
+        }
+    }
 
     padding: 0
     Kirigami.Theme.colorSet: Kirigami.Theme.View
@@ -41,115 +70,237 @@ QQC2.Pane {
     contentItem: ColumnLayout {
         spacing: 0
 
-        QQC2.ScrollView {
+        Kirigami.NavigationTabBar {
+            id: tabBar
+
+            Layout.fillWidth: true
+            position: QQC2.ToolBar.Header
+            actions: [
+                Kirigami.Action {
+                    text: i18nc("@title:tab the places, groups, tags and locations of the database", "Database")
+                    tooltip: i18nc("@info:tooltip", "The documents of the database")
+                    icon.name: "folder-documents"
+                },
+                Kirigami.Action {
+                    text: i18nc("@title:tab rules and scripts", "Automation")
+                    tooltip: i18nc("@info:tooltip", "Rules and scripts")
+                    icon.name: "system-run"
+                }
+            ]
+            // As in the panel on the right: icons alone, which leaves the bar lower; what
+            // each is for says its tooltip, and its name is still there for screen readers.
+            delegate: Kirigami.NavigationTabButton {
+                required property QQC2.Action modelData
+
+                parent: tabBar.contentItem
+                action: modelData
+                // As the bar's own tabs do: an action is not checkable unless told to be.
+                onActionChanged: action.checkable = true
+                display: QQC2.AbstractButton.IconOnly
+                implicitHeight: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing
+
+                Layout.minimumWidth: tabBar.buttonWidth
+                Layout.maximumWidth: tabBar.buttonWidth
+                Layout.fillHeight: true
+
+                Accessible.name: modelData.text
+            }
+
+            // The tab that is shown is the application's to know; the bar follows it and
+            // changes it.
+            Component.onCompleted: currentIndex = root.tabIndex
+            onCurrentIndexChanged: {
+                if (currentIndex >= 0 && currentIndex !== root.tabIndex) {
+                    App.sidebarTab = root.tabs[currentIndex];
+                }
+            }
+
+            Connections {
+                target: root
+                function onTabIndexChanged(): void {
+                    tabBar.currentIndex = root.tabIndex;
+                }
+            }
+        }
+
+        StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            currentIndex: root.tabIndex
 
-            QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+            QQC2.ScrollView {
+                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
-            ListView {
-                id: list
+                ListView {
+                    id: list
 
-                model: App.sidebar
-                clip: true
-                activeFocusOnTab: true
-                keyNavigationEnabled: false
+                    model: App.sidebar
+                    clip: true
+                    activeFocusOnTab: true
+                    keyNavigationEnabled: false
 
-                Keys.onUpPressed: root.step(-1)
-                Keys.onDownPressed: root.step(1)
+                    Keys.onUpPressed: root.step(-1)
+                    Keys.onDownPressed: root.step(1)
 
-                delegate: QQC2.ItemDelegate {
-                    id: entry
+                    delegate: QQC2.ItemDelegate {
+                        id: entry
 
-                    required property int index
-                    required property string key
-                    required property string label
-                    required property string iconName
-                    required property int count
-                    required property int depth
-                    required property string kind
-                    required property real itemId
-                    required property bool isHeader
-                    required property bool collapsed
-                    required property bool offline
-                    required property bool isCurrent
+                        required property int index
+                        required property string key
+                        required property string label
+                        required property string iconName
+                        required property int count
+                        required property int depth
+                        required property string kind
+                        required property real itemId
+                        required property bool isHeader
+                        required property bool collapsed
+                        required property bool offline
+                        required property bool isCurrent
 
-                    width: ListView.view.width
-                    highlighted: isCurrent || dropArea.containsDrag
-                    topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
-                    bottomPadding: Kirigami.Units.smallSpacing
-                    leftPadding: Kirigami.Units.largeSpacing + depth * Kirigami.Units.gridUnit
+                        width: ListView.view.width
+                        highlighted: isCurrent || dropArea.containsDrag
+                        topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
+                        bottomPadding: Kirigami.Units.smallSpacing
+                        leftPadding: Kirigami.Units.largeSpacing + depth * Kirigami.Units.gridUnit
 
-                    Accessible.name: label
-                    Accessible.role: isHeader ? Accessible.Heading : Accessible.ListItem
+                        Accessible.name: label
+                        Accessible.role: isHeader ? Accessible.Heading : Accessible.ListItem
 
-                    contentItem: RowLayout {
-                        spacing: Kirigami.Units.smallSpacing
+                        contentItem: RowLayout {
+                            spacing: Kirigami.Units.smallSpacing
 
-                        Kirigami.Icon {
-                            source: entry.isHeader ? (entry.collapsed ? "arrow-right" : "arrow-down") : entry.iconName
-                            selected: entry.highlighted
-                            opacity: entry.offline ? 0.5 : 1
-                            implicitWidth: entry.isHeader ? Kirigami.Units.iconSizes.small : Kirigami.Units.iconSizes.smallMedium
-                            implicitHeight: implicitWidth
+                            Kirigami.Icon {
+                                source: entry.isHeader ? (entry.collapsed ? "arrow-right" : "arrow-down") : entry.iconName
+                                selected: entry.highlighted
+                                opacity: entry.offline ? 0.5 : 1
+                                implicitWidth: entry.isHeader ? Kirigami.Units.iconSizes.small : Kirigami.Units.iconSizes.smallMedium
+                                implicitHeight: implicitWidth
+                            }
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: entry.label
+                                elide: Text.ElideRight
+                                font.weight: entry.isHeader ? Font.DemiBold : Font.Normal
+                                color: entry.highlighted ? Kirigami.Theme.highlightedTextColor : entry.isHeader || entry.offline ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.textColor
+                            }
+                            Kirigami.Icon {
+                                visible: entry.offline
+                                source: "network-disconnect"
+                                implicitWidth: Kirigami.Units.iconSizes.small
+                                implicitHeight: implicitWidth
+
+                                QQC2.ToolTip.text: i18nc("@info:tooltip", "This location is not connected. Its documents can still be found.")
+                                QQC2.ToolTip.visible: offlineHover.hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                                HoverHandler { id: offlineHover }
+                            }
+                            QQC2.Label {
+                                visible: !entry.isHeader && entry.count > 0
+                                text: entry.count
+                                color: entry.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                                font: Kirigami.Theme.smallFont
+                            }
                         }
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            text: entry.label
-                            elide: Text.ElideRight
-                            font.weight: entry.isHeader ? Font.DemiBold : Font.Normal
-                            color: entry.highlighted ? Kirigami.Theme.highlightedTextColor : entry.isHeader || entry.offline ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.textColor
-                        }
-                        Kirigami.Icon {
-                            visible: entry.offline
-                            source: "network-disconnect"
-                            implicitWidth: Kirigami.Units.iconSizes.small
-                            implicitHeight: implicitWidth
 
-                            QQC2.ToolTip.text: i18nc("@info:tooltip", "This location is not connected. Its documents can still be found.")
-                            QQC2.ToolTip.visible: offlineHover.hovered
-                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                            HoverHandler { id: offlineHover }
-                        }
-                        QQC2.Label {
-                            visible: !entry.isHeader && entry.count > 0
-                            text: entry.count
-                            color: entry.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
-                            font: Kirigami.Theme.smallFont
-                        }
-                    }
-
-                    onClicked: {
-                        if (isHeader) {
-                            App.sidebar.toggleSection(key.substring(7));
-                        } else {
-                            App.sidebar.currentKey = key;
-                        }
-                    }
-
-                    TapHandler {
-                        acceptedButtons: Qt.RightButton
-                        onTapped: {
-                            if (entry.isHeader) {
-                                headerMenu.section = entry.key.substring(7);
-                                headerMenu.popup();
+                        onClicked: {
+                            if (isHeader) {
+                                App.sidebar.toggleSection(key.substring(7));
                             } else {
-                                App.sidebar.currentKey = entry.key;
-                                entryMenu.popup();
+                                App.sidebar.currentKey = key;
+                            }
+                        }
+
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: {
+                                if (entry.isHeader) {
+                                    headerMenu.section = entry.key.substring(7);
+                                    headerMenu.popup();
+                                } else {
+                                    App.sidebar.currentKey = entry.key;
+                                    entryMenu.popup();
+                                }
+                            }
+                        }
+
+                        DropArea {
+                            id: dropArea
+
+                            anchors.fill: parent
+                            enabled: !entry.isHeader && root.acceptsDocuments(entry.kind, entry.key)
+                            keys: ["application/x-indeks-documents"]
+                            onDropped: drop => {
+                                const ids = drop.getDataAsString("application/x-indeks-documents").split(",").map(Number);
+                                root.dropDocuments(entry.kind, entry.key, entry.itemId, ids);
+                                drop.accept(Qt.LinkAction);
                             }
                         }
                     }
+                }
+            }
 
-                    DropArea {
-                        id: dropArea
+            // Automation: two entries, each a list of its own in the middle of the window.
+            QQC2.ScrollView {
+                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
 
-                        anchors.fill: parent
-                        enabled: !entry.isHeader && root.acceptsDocuments(entry.kind, entry.key)
-                        keys: ["application/x-indeks-documents"]
-                        onDropped: drop => {
-                            const ids = drop.getDataAsString("application/x-indeks-documents").split(",").map(Number);
-                            root.dropDocuments(entry.kind, entry.key, entry.itemId, ids);
-                            drop.accept(Qt.LinkAction);
+                ListView {
+                    id: automationList
+
+                    clip: true
+                    activeFocusOnTab: true
+                    keyNavigationEnabled: false
+                    model: [
+                        { page: "rules", label: i18nc("@item sidebar", "Rules"), icon: "run-build-configure", count: root.ruleCount },
+                        { page: "scripts", label: i18nc("@item sidebar", "Scripts"), icon: "text-x-python", count: root.scriptCount }
+                    ]
+
+                    Keys.onUpPressed: App.automationPage = "rules"
+                    Keys.onDownPressed: App.automationPage = "scripts"
+
+                    delegate: QQC2.ItemDelegate {
+                        id: page
+
+                        required property var modelData
+
+                        width: ListView.view?.width ?? 0
+                        highlighted: App.automationPage === modelData.page
+                        topPadding: Kirigami.Units.smallSpacing
+                        bottomPadding: Kirigami.Units.smallSpacing
+                        leftPadding: Kirigami.Units.largeSpacing
+                        onClicked: App.automationPage = modelData.page
+
+                        Accessible.name: modelData.label
+
+                        contentItem: RowLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Kirigami.Icon {
+                                source: page.modelData.icon
+                                selected: page.highlighted
+                                implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                                implicitHeight: implicitWidth
+                            }
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: page.modelData.label
+                                elide: Text.ElideRight
+                                color: page.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                            }
+                            QQC2.Label {
+                                visible: page.modelData.count > 0
+                                text: page.modelData.count
+                                color: page.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
+                                font: Kirigami.Theme.smallFont
+                            }
+                        }
+
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: {
+                                App.automationPage = page.modelData.page;
+                                automationMenu.popup();
+                            }
                         }
                     }
                 }
@@ -197,6 +348,14 @@ QQC2.Pane {
     }
 
     QQC2.Menu {
+        id: automationMenu
+
+        QQC2.MenuItem {
+            action: App.automationPage === "rules" ? root.actions.newRule : root.actions.newScript
+        }
+    }
+
+    QQC2.Menu {
         id: databaseMenu
 
         QQC2.MenuItem { action: root.actions.renameDatabase }
@@ -212,11 +371,6 @@ QQC2.Pane {
 
         onAboutToShow: inboxItem.checked = kind === "source" && App.library.sourceUsesInbox(App.sidebar.currentId)
 
-        QQC2.MenuItem {
-            action: root.actions.applyRule
-            visible: entryMenu.kind === "rule"
-            height: visible ? implicitHeight : 0
-        }
         QQC2.MenuItem {
             text: i18nc("@action:inmenu", "Update Now")
             icon.name: "view-refresh"
@@ -282,11 +436,6 @@ QQC2.Pane {
         QQC2.MenuItem {
             action: root.actions.newTag
             visible: headerMenu.section === "tags"
-            height: visible ? implicitHeight : 0
-        }
-        QQC2.MenuItem {
-            action: root.actions.newRule
-            visible: headerMenu.section === "rules"
             height: visible ? implicitHeight : 0
         }
         QQC2.MenuItem {

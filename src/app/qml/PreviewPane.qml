@@ -98,6 +98,8 @@ QQC2.Pane {
             return "email";
         case 6:
             return "canvas";
+        case 7:
+            return "website";
         }
         return "generic";
     }
@@ -502,6 +504,53 @@ QQC2.Pane {
                 text: root.shownInfo.name ?? ""
                 explanation: i18nc("@info:placeholder", "Indeks cannot show documents of the type “%1”.", root.shownInfo.mimeComment ?? "")
                 helpfulAction: root.actions.open
+            }
+
+            // A website is its address: there is nothing of the page itself to show.
+            ColumnLayout {
+                id: website
+
+                readonly property string address: root.shownInfo.webAddress ?? ""
+
+                anchors.centerIn: parent
+                width: parent.width - Kirigami.Units.gridUnit * 4
+                visible: root.shownKind === "website"
+                spacing: Kirigami.Units.largeSpacing
+
+                Kirigami.Icon {
+                    Layout.alignment: Qt.AlignHCenter
+                    implicitWidth: Kirigami.Units.iconSizes.huge
+                    implicitHeight: implicitWidth
+                    source: root.shownInfo.icon ?? "globe"
+                }
+                Kirigami.Heading {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    level: 2
+                    wrapMode: Text.Wrap
+                    textFormat: Text.PlainText
+                    text: root.shownInfo.name ?? ""
+                }
+                // The address as it is, to be read before it is opened, and to be selected.
+                Kirigami.SelectableLabel {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WrapAnywhere
+                    textFormat: Text.PlainText
+                    text: website.address.length > 0 ? website.address : i18nc("@info:placeholder", "This file holds no address of a website.")
+                }
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: Kirigami.Units.smallSpacing
+
+                    QQC2.Button {
+                        action: root.actions.open
+                    }
+                    QQC2.Button {
+                        visible: website.address.length > 0
+                        action: root.actions.copyAddress
+                    }
+                }
             }
 
             // A mailbox is what is in it; that is looked at message by message.

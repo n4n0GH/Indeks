@@ -7,19 +7,32 @@
 
 Rules file documents by themselves. Scripts are small programs for what rules cannot express.
 
+Both are found under the *Automation* tab of the sidebar. Choose *Rules* or *Scripts* there
+and the middle of the window lists them; the one you select is shown where the preview is
+otherwise, to be changed there. `Ctrl+5` goes to the rules, `Ctrl+6` to the scripts.
+
+- **Save** in the bar above stores what you changed. Nothing changes before that.
+- **Discard Changes** returns to what is stored.
+- **Leaving:** Going back to the documents, or from rules to scripts, loses nothing: what
+  you were changing is still there when you return. Indeks asks whether to save when you
+  select another rule or script in its place, and before it closes.
+- **The pane is hidden with the preview** (`F10`). A double click on a rule or a script
+  shows it again.
+
 ## Rules
 
 A rule says which documents it is for and what is to happen to them.
 
 ### Making a rule
 
-Choose *New → New Rule…*. The dialog has a name and two lists.
+Choose *New → New Rule…*, or *New Rule…* above the list of rules. The new rule has a name and
+two lists, and is stored once you choose *Save*.
 
 **For documents that match all of this.** *Add Filter* offers the same filters as the filter
 bar: name, text, notes, folder, extension, type, dates, size, tag, group, location and state.
 *Search Words…* takes words and search terms as the search field does. Each filter is a line
-in the list, with buttons to change and remove it. The dialog says how many documents match
-at the moment.
+in the list, with buttons to change and remove it. Below the list Indeks says how many
+documents match at the moment; *Show Matching Documents* in the bar lists them.
 
 The choices in these menus say how many documents each would leave. Unlike in the filter
 bar, a choice that leaves none can be made here: a rule is also for documents that are yet
@@ -33,8 +46,9 @@ to come.
 - *Remove from the Inbox*
 - *Run Script*
 
-Nothing in these menus is greyed out when there is no tag, group or script yet: each list
-ends with a way to make a new one. The actions are carried out from the top down. Drag a line
+The lists of tags and groups end with a way to make a new one. *Run Script* offers the
+scripts there are; write one under *Scripts* first. The actions are carried out from the top
+down. Drag a line
 by its handle, or use its arrows, to change the order. Adding the opposite of an action that
 is already there replaces it.
 
@@ -50,7 +64,7 @@ up in your indexed locations.
 2. Have the rule take the document out of the inbox: add *Remove from the Inbox*, or file it
    with *Add to Group*, which does the same. *Add Tag* and *Pin* alone leave it there.
 
-Such a rule lets alone what is filed already, by it or by you. Selected in the sidebar, it
+Such a rule lets alone what is filed already, by it or by you. *Show Matching Documents*
 lists only the documents it has still to deal with, and not everything it ever sorted.
 
 > **Note:** What is in a folder when you make it a location does not go to the inbox, so
@@ -60,10 +74,16 @@ lists only the documents it has still to deal with, and not everything it ever s
 ### Running a rule
 
 - **By itself:** On documents as they are added, if set so.
-- **By hand:** Select the rule in the sidebar. The list shows what it matches. *Apply Selected
-  Rule*, in the context menu of the rule or the command bar, runs it on all of them.
+- **By hand:** Select the rule in the list of rules. *Apply Selected Rule*, in the bar above
+  the rule, its context menu or the command bar, runs it on every document it matches. It
+  runs the rule as it is stored, so save your changes first.
 
-To change or delete a rule, right-click it in the sidebar.
+**The list of rules** says under each name what the rule is for, and at the right whether it
+runs by itself (*Automatic*), waits to be applied (*By hand*) or is switched off (*Not
+active*).
+
+To delete a rule, select it and press `Del`, or choose *Delete Rule…* in the bar or the
+context menu. What the rule did to documents so far stays.
 
 ## Scripts
 
@@ -72,8 +92,8 @@ them. Scripts need Python 3 and bubblewrap on the computer; without them Indeks 
 
 ### Writing a script
 
-*Scripts…* in the menu lists your scripts. *New Script…* opens the editor with a starting
-point:
+*New → New Script…*, or *New Script…* above the list of scripts, begins a script with a
+starting point:
 
 ```
 """Files invoices by the year they are from."""
@@ -92,16 +112,25 @@ def process(document):
 Indeks calls `process(document)` once for every document the script is run on. The first
 line of the description at the top is shown in the list of scripts.
 
-- **Try on Selected Document** runs what is in the editor on the selected document and shows
-  what the script would do and what it printed, without doing it.
+- **Try** runs what is in the editor on the document that is selected in the list of
+  documents, and shows what the script would do and what it printed, without doing it.
+  Select the document before you go to the scripts; the button names it when the pointer
+  rests on it.
+- **Run** runs the saved script on the documents that are selected in the list of documents.
 - **Reference** lists everything a script can read and ask for. The *Appendix* has the same
   list.
+- **Move Script to Trash…**, also `Del` in the list, moves the file of the script to the
+  trash of your desktop.
+
+Above the list, *Open Folder* shows the folder the scripts are kept in, and *Show Script
+Output* what they printed.
 
 ### Running a script
 
-- **On the selected documents:** *Run Script* in the context menu, *Scripts…*, or the command
-  bar, where each script has an entry *Run Script “name”* that can be given a keyboard
-  shortcut.
+- **On the selected documents:** *Run Script* in the context menu of the documents, *Run
+  Script…*, which lists the scripts to pick from, or the command bar, where each script has
+  an entry *Run Script “name”* that can be given a keyboard shortcut. In the list of scripts,
+  each has a button that runs it on the documents selected before.
 - **On new documents:** As an action of a rule.
 
 While scripts run, the activity display at the bottom of the sidebar says so. *Stop Running

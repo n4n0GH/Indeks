@@ -17,6 +17,7 @@
 #include <atomic>
 
 class KDirWatch;
+class QImage;
 
 namespace Indeks
 {
@@ -144,6 +145,22 @@ public:
     Q_INVOKABLE qint64 addFolders(const QList<QUrl> &urls);
     /** Creates a document in Indeks' own directory. @p format is "text", "markdown" or "html". */
     Q_INVOKABLE qint64 createDocument(const QString &name, const QString &format, const QString &content = QString());
+    /**
+     * Creates a formatted document out of HTML that comes from elsewhere, the clipboard for
+     * instance. Only what the body holds is kept, and nothing that would make a viewer load
+     * something from the network: no pictures, scripts or style sheets.
+     */
+    Q_INVOKABLE qint64 createDocumentFromHtml(const QString &name, const QString &html);
+    /**
+     * Creates a website: a document that holds the address of a page on the web and nothing
+     * else, as an internet shortcut (.url) in Indeks' own directory. Returns 0, with a
+     * message(), for an address that is not http or https.
+     */
+    Q_INVOKABLE qint64 createWebLink(const QString &name, const QUrl &address);
+    /** The address a website document holds, encoded; empty if @p id is none or holds none. */
+    Q_INVOKABLE QString webAddress(qint64 id) const;
+    /** Creates a picture in Indeks' own directory, as a PNG file. */
+    qint64 createPicture(const QString &name, const QImage &image);
 
     // Documents
     Q_INVOKABLE QVariantMap documentInfo(qint64 id) const;
@@ -434,6 +451,8 @@ private:
     int applyRuleTo(qint64 ruleId, const QList<qint64> &restrictTo, bool *took);
     void watchScripts();
     qint64 adoptOwnedFile(const QString &path);
+    /** Writes @p data into a new file of Indeks' own, named @p name with @p extension, and indexes it. */
+    qint64 createOwnedFile(const QString &name, const QString &extension, const QByteArray &data);
 
     Indexer *m_indexer = nullptr;
     RemoteScanner *m_remote = nullptr;

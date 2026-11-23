@@ -12,29 +12,38 @@ the list of documents with the preview in the middle, and the side panel on the 
 
 ## Toolbar
 
-From left to right, the toolbar holds:
+From left to right, the toolbar holds at first:
 
 - **The sidebar button** (`F9`), which shows and hides the sidebar.
-- **Buttons you choose.** At first: *Add*, *New*, *Add Tag…*, *Add to Group…*, *Pin*, *Open
-  File* and *Move to Trash*.
+- **Buttons for commands:** *Add*, *New*, *Add Tag…*, *Add to Group…*, *Pin*, *Open File* and
+  *Move to Trash*.
 - **The search field** (`Ctrl+F`). See *Finding*.
 - **The filter button** (`Ctrl+Alt+F`), which opens the filter bar, and *Save Search…*.
-- **The preview button** (`F10`) and **the side panel button** (`F11`).
+- **The preview button** (`F10`), and beside it the button that puts the preview beside the
+  list or below it; see *Preview*.
+- **The side panel button** (`F11`).
 - **The menu**, which holds every command, sorted into *Go*, *Document*, *Preview*, *Sidebar*
   and *Scripts*.
+
+The sidebar button, the side panel button and the menu keep their places. Everything
+between them is yours to arrange, the search field included.
 
 **The Add menu.** *Add Indexed Folder…*, *Add Remote Location…*, *Add Database…* and *New
 Database…*.
 
-**The New menu.** New plain text, Markdown and formatted documents; *New Group…*, *New Tag…*
-and *New Rule…*; and *New To-Do…*.
+**The New menu.** New plain text, Markdown and formatted documents and *New Document from
+Clipboard…*; *New Group…*, *New Tag…*, *New Rule…* and *New Script…*; and *New To-Do…*.
 
-**Choosing the buttons.** Right-click the toolbar and choose *Configure Toolbar…*. See
-*Settings → Toolbar*. Buttons that do not fit the window move into a menu at the end.
+**Arranging the toolbar.** Right-click the toolbar and choose *Configure Toolbar…*. See
+*Settings → Toolbar*. Buttons that do not fit the window move into a menu.
 
 ## Sidebar
 
-The sidebar chooses what the list shows. Its sections can be folded with the arrow before
+The sidebar has two tabs at its top, shown by their icons: *Database* and *Automation*.
+
+### The Database tab
+
+This tab chooses what the list shows. Its sections can be folded with the arrow before
 their title. The numbers on the right count the documents in each entry.
 
 - **Inbox:** Documents that still need your attention.
@@ -46,16 +55,32 @@ their title. The numbers on the right count the documents in each entry.
 - **Saved Searches:** Searches you saved. See *Finding*.
 - **Groups:** Your groups, with groups inside groups indented.
 - **Tags:** Your tags.
-- **Rules:** Your rules. Selecting one lists what it matches.
 - **Locations:** *Stored in Indeks*, which lists documents created in Indeks, and the indexed
   folders and servers. A location that cannot be reached is marked.
 
 **Context menus.** A right-click on an entry offers what can be done with it: *Edit…*,
-*Delete…*, *New Subgroup…*, *Apply Selected Rule*, *Update Now*, *Empty Trash…*, *Save
-Search…*. A right-click on a section title offers to make a new entry of that kind.
+*Delete…*, *New Subgroup…*, *Update Now*, *Empty Trash…*, *Save Search…*. A right-click on a
+section title offers to make a new entry of that kind.
 
 **Dropping.** Documents dragged from the list can be dropped onto a group, a tag, the inbox
 or the trash.
+
+### The Automation tab
+
+This tab has two entries, *Rules* and *Scripts*, with the number of each. While it is shown,
+the middle of the window is about them instead of about documents:
+
+- **The list** shows the rules or the scripts of the open database, where the documents are
+  listed otherwise.
+- **Where the preview is**, the rule or script that is selected in the list is shown and can
+  be changed. *Save* in the bar above it stores the changes.
+
+`Ctrl+5` goes to the rules and `Ctrl+6` to the scripts. The *Database* tab, a search, or
+any of the commands that go to documents, such as *Go to Inbox*, brings the documents back.
+What you were changing stays as it was until you return. See *Automation*.
+
+Commands and keys for documents rest while this tab is shown: `Del` removes the selected
+rule or script here, not a document.
 
 **The database button.** The bottom of the sidebar names the open database. A click lists
 the others; a right-click offers *Rename Database…*, *Databases…*, *Add Database…* and *New Database…*.
@@ -116,7 +141,17 @@ Column widths and the row height are the same in every view.
 ## Preview
 
 The preview shows the selected document. `F10` shows and hides it. Drag the border between
-list and preview to change its height.
+list and preview to change its size.
+
+**Below or beside the list.** The preview stands below the list at first. The button beside
+the preview button in the toolbar, or *Menu → Preview → Preview Beside the List*, puts it to
+the right of the list instead, which suits a wide screen: the list keeps its full height, and a page is shown larger. Choose it again to have
+the preview below. Indeks remembers the choice.
+
+- Beside the list the preview takes half of the room until you drag the border.
+- The list is narrower then. If its columns no longer fit, some are left out; see *List of
+  documents*.
+- Choosing it while the preview is hidden shows the preview.
 
 ![A PDF in the preview with a sticky note](images/preview.png)
 

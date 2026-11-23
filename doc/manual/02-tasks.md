@@ -58,14 +58,32 @@ From now on the *Information* tab of each of them lists the others, and a click 
 goes there. To add a paper later, select one of them, choose *Manage Linked Documents…*
 (`Ctrl+L`) and look for the new one. See *Organising → Linked documents*.
 
+## Keeping something you read or see
+
+A paragraph on a web page, a few lines of a message, or what is on the screen right now is
+worth keeping, and there is no file of it.
+
+1. Copy it where you found it: select the text and press `Ctrl+C`, or take a screenshot to
+   the clipboard.
+2. In Indeks, choose *New → New Document from Clipboard…* (`Ctrl+Shift+V`).
+3. Give it a name and choose *Create Document*.
+
+The document is stored in Indeks and waits in the inbox. See *Documents → Documents
+created in Indeks*.
+
+To keep only where a page is, copy its address from the address bar of the browser instead.
+The same command then makes a website: a document that opens the page in your browser, and
+that takes tags, notes and links like any other. See *Documents → Websites*.
+
 ## Filing automatically
 
 You get the same kinds of documents again and again.
 
-1. Choose *New → New Rule…*.
-2. Under *For documents that match all of this*, add filters that describe the documents.
+1. Choose *New → New Rule…*. The rule opens under the *Automation* tab of the sidebar.
+2. Give it a name. Under *For documents that match all of this*, add filters that describe
+   the documents.
 3. Under *Do this, in this order*, add what should happen: a tag, a group, a pin.
-4. Tick the option to run the rule on new documents.
+4. Leave the option to run the rule on new documents ticked, and choose *Save*.
 
 To have the rule deal with new arrivals only, add the filter *State → In the inbox* and the
 action *Remove from the Inbox*. See *Automation → A rule for the inbox only*.

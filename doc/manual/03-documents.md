@@ -140,11 +140,64 @@ and the connections between them. Drag to move around, use `Ctrl` and the wheel 
 - The words on the cards are searchable.
 - Canvases are displayed, not edited.
 
+## Websites
+
+A website is a document that holds the address of a page on the web and nothing else.
+Nothing of the page itself is stored, and Indeks does not go to the internet for it.
+
+- **Opening:** A double click or *Open in …* (`Ctrl+Return`) shows the page in the browser of
+  your desktop.
+- **The preview** shows the address, so that you can read where it leads before you go
+  there. *Copy Web Address*, there and in the context menu, puts it on the clipboard.
+- **Finding:** `kind:website` lists the websites, and so does *File Type → Websites* in the
+  filter bar. A search finds a website by its name and by the words of its address.
+- **Organising:** Tags, groups, pins, comments, notes, links to other documents, to-dos and
+  rules work as with every document.
+
+To make one, copy the address of the page in your browser and choose *New → New Document from
+Clipboard…*; see *Documents created in Indeks → From the clipboard*. Indeks stores it as an
+internet shortcut, a small `.url` file that other programs and other systems open too.
+
+Internet shortcuts (`.url`) and the link files of macOS (`.webloc`) in an indexed location
+are websites as well. A shortcut to something that is not on the web, a folder for instance,
+has no address to show and opens like any other file.
+
+> **Note:** A link file that was indexed by an earlier version is shown as before until it
+> changes or you choose *Read Again* in its context menu.
+
 ## Documents created in Indeks
 
 *New → New Plain Text Document…*, *New Markdown Document…* and *New Formatted Document…*
 create a document that is stored in Indeks' own folder. Such documents can be renamed (`F2`).
 They start out in the inbox.
+
+### From the clipboard
+
+*New → New Document from Clipboard…* (`Ctrl+Shift+V`) makes a document of what you copied in
+another program: a passage of a web page, a few lines of a letter, a screenshot. The dialog
+shows what is on the clipboard and asks for a name. For text it offers the first line.
+The address of a page can be kept the same way.
+
+- **The address of a website,** copied alone, becomes a website: a document that holds the
+  address and opens the page in your browser. It is named after the address unless you type
+  another name. See *Websites* above.
+- **Text** becomes a plain text document or a Markdown document.
+- **Formatted text,** copied in a browser or an office program, can also become a formatted
+  document. That keeps headings, bold type, lists, tables and links. Pictures within the
+  text are not taken along, and neither is anything else that would be fetched from the
+  internet when the document is shown.
+- **A picture** becomes a PNG file. Text in it is recognised for searching, as in every
+  picture.
+- **More than one of these:** Where the clipboard holds text and a picture, as it does after
+  copying cells of a spreadsheet, choose under *Create a* what the document is to be.
+
+What the dialog shows is what is stored, also when you copy something else while it is
+open. If the clipboard holds neither text nor a picture, Indeks says so and no dialog
+appears.
+
+> **Note:** Files that were copied in a file manager do not become documents this way.
+> Files come into Indeks through indexed locations; see *In and Out → Folders,
+> not single files*.
 
 ## Documents that cannot be read
 

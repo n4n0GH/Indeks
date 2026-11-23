@@ -63,6 +63,8 @@ easily tidied away. A folder you made a location is a place you know Indeks look
 - **Dropping a file** onto the window adds nothing, and so does starting Indeks with the name
   of a file. Indeks says so.
 - **Dolphin** offers *Send to Indeks* for folders only.
+- **The clipboard:** Text and pictures you copied can become documents stored in Indeks, see
+  *Documents → Documents created in Indeks*. Copied files cannot.
 - **Documents from before:** Files that were added one by one with an earlier version of
   Indeks stay as they are.
 

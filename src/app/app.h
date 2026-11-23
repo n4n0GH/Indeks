@@ -11,8 +11,10 @@
 #include <AbstractKirigamiApplication>
 
 #include <QHash>
+#include <QImage>
 #include <QKeySequence>
 #include <QUrl>
+#include <QVariantMap>
 
 class QQmlEngine;
 class QJSEngine;
@@ -55,6 +57,22 @@ class App : public AbstractKirigamiApplication
      */
     Q_PROPERTY(bool rawViewAvailable READ isRawViewAvailable WRITE setRawViewAvailable NOTIFY previewChanged)
     Q_PROPERTY(bool rawView READ isRawView WRITE setRawView NOTIFY previewChanged)
+    /**
+     * Which tab the sidebar shows, and with it what the middle of the window is about:
+     * "database" for the documents, "automation" for the rules and scripts. Not kept from
+     * one start to the next: Indeks begins with the documents.
+     */
+    Q_PROPERTY(QString sidebarTab READ sidebarTab WRITE setSidebarTab NOTIFY automationChanged)
+    Q_PROPERTY(bool automation READ isAutomation NOTIFY automationChanged)
+    /** What the automation tab lists: "rules" or "scripts". */
+    Q_PROPERTY(QString automationPage READ automationPage WRITE setAutomationPage NOTIFY automationChanged)
+    /**
+     * The rule and the script that are selected in their lists, by id and by file; 0 and
+     * empty for none, and for one that is being written and was never saved. Set by the
+     * window; the actions that work on the selected one go by them.
+     */
+    Q_PROPERTY(qint64 currentRule READ currentRule WRITE setCurrentRule NOTIFY automationChanged)
+    Q_PROPERTY(QString currentScript READ currentScript WRITE setCurrentScript NOTIFY automationChanged)
 public:
     // No default argument on purpose: a singleton type that can be default-constructed makes
     // the QML engine build its own second instance instead of asking create() for this one.
@@ -114,6 +132,30 @@ public:
         return m_rawView;
     }
     void setRawView(bool raw);
+    QString sidebarTab() const
+    {
+        return m_sidebarTab;
+    }
+    void setSidebarTab(const QString &tab);
+    bool isAutomation() const
+    {
+        return m_sidebarTab == QLatin1String("automation");
+    }
+    QString automationPage() const
+    {
+        return m_automationPage;
+    }
+    void setAutomationPage(const QString &page);
+    qint64 currentRule() const
+    {
+        return m_currentRule;
+    }
+    void setCurrentRule(qint64 id);
+    QString currentScript() const
+    {
+        return m_currentScript;
+    }
+    void setCurrentScript(const QString &file);
 
     /**
      * Makes folders indexed locations, e.g. dropped ones or those sent from Dolphin, and
@@ -128,6 +170,20 @@ public:
     Q_INVOKABLE void openWith(const QVariantList &documentIds);
     Q_INVOKABLE void showInFileManager(qint64 documentId);
     Q_INVOKABLE void copyText(const QString &text);
+    /**
+     * What the clipboard held when the command to make a document of it was given: "formats"
+     * lists what it can become ("html", "text", "markdown", "picture"), each with a label,
+     * and "format" is the one to offer first. The content itself is kept until
+     * createFromClipboard() or forgetClipboard(), so that what the dialog shows is what is
+     * stored, whatever is copied meanwhile.
+     */
+    Q_INVOKABLE QVariantMap clipping() const
+    {
+        return m_clipping;
+    }
+    /** Makes the document, of the format chosen from clipping(). Returns its id, 0 on failure. */
+    Q_INVOKABLE qint64 createFromClipboard(const QString &name, const QString &format);
+    Q_INVOKABLE void forgetClipboard();
     /**
      * The file of an icon in the size the sidebar and the menus show it in, which is a plain
      * line drawing. For showing that same drawing large: asked for at a large size, the icon
@@ -174,11 +230,12 @@ public:
     Q_INVOKABLE QString localPath(const QString &input) const;
 
     /**
-     * Name, text and icon of something the toolbar can show: an action, "separator", or one of
-     * the menu buttons "menu_add" and "menu_new". Empty if there is no such thing.
+     * Name, text and icon of something the toolbar can show: an action, "separator", one of
+     * the menu buttons "menu_add" and "menu_new", the "search_field", or the "spacer" that
+     * moves what follows it to the far end. Empty if there is no such thing.
      */
     Q_INVOKABLE QVariantMap toolbarItem(const QString &name);
-    /** Everything that can be put into the toolbar, the menu buttons first. */
+    /** Everything that can be put into the toolbar, the menu buttons and the search field first. */
     Q_INVOKABLE QVariantList toolbarCandidates();
     Q_INVOKABLE QStringList defaultToolbar() const;
     /** Turns what the user typed as a location into a URL; invalid if it makes no sense. */
@@ -208,6 +265,7 @@ Q_SIGNALS:
     void databasesChanged();
     void textEditingChanged();
     void previewChanged();
+    void automationChanged();
 
 protected:
     void setupActions() override;
@@ -224,6 +282,11 @@ private:
     /** Keeps one action per script, so that each can be run from the command bar. */
     void syncScriptActions();
     void reportScript(const QVariantMap &report);
+    /**
+     * Looks at the clipboard and keeps what a document can be made of. False, with a
+     * passive message, when there is nothing of the kind, or when it holds files.
+     */
+    bool takeClipboard();
 
     Indeks::Library *m_library = nullptr;
     DocumentModel *m_documents = nullptr;
@@ -240,11 +303,20 @@ private:
 
     bool m_annotating = false;
     bool m_advancedSearch = false;
+    QString m_sidebarTab = QStringLiteral("database");
+    QString m_automationPage = QStringLiteral("rules");
+    qint64 m_currentRule = 0;
+    QString m_currentScript;
     bool m_textEditing = false;
     bool m_previewZoomable = false;
     bool m_rawViewAvailable = false;
     bool m_rawView = false;
     EditMode m_editMode = EditMode::None;
+    QVariantMap m_clipping;
+    QString m_clippedText;
+    QString m_clippedHtml;
+    QUrl m_clippedAddress;
+    QImage m_clippedPicture;
     /** When a script run for a rule was last complained about, by script. */
     QHash<QString, qint64> m_scriptComplaints;
 };

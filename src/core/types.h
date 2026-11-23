@@ -23,6 +23,7 @@ enum class Kind {
     Image = 4,
     Email = 5,
     Canvas = 6, ///< an Obsidian canvas (JSON Canvas): cards and connections on an infinite board
+    Website = 7, ///< a file that holds the address of a page on the web and nothing else; see WebLink
 };
 Q_ENUM_NS(Kind)
 

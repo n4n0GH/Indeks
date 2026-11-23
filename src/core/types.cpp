@@ -65,6 +65,12 @@ Kind kindForFile(const QString &fileName, const QString &mimeType)
     if (fileName.endsWith(".canvas"_L1, Qt::CaseInsensitive)) {
         return Kind::Canvas;
     }
+    // Files that hold the address of a website: internet shortcuts, and what macOS writes,
+    // which is XML as far as the MIME database is concerned.
+    if (mimeType == "application/x-mswinurl"_L1 || fileName.endsWith(".url"_L1, Qt::CaseInsensitive)
+        || fileName.endsWith(".webloc"_L1, Qt::CaseInsensitive)) {
+        return Kind::Website;
+    }
     return kindForMimeType(mimeType);
 }
 
@@ -73,6 +79,8 @@ QString kindIconName(Kind kind)
     switch (kind) {
     case Kind::Canvas:
         return u"view-group"_s;
+    case Kind::Website:
+        return u"globe"_s;
     case Kind::PlainText:
         return u"text-plain"_s;
     case Kind::RichText:

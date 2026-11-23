@@ -9,6 +9,7 @@
 #include "office.h"
 #include "paths.h"
 #include "store.h"
+#include "weblink.h"
 #include "welcome.h"
 
 #include <KApplicationTrader>
@@ -23,16 +24,21 @@
 #include <KStandardActions>
 
 #include <QAction>
+#include <QBuffer>
 #include <QClipboard>
 #include <QCommandLineParser>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QJSEngine>
+#include <QMimeData>
+#include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
+#include <QTextDocumentFragment>
 #include <QTimer>
 #include <QWindow>
 
@@ -74,6 +80,10 @@ const QStringList previewBarActions = {QStringLiteral("doc_edit"), QStringLitera
 // Actions Indeks no longer has, which a toolbar that was put together earlier may still
 // name. "Add Files…" went when single files stopped being taken: see Library::addFolders().
 const QStringList formerActions = {QStringLiteral("add_files")};
+// What stood at fixed places at the far end of the toolbar before it could be chosen, in
+// that order, the flexible space that keeps it at that end first.
+const QStringList formerlyFixedInToolbar = {QStringLiteral("spacer"),       QStringLiteral("search_field"), QStringLiteral("search_advanced"),
+                                            QStringLiteral("save_search"),  QStringLiteral("view_preview"), QStringLiteral("view_preview_beside")};
 // A script that keeps failing for a rule is not complained about more often than this.
 constexpr qint64 ScriptComplaintIntervalSecs = 60;
 
@@ -97,12 +107,13 @@ App::App(QObject *parent)
     // Editing and taking notes have their place in the bar above the preview now, and some
     // actions are gone. A toolbar that was put together before still names them: they are
     // taken out of it, and with them the dividing lines that would stand side by side or at
-    // an end for it.
+    // an end for it. Of several flexible spaces only the first does anything.
     {
         QStringList toolbar;
         const QStringList chosen = config->toolbarActions();
         for (const QString &name : chosen) {
-            if (previewBarActions.contains(name) || formerActions.contains(name) || (name == "separator"_L1 && (toolbar.isEmpty() || toolbar.constLast() == "separator"_L1))) {
+            if (previewBarActions.contains(name) || formerActions.contains(name) || (name == "separator"_L1 && (toolbar.isEmpty() || toolbar.constLast() == "separator"_L1))
+                || (name == "spacer"_L1 && toolbar.contains(name))) {
                 continue;
             }
             toolbar.append(name);
@@ -110,7 +121,19 @@ App::App(QObject *parent)
         while (!toolbar.isEmpty() && toolbar.constLast() == "separator"_L1) {
             toolbar.removeLast();
         }
-        if (toolbar != chosen) {
+        // The search field and the buttons beside it had fixed places once and are chosen
+        // like the others now. A toolbar from before does not name them; it gets them where
+        // they were, once. Without one of its own, the toolbar is the default, which has them.
+        const bool before = config->toolbarLayout() < 2;
+        if (before && toolbar != config->defaultToolbarActionsValue() && !toolbar.contains(u"search_field"_s)) {
+            for (const QString &name : formerlyFixedInToolbar) {
+                if (!toolbar.contains(name)) {
+                    toolbar.append(name);
+                }
+            }
+        }
+        if (before || toolbar != chosen) {
+            config->setToolbarLayout(2);
             config->setToolbarActions(toolbar);
             config->save();
         }
@@ -142,6 +165,7 @@ App::App(QObject *parent)
     connect(m_library, &Library::message, this, &App::passiveMessage);
     connect(m_library, &Library::documentCreated, this, [this](qint64 id) {
         // Show what was just made: go to the inbox if the document is not in the current list.
+        setSidebarTab(u"database"_s);
         m_documents->reload();
         if (m_documents->rowOf(id) < 0) {
             m_sidebar->setCurrentKey(u"place:inbox"_s);
@@ -157,6 +181,8 @@ App::App(QObject *parent)
         m_documents->setFilter(QString());
         m_documents->setCriteria(QString());
         m_sidebar->setCurrentKey(u"place:inbox"_s);
+        setCurrentRule(0);
+        setCurrentScript(QString());
         Q_EMIT databasesChanged();
     });
     connect(m_library, &Library::databaseLost, this, [this] {
@@ -177,6 +203,12 @@ App::App(QObject *parent)
     connect(m_library, &Library::scriptFinished, this, &App::reportScript);
     connect(m_documents, &DocumentModel::selectionChanged, this, &App::updateActions);
     connect(m_documents, &DocumentModel::filterChanged, this, &App::updateActions);
+    // Whoever searches is looking for documents.
+    connect(m_documents, &DocumentModel::filterChanged, this, [this] {
+        if (!m_documents->filter().isEmpty()) {
+            setSidebarTab(u"database"_s);
+        }
+    });
     connect(m_documents, &DocumentModel::currentChanged, this, &App::updateActions);
     connect(m_library, &Library::changed, this, &App::updateActions);
     connect(m_library, &Library::sourcesChanged, this, &App::updateActions);
@@ -261,6 +293,12 @@ void App::setupActions()
     addRequest(u"new_text"_s, i18nc("@action", "New Plain Text Document…"), u"document-new"_s, QKeySequence::New);
     addRequest(u"new_markdown"_s, i18nc("@action", "New Markdown Document…"), u"text-markdown"_s);
     addRequest(u"new_richtext"_s, i18nc("@action", "New Formatted Document…"), u"x-office-document"_s);
+    addAction(u"new_clipboard"_s, i18nc("@action", "New Document from Clipboard…"), u"edit-paste"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_V, [this] {
+        // The dialog is only asked for when there is something to make a document of.
+        if (takeClipboard()) {
+            Q_EMIT request(u"new_clipboard"_s);
+        }
+    });
     addRequest(u"db_manage"_s, i18nc("@action", "Databases…"), u"server-database"_s);
     addRequest(u"db_add"_s, i18nc("@action", "Add Database…"), u"document-open"_s);
     addRequest(u"db_new"_s, i18nc("@action", "New Database…"), u"folder-new"_s);
@@ -286,6 +324,9 @@ void App::setupActions()
     addAction(u"doc_copy_location"_s, i18nc("@action", "Copy Location"), u"edit-copy-path"_s, Qt::CTRL | Qt::ALT | Qt::Key_C, [this] {
         const QVariantMap info = m_library->documentInfo(m_documents->currentId());
         copyText(info.value(u"displayUrl"_s).toString());
+    });
+    addAction(u"doc_copy_address"_s, i18nc("@action", "Copy Web Address"), u"edit-copy"_s, {}, [this] {
+        copyText(m_library->webAddress(m_documents->currentId()));
     });
     addRequest(u"doc_rename"_s, i18nc("@action", "Rename…"), u"edit-rename"_s, Qt::Key_F2);
     addRequest(u"doc_tag"_s, i18nc("@action", "Add Tag…"), u"tag-new"_s, Qt::CTRL | Qt::Key_T);
@@ -369,6 +410,10 @@ void App::setupActions()
     addRequest(u"new_tag"_s, i18nc("@action", "New Tag…"), u"tag-new"_s);
     addRequest(u"save_search"_s, i18nc("@action", "Save Search…"), u"document-save"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_S);
     addRequest(u"new_rule"_s, i18nc("@action", "New Rule…"), u"run-build-configure"_s);
+    addRequest(u"go_rules"_s, i18nc("@action", "Go to Rules"), u"run-build-configure"_s, Qt::CTRL | Qt::Key_5);
+    // What it is called follows what is selected: a rule is deleted, a script is a file and
+    // goes to the trash.
+    addRequest(u"automation_delete"_s, i18nc("@action", "Delete Selected Rule or Script…"), u"edit-delete"_s);
     // Things to do
     addRequest(u"new_todo"_s, i18nc("@action", "New To-Do…"), u"task-new"_s);
     addRequest(u"doc_todo"_s, i18nc("@action", "Create To-Do for Document…"), u"task-new"_s);
@@ -393,7 +438,7 @@ void App::setupActions()
         mainCollection()->addAction(u"source_inbox"_s, sourceInbox);
     }
     addAction(u"apply_rule"_s, i18nc("@action", "Apply Selected Rule"), u"media-playback-start"_s, {}, [this] {
-        const int affected = m_library->applyRule(m_sidebar->currentId());
+        const int affected = m_library->applyRule(m_currentRule);
         // A rule that runs scripts takes its time in the background, where the activity
         // display shows it; the library says when it is through.
         if (affected >= 0) {
@@ -402,7 +447,7 @@ void App::setupActions()
     });
 
     // Scripts
-    addRequest(u"scripts_manage"_s, i18nc("@action", "Scripts…"), u"text-x-python"_s);
+    addRequest(u"scripts_manage"_s, i18nc("@action", "Go to Scripts"), u"text-x-python"_s, Qt::CTRL | Qt::Key_6);
     addRequest(u"new_script"_s, i18nc("@action", "New Script…"), u"document-new"_s);
     addRequest(u"doc_run_script"_s, i18nc("@action", "Run Script…"), u"system-run"_s);
     addRequest(u"scripts_output"_s, i18nc("@action", "Show Script Output"), u"view-list-text"_s);
@@ -446,6 +491,19 @@ void App::setupActions()
         config->setPreviewVisible(checked);
         config->save();
     });
+    addToggle(u"view_preview_beside"_s,
+              i18nc("@action", "Preview Beside the List"),
+              u"view-split-left-right"_s,
+              {},
+              config->previewBeside(),
+              [this, config](bool checked) {
+                  config->setPreviewBeside(checked);
+                  config->save();
+                  // Moving a preview that is hidden would show nothing of what was asked for.
+                  if (QAction *preview = action(u"view_preview"_s); preview && !preview->isChecked()) {
+                      preview->setChecked(true);
+                  }
+              });
 
     addAction(u"view_info"_s, i18nc("@action", "Show Document Information"), u"documentinfo"_s, {}, [this] {
         showSidePanel(u"info"_s);
@@ -495,17 +553,29 @@ void App::setupActions()
         });
     }
 
+    // Quitting goes through the window, which asks about a rule or a script that was changed
+    // and not saved.
+    if (QAction *quit = action(u"file_quit"_s)) {
+        disconnect(quit, &QAction::triggered, this, nullptr);
+        connect(quit, &QAction::triggered, this, [this] {
+            Q_EMIT request(u"file_quit"_s);
+        });
+    }
+
     readSettings();
 }
 
 void App::updateActions()
 {
-    const QList<qint64> ids = m_documents->selection();
+    // While the window is about rules and scripts, the documents are out of sight, and what
+    // is selected among them is not what a command or a key is meant for.
+    const bool automation = isAutomation();
+    const QList<qint64> ids = automation ? QList<qint64>() : m_documents->selection();
     const bool any = !ids.isEmpty();
-    const Document current = Store::document(m_documents->currentId());
+    const Document current = automation ? Document() : Store::document(m_documents->currentId());
     const bool single = ids.size() == 1 && current.isValid();
-    const QString kind = m_sidebar->currentKind();
-    const bool inTrash = m_sidebar->currentKey() == "place:trash"_L1;
+    const QString kind = automation ? QString() : m_sidebar->currentKind();
+    const bool inTrash = !automation && m_sidebar->currentKey() == "place:trash"_L1;
 
     bool anyInbox = false;
     bool anyOutsideInbox = false;
@@ -541,7 +611,9 @@ void App::updateActions()
         if (ids.size() <= 200) {
             QSet<QString> types;
             for (qint64 id : ids) {
-                types.insert(Store::document(id).mimeType);
+                const Document doc = Store::document(id);
+                // A website goes to the browser, not to what opens files of its type.
+                types.insert(doc.kind == Kind::Website && !m_library->webAddress(id).isEmpty() ? u"x-scheme-handler/https"_s : doc.mimeType);
             }
             for (const QString &type : std::as_const(types)) {
                 const KService::Ptr service = KApplicationTrader::preferredService(type);
@@ -559,6 +631,7 @@ void App::updateActions()
                                                   : i18nc("@action %1 is the name of an application", "Open in %1", application));
     }
     enable(u"doc_open_with"_s, any);
+    enable(u"doc_copy_address"_s, single && current.kind == Kind::Website && !m_library->webAddress(current.id).isEmpty());
     enable(u"doc_show"_s, single && current.url.isLocalFile());
     enable(u"doc_copy_location"_s, single);
     enable(u"doc_rename"_s, single && current.owned);
@@ -586,12 +659,20 @@ void App::updateActions()
     enable(u"doc_trash"_s, any && !inTrash);
     enable(u"doc_restore"_s, any && inTrash);
     enable(u"empty_trash"_s, m_library->count(u"is:trashed"_s) > 0);
-    enable(u"select_all"_s, m_documents->count() > 0);
-    enable(u"save_search"_s, !m_documents->effectiveFilter().isEmpty());
-    const bool editable = kind == "group"_L1 || kind == "tag"_L1 || kind == "search"_L1 || kind == "rule"_L1 || kind == "source"_L1;
+    enable(u"select_all"_s, !automation && m_documents->count() > 0);
+    enable(u"save_search"_s, !automation && !m_documents->effectiveFilter().isEmpty());
+    const bool editable = kind == "group"_L1 || kind == "tag"_L1 || kind == "search"_L1 || kind == "source"_L1;
     enable(u"edit_sidebar_item"_s, editable && kind != "source"_L1);
     enable(u"delete_sidebar_item"_s, editable);
-    enable(u"apply_rule"_s, kind == "rule"_L1);
+    const bool onRules = automation && m_automationPage == "rules"_L1;
+    const bool onScripts = automation && m_automationPage == "scripts"_L1;
+    enable(u"apply_rule"_s, onRules && m_currentRule > 0);
+    if (QAction *remove = action(u"automation_delete"_s)) {
+        remove->setEnabled((onRules && m_currentRule > 0) || (onScripts && !m_currentScript.isEmpty()));
+        remove->setText(onRules     ? i18nc("@action", "Delete Rule…")
+                            : onScripts ? i18nc("@action", "Move Script to Trash…")
+                                        : i18nc("@action", "Delete Selected Rule or Script…"));
+    }
     if (QAction *inbox = action(u"source_inbox"_s)) {
         inbox->setEnabled(kind == "source"_L1);
         inbox->setChecked(kind == "source"_L1 && m_library->sourceUsesInbox(m_sidebar->currentId()));
@@ -764,6 +845,10 @@ void App::setAdvancedSearch(bool shown)
         return;
     }
     m_advancedSearch = shown;
+    if (shown) {
+        // The filters are for documents.
+        setSidebarTab(u"database"_s);
+    }
     if (QAction *toggle = action(u"search_advanced"_s)) {
         toggle->setChecked(shown);
     }
@@ -818,7 +903,50 @@ void App::syncEditAction()
 
 void App::goTo(const QString &sidebarKey)
 {
+    setSidebarTab(u"database"_s);
     m_sidebar->setCurrentKey(sidebarKey);
+}
+
+void App::setSidebarTab(const QString &tab)
+{
+    const QString wanted = tab == "automation"_L1 ? u"automation"_s : u"database"_s;
+    if (m_sidebarTab == wanted) {
+        return;
+    }
+    m_sidebarTab = wanted;
+    Q_EMIT automationChanged();
+    updateActions();
+}
+
+void App::setAutomationPage(const QString &page)
+{
+    const QString wanted = page == "scripts"_L1 ? u"scripts"_s : u"rules"_s;
+    if (m_automationPage == wanted) {
+        return;
+    }
+    m_automationPage = wanted;
+    Q_EMIT automationChanged();
+    updateActions();
+}
+
+void App::setCurrentRule(qint64 id)
+{
+    if (m_currentRule == id) {
+        return;
+    }
+    m_currentRule = id;
+    Q_EMIT automationChanged();
+    updateActions();
+}
+
+void App::setCurrentScript(const QString &file)
+{
+    if (m_currentScript == file) {
+        return;
+    }
+    m_currentScript = file;
+    Q_EMIT automationChanged();
+    updateActions();
 }
 
 void App::showSidePanel(const QString &tab)
@@ -833,6 +961,7 @@ void App::showSidePanel(const QString &tab)
 
 void App::showDocument(qint64 documentId)
 {
+    setSidebarTab(u"database"_s);
     if (m_documents->rowOf(documentId) < 0) {
         m_documents->setFilter(QString());
         m_documents->setCriteria(QString());
@@ -871,6 +1000,17 @@ void App::openExternally(qint64 documentId)
     const Document doc = Store::document(documentId);
     if (!doc.isValid()) {
         return;
+    }
+    // A website is opened where websites are looked at. A file of that kind that holds no
+    // address on the web is opened like any other file.
+    if (doc.kind == Kind::Website) {
+        const QUrl address(m_library->webAddress(documentId));
+        if (address.isValid()) {
+            if (!QDesktopServices::openUrl(address)) {
+                Q_EMIT passiveMessage(i18nc("@info %1 is a web address", "Cannot open “%1” in a browser.", address.toDisplayString()));
+            }
+            return;
+        }
     }
     // Prefer what Indeks shows: the working copy if there is one.
     const QString path = Store::ensureContent(doc);
@@ -935,6 +1075,187 @@ QUrl App::lineIcon(const QString &name) const
 void App::copyText(const QString &text)
 {
     QGuiApplication::clipboard()->setText(text);
+}
+
+namespace
+{
+/** Nothing to read: spaces, and the marks that stand for pictures in text made from HTML. */
+bool isBlank(const QString &text)
+{
+    return std::ranges::all_of(text, [](QChar c) {
+        return c.isSpace() || c == QChar::ObjectReplacementCharacter;
+    });
+}
+
+/** The first line of a text that says something, as the name of the document made of it. */
+QString nameFromText(const QString &text)
+{
+    const int longest = 60;
+    qsizetype from = 0;
+    while (from < text.size()) {
+        qsizetype to = text.indexOf(u'\n', from);
+        if (to < 0) {
+            to = text.size();
+        }
+        QString name = text.mid(from, std::min<qsizetype>(to - from, 400));
+        from = to + 1;
+        // Not every place a database can be in takes every name: a share of a NAS has no
+        // file with a colon or a question mark in its name.
+        static const QRegularExpression unwelcome(u"[\\\\/:*?\"<>|\\x00-\\x1f]"_s);
+        name.replace(unwelcome, u" "_s);
+        name = name.simplified();
+        // A heading in Markdown is named without its marks.
+        while (name.startsWith(u'#')) {
+            name.remove(0, 1);
+        }
+        name = name.trimmed();
+        if (name.isEmpty()) {
+            continue;
+        }
+        if (name.size() > longest) {
+            // Cut between words where there is such a place in the later half.
+            const qsizetype space = name.lastIndexOf(u' ', longest);
+            name.truncate(space > longest / 2 ? space : longest);
+        }
+        while (!name.isEmpty() && (name.back().isSpace() || u".,:;"_s.contains(name.back()))) {
+            name.chop(1);
+        }
+        if (!name.isEmpty()) {
+            return name;
+        }
+    }
+    return {};
+}
+}
+
+bool App::takeClipboard()
+{
+    forgetClipboard();
+    const QMimeData *data = QGuiApplication::clipboard()->mimeData();
+    if (!data) {
+        Q_EMIT passiveMessage(i18nc("@info", "The clipboard is empty."));
+        return false;
+    }
+
+    // Files that were copied in a file manager are not content to make a document of: files
+    // come into Indeks through the folders they are in. The last three are how files travel
+    // into a sandbox and how other desktops mark them.
+    bool files = data->hasFormat(u"application/vnd.portal.filetransfer"_s) || data->hasFormat(u"application/vnd.portal.files"_s)
+        || data->hasFormat(u"x-special/gnome-copied-files"_s);
+    if (!files && data->hasUrls()) {
+        const QList<QUrl> urls = data->urls();
+        files = std::ranges::any_of(urls, &QUrl::isLocalFile);
+    }
+
+    if (data->hasImage()) {
+        m_clippedPicture = qvariant_cast<QImage>(data->imageData());
+    }
+    // Beside files, the text is only their addresses.
+    if (!files) {
+        if (data->hasHtml()) {
+            m_clippedHtml = data->html();
+        }
+        if (data->hasText()) {
+            m_clippedText = data->text();
+        }
+        if (isBlank(m_clippedText) && !m_clippedHtml.isEmpty()) {
+            // Formatted text that came without its plain form.
+            m_clippedText = QTextDocumentFragment::fromHtml(m_clippedHtml).toPlainText();
+            m_clippedText.remove(QChar::ObjectReplacementCharacter);
+        }
+        m_clippedText.replace(u"\r\n"_s, u"\n"_s);
+        if (isBlank(m_clippedText)) {
+            // HTML without words is what a browser puts beside a copied picture.
+            m_clippedText.clear();
+            m_clippedHtml.clear();
+        }
+    }
+
+    const bool picture = !m_clippedPicture.isNull();
+    const bool text = !m_clippedText.isEmpty();
+    // Text that is the address of a website and nothing else.
+    m_clippedAddress = WebLink::addressOfText(m_clippedText);
+    const bool address = m_clippedAddress.isValid();
+    if (!picture && !text) {
+        forgetClipboard();
+        Q_EMIT passiveMessage(files ? i18nc("@info",
+                                            "The clipboard holds files. Indeks takes folders, not single files: add the folder they are in as an indexed "
+                                            "location.")
+                                    : i18nc("@info", "The clipboard holds neither text nor a picture."));
+        return false;
+    }
+
+    QVariantList formats;
+    const auto offer = [&formats](const QString &format, const QString &label) {
+        formats.append(QVariantMap{{u"format"_s, format}, {u"label"_s, label}});
+    };
+    if (address) {
+        offer(u"website"_s, i18nc("@item:inlistbox what to make of the clipboard", "Website"));
+    }
+    if (text && !m_clippedHtml.isEmpty()) {
+        offer(u"html"_s, i18nc("@item:inlistbox what to make of the clipboard", "Formatted document"));
+    }
+    if (text) {
+        offer(u"text"_s, i18nc("@item:inlistbox what to make of the clipboard", "Plain text document"));
+        offer(u"markdown"_s, i18nc("@item:inlistbox what to make of the clipboard", "Markdown document"));
+    }
+    if (picture) {
+        offer(u"picture"_s, i18nc("@item:inlistbox what to make of the clipboard", "Picture"));
+    }
+
+    // Where there is both, the text is what was copied, a table with its picture for
+    // instance; but a single word beside a picture is the address the picture came from.
+    static const QRegularExpression space(u"\\s"_s);
+    const bool pictureFirst = picture && (!text || !m_clippedText.trimmed().contains(space));
+
+    m_clipping = {
+        {u"formats"_s, formats},
+        {u"format"_s, pictureFirst ? u"picture"_s : address ? u"website"_s : m_clippedHtml.isEmpty() ? u"text"_s : u"html"_s},
+        {u"text"_s, m_clippedText.left(1200).trimmed()},
+        {u"textName"_s, nameFromText(m_clippedText)},
+        {u"websiteName"_s, address ? WebLink::nameFor(m_clippedAddress) : QString()},
+        {u"pictureName"_s, i18nc("default name of a picture made from the clipboard", "Picture from the Clipboard")},
+        {u"width"_s, m_clippedPicture.width()},
+        {u"height"_s, m_clippedPicture.height()},
+    };
+    if (picture) {
+        // A small copy for the dialog to show.
+        const QSize room(480, 270);
+        const QImage small = m_clippedPicture.width() > room.width() || m_clippedPicture.height() > room.height()
+            ? m_clippedPicture.scaled(room, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+            : m_clippedPicture;
+        QByteArray png;
+        QBuffer buffer(&png);
+        if (buffer.open(QIODevice::WriteOnly) && small.save(&buffer, "PNG")) {
+            m_clipping.insert(u"thumbnail"_s, QString(u"data:image/png;base64,"_s + QString::fromLatin1(png.toBase64())));
+        }
+    }
+    return true;
+}
+
+qint64 App::createFromClipboard(const QString &name, const QString &format)
+{
+    qint64 id = 0;
+    if (format == "website"_L1) {
+        id = m_library->createWebLink(name, m_clippedAddress);
+    } else if (format == "picture"_L1) {
+        id = m_library->createPicture(name, m_clippedPicture);
+    } else if (format == "html"_L1) {
+        id = m_library->createDocumentFromHtml(name, m_clippedHtml);
+    } else if (!m_clippedText.isEmpty()) {
+        id = m_library->createDocument(name, format, m_clippedText);
+    }
+    forgetClipboard();
+    return id;
+}
+
+void App::forgetClipboard()
+{
+    m_clipping.clear();
+    m_clippedText.clear();
+    m_clippedHtml.clear();
+    m_clippedAddress.clear();
+    m_clippedPicture = QImage();
 }
 
 void App::applySettings()
@@ -1137,6 +1458,12 @@ QVariantMap App::toolbarItem(const QString &name)
     } else if (name == "menu_new"_L1) {
         text = i18nc("@item toolbar button with a menu", "New (menu)");
         icon = u"document-new"_s;
+    } else if (name == "search_field"_L1) {
+        text = i18nc("@item the field in the toolbar to type a search into", "Search Field");
+        icon = u"search"_s;
+    } else if (name == "spacer"_L1) {
+        text = i18nc("@item empty room in the toolbar that takes up what is left over", "Flexible Space");
+        icon = u"distribute-horizontal-gaps"_s;
     } else if (name == "doc_open"_L1) {
         // Its own text names the application for the selected document.
         text = i18nc("@item toolbar button", "Open File");
@@ -1153,14 +1480,15 @@ QVariantMap App::toolbarItem(const QString &name)
 QVariantList App::toolbarCandidates()
 {
     QVariantList result;
-    for (const QString &menu : {u"menu_add"_s, u"menu_new"_s}) {
-        result.append(toolbarItem(menu));
+    for (const QString &special : {u"menu_add"_s, u"menu_new"_s, u"search_field"_s}) {
+        result.append(toolbarItem(special));
     }
     QVariantList actions;
     const QList<QAction *> all = mainCollection()->actions();
     for (const QAction *candidate : all) {
-        // Those that have their fixed place in the toolbar already are left out.
-        static const QStringList fixed = {u"view_left_sidebar"_s, u"view_right_sidebar"_s, u"view_preview"_s, u"save_search"_s, u"focus_search"_s, u"search_advanced"_s};
+        // Those that have their fixed place in the toolbar already are left out, and the
+        // command that goes to the search field, which is offered as the field itself.
+        static const QStringList fixed = {u"view_left_sidebar"_s, u"view_right_sidebar"_s, u"focus_search"_s};
         const QString name = candidate->objectName();
         // The actions for single scripts come and go with the scripts; the toolbar takes
         // the lasting ones.
