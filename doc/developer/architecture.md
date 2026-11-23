@@ -21,7 +21,7 @@ does the work. It is built as three programs and one library.
         ├── Ocr ........................ tesseract processes
         ├── Office ..................... LibreOffice, for PDF renditions
         ├── Rules ...................... filters and actions
-        └── ScriptHost (thread) ........ python3 in a bubblewrap sandbox
+        └── ScriptHost (thread) ........ python3 in a sandbox
 ```
 
 ## The parts
@@ -73,6 +73,43 @@ does the work. It is built as three programs and one library.
 | `PdfText` | `pdftext.*` | Text selection on PDF pages that snaps to the nearest text. |
 | `InkCanvas` | `inkcanvas.*` | Freehand drawing on pages and pictures. |
 | `CodeLayout` | `codelayout.*` | Lays out long text files a window at a time. |
+
+## Scripts in the Flatpak
+
+A script runs in a sandbox that shows it the installed system and the documents, read-only,
+and nothing else: no network, no session bus, no display. `sandboxed()` in `scripthost.cpp`
+says how that is started.
+
+| Where | By | Notes |
+| --- | --- | --- |
+| Installed, AppImage | `bwrap` | The arguments are `sandboxArguments()`. The environment is the few variables of `sandboxEnvironment()`. |
+| Flatpak | `flatpak-spawn --sandbox --no-network --watch-bus` | There is no bubblewrap inside a Flatpak, and a sandbox cannot make another by itself: it asks Flatpak, through the portal every Flatpak may use. |
+
+What differs in the Flatpak, and what is done about it:
+
+- **The environment.** What Flatpak starts gets the environment of the desktop session,
+  whatever it is told (`--clear-env` changes nothing). So the script is started through
+  `env -i` with the variables of `sandboxEnvironment()`.
+- **How many paths.** Each path the sandbox is to show (`--sandbox-expose-path-ro-try`) is
+  handed over as an open file in one message on the session bus, which on many systems
+  takes 16 of them. `sandboxPathLimit()` is 12 there, and the run in
+  `ScriptWorker` starts a new sandbox where the next document lies in a folder that would be
+  one too many, showing the folders of the documents at hand instead of all locations.
+- **Ending.** Killing `flatpak-spawn` ends what it started (`--watch-bus`).
+- **Python** is the one of the runtime; the user's own packages are not there.
+
+`librarytest` only covers the bubblewrap way: there is no `flatpak-spawn` outside a Flatpak.
+To try the other, build the Flatpak without installing it and start it from the build
+folder, with data of its own as [development.md](development.md) describes for a second
+Indeks:
+
+```sh
+flatpak-builder --force-clean build-flatpak flatpak/io.github.n4n0gh.indeks.yml
+flatpak-builder --run build-flatpak flatpak/io.github.n4n0gh.indeks.yml indeks
+```
+
+A script that tags what it finds shows whether the sandbox holds: whether it can read the
+document, write to it, reach the network, and how many variables it has.
 
 ## Documents or automation
 

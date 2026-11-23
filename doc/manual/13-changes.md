@@ -8,6 +8,15 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.4.0
+
+- **Scripts run in the Flatpak:** The Flatpak could not run scripts, and said that
+  bubblewrap was not installed, which no installing would have mended. Scripts now run
+  there in a sandbox that Flatpak itself provides, with the same limits: no network,
+  nothing of your files but the documents, and those read-only. See *Automation → Scripts*.
+- **What to install for scripts:** Where bubblewrap is missing outside the Flatpak, Indeks
+  names the package to install.
+
 ## Version 0.4.0
 
 - **Rules and scripts have their own tab:** The sidebar has two tabs now, *Database* and

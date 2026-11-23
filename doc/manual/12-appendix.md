@@ -268,6 +268,7 @@ document, nothing is done to that document.
 - KDE Plasma with Qt 6.8 and KDE Frameworks 6.8 or later.
 - **Tesseract**, with data for your languages, to recognise text in pictures and scans.
 - **LibreOffice** to show Office documents as they look and to read the old Office formats.
-- **Python 3** and **bubblewrap** to run scripts.
+- **Python 3** and **bubblewrap** to run scripts. The Flatpak brings its own Python and needs
+  no bubblewrap.
 
 Indeks works without the last three; the features that need them say what is missing.

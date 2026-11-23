@@ -51,7 +51,8 @@ LibreOffice is not installed, or it could not convert the document. Install Libr
 ## A script does not run
 
 - Scripts need Python 3 and bubblewrap. The list of scripts, under the *Automation* tab of
-  the sidebar, says if one is missing.
+  the sidebar, says if one is missing and which package to install; start Indeks again
+  afterwards. The Flatpak needs neither.
 - In a database other than the local one, a script must first be allowed on this computer.
   Open it in the editor and choose *Allow on This Computer*.
 - *Show Script Output* lists the errors a script ran into.

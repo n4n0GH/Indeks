@@ -59,6 +59,27 @@ QString bwrapPath()
     return path;
 }
 
+/**
+ * The program that asks Flatpak for a sandbox within the sandbox. Only inside a Flatpak, where
+ * there is no bubblewrap to be had: a sandbox cannot make another one by itself.
+ */
+QString flatpakSpawnPath()
+{
+    static const QString path = QFileInfo::exists(u"/.flatpak-info"_s) ? QStandardPaths::findExecutable(u"flatpak-spawn"_s) : QString();
+    return path;
+}
+
+// How many paths one sandbox of Flatpak's is shown. Each is handed over as an open file in
+// one message on the session bus, which on many systems takes no more than 16 of them, the
+// three the script talks through included.
+constexpr int FlatpakPathLimit = 12;
+
+/** How many paths a sandbox can be shown at once; 0 for as many as there are. */
+int sandboxPathLimit()
+{
+    return flatpakSpawnPath().isEmpty() ? 0 : FlatpakPathLimit;
+}
+
 bool isUnder(const QString &path, const QStringList &folders)
 {
     for (const QString &folder : folders) {
@@ -144,6 +165,46 @@ QProcessEnvironment sandboxEnvironment()
     return environment;
 }
 
+/** What to start, and with which environment, to have something run in the sandbox. */
+struct Launch {
+    QString program;
+    QStringList arguments;
+    QProcessEnvironment environment;
+};
+
+/**
+ * @p command as it is started in a sandbox that shows @p visible, read-only, and nothing
+ * else of the user's: by bubblewrap, or by Flatpak inside a Flatpak.
+ *
+ * Flatpak's sandbox keeps the same promises: no network, no session bus, no display, none
+ * of the files the application itself can see. Two things it does differently are made up
+ * for here. It gives what it runs the environment of the desktop session whatever it is
+ * told, so the command is started through env, which leaves it the few variables of
+ * sandboxEnvironment(). And it is asked for over the session bus, which the program that
+ * asks needs its own environment for.
+ */
+Launch sandboxed(const QStringList &visible, const QStringList &command)
+{
+    if (flatpakSpawnPath().isEmpty()) {
+        return {bwrapPath(), sandboxArguments(visible) + command, sandboxEnvironment()};
+    }
+    // What is run ends when this program does, however it ends.
+    QStringList arguments = {u"--sandbox"_s, u"--no-network"_s, u"--watch-bus"_s, u"--directory=/"_s};
+    QStringList paths = visible;
+    paths.removeDuplicates();
+    paths.sort();
+    for (const QString &path : std::as_const(paths)) {
+        arguments << "--sandbox-expose-path-ro-try="_L1 + path;
+    }
+    arguments << u"env"_s << u"-i"_s;
+    const QProcessEnvironment environment = sandboxEnvironment();
+    const QStringList names = environment.keys();
+    for (const QString &name : names) {
+        arguments << name + u'=' + environment.value(name);
+    }
+    return {flatpakSpawnPath(), arguments + command, QProcessEnvironment::systemEnvironment()};
+}
+
 QString lastLines(const QByteArray &output, int count)
 {
     const QStringList lines = QString::fromUtf8(output).trimmed().split(u'\n', Qt::SkipEmptyParts);
@@ -177,6 +238,12 @@ public:
         return m_process && m_process->state() == QProcess::Running;
     }
 
+    /** What the sandbox that is running shows. */
+    QStringList visible() const
+    {
+        return m_visible;
+    }
+
     /** Whether the sandbox that is running shows all of @p paths. */
     bool sees(const QStringList &paths) const
     {
@@ -194,8 +261,9 @@ public:
         stop();
         m_visible = visible;
         m_process = std::make_unique<QProcess>();
-        m_process->setProcessEnvironment(sandboxEnvironment());
-        m_process->start(bwrapPath(), sandboxArguments(visible) + QStringList{pythonPath(), u"-u"_s, u"-B"_s, u"-c"_s, QString::fromUtf8(scriptBridgeSource)});
+        const Launch launch = sandboxed(visible, {pythonPath(), u"-u"_s, u"-B"_s, u"-c"_s, QString::fromUtf8(scriptBridgeSource)});
+        m_process->setProcessEnvironment(launch.environment);
+        m_process->start(launch.program, launch.arguments);
         if (!m_process->waitForStarted(StartTimeoutMs)) {
             *problem = i18nc("@info", "The sandbox for scripts could not be started: %1", m_process->errorString());
             stop();
@@ -512,25 +580,63 @@ void ScriptWorker::runScript(quint64 ticket, const QString &file, const QString 
         sinceProgress.start();
         const int total = int(documents.size());
 
-        for (int begin = 0; begin < total && problem.isEmpty() && !stopped; begin += ChunkSize) {
+        // Bubblewrap shows as many paths as it is given: all folders, and the single files
+        // of the documents at hand. Flatpak's sandbox takes a few at a time, so there each
+        // stretch of documents gets a sandbox that shows what those documents lie in, and
+        // a stretch ends where one more path would be too many.
+        const int pathLimit = sandboxPathLimit();
+        const auto folderOf = [&folders](const QString &path) {
+            for (const QString &folder : std::as_const(folders)) {
+                if (isUnder(path, {folder})) {
+                    return folder;
+                }
+            }
+            return QString();
+        };
+
+        for (int begin = 0, next = 0; begin < total && problem.isEmpty() && !stopped; begin = next) {
             QList<std::pair<Document, QString>> chunk;
             QStringList singles;
-            for (int i = begin; i < qMin(total, begin + ChunkSize); ++i) {
-                const Document doc = Store::document(documents.at(i));
+            QStringList needed;
+            for (next = begin; next < qMin(total, begin + ChunkSize); ++next) {
+                const Document doc = Store::document(documents.at(next));
                 if (!doc.isValid() || doc.trashed) {
                     continue;
                 }
                 const QString path = Store::contentPath(doc);
-                if (!path.isEmpty() && !isUnder(path, folders)) {
-                    singles.append(path);
+                if (!path.isEmpty()) {
+                    const QString folder = folderOf(path);
+                    const QString need = folder.isEmpty() ? path : folder;
+                    if (!needed.contains(need)) {
+                        if (pathLimit > 0 && needed.size() >= pathLimit) {
+                            break; // this one opens the next stretch
+                        }
+                        needed.append(need);
+                        if (folder.isEmpty()) {
+                            singles.append(path);
+                        }
+                    }
                 }
                 chunk.append({doc, path});
             }
             if (chunk.isEmpty()) {
                 continue;
             }
-            if (!process.isRunning() || !process.sees(singles)) {
-                if (!process.start(file, source, folders + singles, &problem)) {
+            const QStringList wanted = pathLimit > 0 ? needed : singles;
+            if (!process.isRunning() || !process.sees(wanted)) {
+                QStringList shown = folders + singles;
+                if (pathLimit > 0) {
+                    // What the last sandbox showed stays, as far as there is room: the next
+                    // stretch may well be in the same folders again.
+                    shown = needed;
+                    const QStringList before = process.visible();
+                    for (const QString &path : before) {
+                        if (shown.size() < pathLimit && !shown.contains(path)) {
+                            shown.append(path);
+                        }
+                    }
+                }
+                if (!process.start(file, source, shown, &problem)) {
                     stopped = problem.isEmpty();
                     break;
                 }
@@ -658,15 +764,23 @@ QString ScriptHost::problem()
         return found;
     }
     tried = true;
+    const bool inFlatpak = QFileInfo::exists(u"/.flatpak-info"_s);
     if (pythonPath().isEmpty()) {
         found = i18nc("@info", "Scripts are run by Python 3, which is not installed on this computer.");
-    } else if (bwrapPath().isEmpty()) {
-        found = i18nc("@info", "Scripts run in a sandbox that the program bubblewrap (bwrap) provides, which is not installed on this computer.");
+    } else if (inFlatpak && flatpakSpawnPath().isEmpty()) {
+        // Nothing to install would help: the sandbox of a Flatpak is asked of Flatpak.
+        found = i18nc("@info", "Scripts run in a sandbox, and this Flatpak has no way to ask for one: the program flatpak-spawn is missing from its runtime.");
+    } else if (!inFlatpak && bwrapPath().isEmpty()) {
+        found = i18nc("@info %1 is the name of a software package",
+                      "Scripts run in a sandbox that the program bubblewrap (bwrap) provides, which is not installed on this computer. Install the package “%1” with "
+                      "the software manager of your system, then start Indeks again.",
+                      u"bubblewrap"_s);
     } else {
         // Installed is not the same as allowed to make a sandbox: try it out.
+        const Launch launch = sandboxed({}, {pythonPath(), u"-c"_s, u"pass"_s});
         QProcess probe;
-        probe.setProcessEnvironment(sandboxEnvironment());
-        probe.start(bwrapPath(), sandboxArguments({}) + QStringList{pythonPath(), u"-c"_s, u"pass"_s});
+        probe.setProcessEnvironment(launch.environment);
+        probe.start(launch.program, launch.arguments);
         if (!probe.waitForFinished(StartTimeoutMs) || probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0) {
             probe.kill();
             probe.waitForFinished(1000);

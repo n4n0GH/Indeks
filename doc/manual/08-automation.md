@@ -88,7 +88,9 @@ context menu. What the rule did to documents so far stays.
 ## Scripts
 
 A script is a small Python program that looks at documents and says what should happen to
-them. Scripts need Python 3 and bubblewrap on the computer; without them Indeks says so.
+them. Scripts need Python 3 and bubblewrap on the computer; without them Indeks says so, and
+which package to install. The Flatpak needs neither: it brings Python along and has Flatpak
+make the sandbox.
 
 ### Writing a script
 
@@ -153,6 +155,9 @@ Scripts run in a sandbox:
 - of your files, only the documents, and those read-only.
 
 A script that takes longer than 30 seconds over one document is stopped.
+
+A script can use what comes with Python, and the Python packages installed for your user
+(`~/.local/lib`). In the Flatpak it is what comes with Python only.
 
 ### Where scripts are kept
 

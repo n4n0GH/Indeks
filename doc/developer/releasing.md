@@ -87,8 +87,9 @@ Flathub's QtWebEngine base app, of which the web engine itself is removed again.
 built along, with English and German.
 
 Not there inside the sandbox, and so not available in the Flatpak: LibreOffice (Office
-documents are shown as their text, and the old Office formats are found by name only),
-bubblewrap (scripts do not run) and *Send to Indeks* in Dolphin. The manual says so under
+documents are shown as their text, and the old Office formats are found by name only) and
+*Send to Indeks* in Dolphin. Bubblewrap is not there either, and scripts run all the same:
+see *Scripts in the Flatpak* in [architecture.md](architecture.md). The manual says so under
 *Getting Started → Installing Indeks*.
 
 ```sh

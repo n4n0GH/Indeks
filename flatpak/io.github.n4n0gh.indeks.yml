@@ -32,7 +32,8 @@ finish-args:
   # Not there inside the sandbox, and so not available in the Flatpak:
   #  - LibreOffice, which Indeks has show Office documents as they look and read the old
   #    Office formats; such documents are shown as the text found in them;
-  #  - bubblewrap, in which scripts are run; scripts do not run;
+  #  - bubblewrap, in which scripts are run elsewhere; here Flatpak makes the sandbox for
+  #    them (flatpak-spawn --sandbox, which needs no permission of its own);
   #  - "Send to Indeks" in Dolphin, which is installed with the system.
 
 cleanup:

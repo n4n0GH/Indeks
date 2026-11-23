@@ -75,7 +75,9 @@ flatpak install --user https://n4n0gh.github.io/Indeks/indeks.flatpakref
 - It is updated together with your other Flatpak applications.
 - It brings text recognition along, for English and German.
 - It runs in a sandbox, which keeps some things out: Office documents are shown as their
-  text instead of as they look, scripts do not run, and Dolphin has no *Send to Indeks*.
+  text instead of as they look, and Dolphin has no *Send to Indeks*.
+- Scripts run with the Python that comes with the Flatpak. Python packages you installed on
+  your system are not there for them.
 
 **AppImage.** Download `Indeks-<version>-x86_64.AppImage` from the releases page, make it
 executable and start it.
