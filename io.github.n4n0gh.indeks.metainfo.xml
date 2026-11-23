@@ -36,6 +36,18 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.4.0" date="2026-11-23">
+      <description>
+        <p>Rules and scripts have a tab of their own, the toolbar can be arranged as a whole, and what you copied can become a document.</p>
+        <ul>
+          <li>The sidebar has two tabs, Database and Automation: rules and scripts are listed in the middle of the window and changed where the preview is, instead of in dialogs</li>
+          <li>“New Document from Clipboard…” (Ctrl+Shift+V) makes a document of copied text or a copied picture</li>
+          <li>Websites: a copied web address becomes a document that opens the page in the browser; kind:website finds them</li>
+          <li>The preview can stand beside the list instead of below it, for wide screens</li>
+          <li>The search field and the buttons beside it can be moved and removed like every other toolbar button, and entries in the toolbar settings are dragged into place</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-11-22">
       <description>
         <p>Documents can be linked to one another.</p>

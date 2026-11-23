@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.3.0
+## Version 0.4.0
 
 - **Rules and scripts have their own tab:** The sidebar has two tabs now, *Database* and
   *Automation*. Under *Automation*, *Rules* and *Scripts* are listed in the middle of the
