@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.4.0
+## Version 0.5.0
 
 - **Documents that look alike:** *Find Similar-Looking Documents* lists the PDFs and
   pictures that look like the selected one: pages with the same letterhead or logo at the

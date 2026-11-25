@@ -36,6 +36,21 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.0" date="2026-11-25">
+      <description>
+        <p>Documents are found by what they look like, shown as thumbnails and searched inside; the window can be arranged; large databases open without a wait.</p>
+        <ul>
+          <li>“Find Similar-Looking Documents” lists the PDFs and pictures that look like the selected one: pages with the same letterhead or logo, whatever the files are called</li>
+          <li>The documents can be shown as thumbnails in a grid, with a bar above them for sorting, size and the choice between list and grid</li>
+          <li>A Find tab in the side panel searches inside the document that is shown (Ctrl+D)</li>
+          <li>The tabs of the sidebar and the side panel can be dragged to either side and split into an upper and a lower area; Ctrl+B and Ctrl+Shift+B show and hide the two</li>
+          <li>Tables in the preview can be sorted by a column, and columns hidden; plain text files that are Markdown or tables are shown as such</li>
+          <li>Saved searches are put together from filters, like the conditions of a rule</li>
+          <li>Lists and the numbers of the sidebar are worked out in the background, so a large database opens at once</li>
+          <li>Scripts run in the Flatpak</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-23">
       <description>
         <p>Rules and scripts have a tab of their own, the toolbar can be arranged as a whole, and what you copied can become a document.</p>
