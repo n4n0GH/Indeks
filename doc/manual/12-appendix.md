@@ -171,7 +171,9 @@ Every command is in the command bar. This list says what each one does.
   place the text was found at.
 - **Choose List Columns and Row Height…:** Opens the column menu.
 - **Zoom In**, **Zoom Out**, **Reset Zoom:** Change the size of the preview.
-- **Show Unformatted:** Shows the document as it is in the file.
+- **Show Unformatted:** Shows the document as it is in the file, where the preview lays
+  it out for reading: Markdown, HTML, tables, JSON, and plain text files that turned out to
+  be one of these. Called *View Raw* for tables and data.
 - **Show Indexing Activity:** Lists what Indeks is working on.
 
 ### Scripts, to-dos and databases

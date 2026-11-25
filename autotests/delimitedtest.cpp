@@ -56,6 +56,82 @@ private Q_SLOTS:
         QVERIFY(table.findAll(u"nowhere"_s, 0, 100).isEmpty());
     }
 
+    void readsBarsBetweenSpaces()
+    {
+        // Values with a bar between spaces, as people and programs write lists. A value may
+        // hold a bar itself, and quotes are part of it.
+        const QString text = u"external | 11 Jun 2015  | ada@example.org | spiegel|lage | [a term]\n"
+                             "own | 2 Sep 2026 | linus@example.org | \"quoted\" subject | [another]\n"
+                             "own | 3 Sep 2026 | grace@example.org |  | [third]\n"_s;
+        const DelimitedTable::Dialect dialect = DelimitedTable::guessDialect(text, u"hits.txt"_s);
+        QCOMPARE(dialect.separator, QChar(u'|'));
+        QVERIFY(dialect.spaced);
+        QVERIFY(!dialect.continued);
+        const DelimitedTable table(text, dialect);
+        QCOMPARE(table.rowCount(), 3);
+        QCOMPARE(table.columnCount(), 5);
+        QCOMPARE(table.cell(0, 0), u"external"_s);
+        QCOMPARE(table.cell(0, 1), u"11 Jun 2015"_s); // without the room around it
+        QCOMPARE(table.cell(0, 3), u"spiegel|lage"_s);
+        QCOMPARE(table.cell(0, 4), u"[a term]"_s);
+        QCOMPARE(table.cell(1, 3), u"\"quoted\" subject"_s);
+        QCOMPARE(table.cell(2, 3), QString());
+        QCOMPARE(table.cell(2, 4), u"[third]"_s);
+        QVERIFY(DelimitedTable::looksLikeSpacedBars(text));
+
+        // Bars without room are the plain kind, read as before.
+        const QString plain = u"a|b|c\n1|2|3\n"_s;
+        QVERIFY(!DelimitedTable::guessDialect(plain, u"x.txt"_s).spaced);
+        QVERIFY(!DelimitedTable::looksLikeSpacedBars(plain));
+        QVERIFY(!DelimitedTable::looksLikeSpacedBars(u"First, we went home.\nThen | we had tea.\nLater, it rained.\n"_s));
+    }
+
+    void readsRowsWithTextBelowThem()
+    {
+        // A list of things found: a row of values, and set in below it the text it is
+        // about, which may be full of commas and hold a bar between spaces itself.
+        const QString text = u"external | 11 Jun 2015 | ada@example.org | Subject, with a comma | [a term]\n"
+                             "   The text of the first, which goes on, and on | and on.\n"
+                             "own | 2 Sep 2026 | linus@example.org | Second | [another]\n"
+                             "    Two lines\n"
+                             "    of text.  \n"
+                             "\n"
+                             "own | 3 Sep 2026 | grace@example.org | Third | [third]\n"
+                             "own | 4 Sep 2026 | alan@example.org | Fourth | [fourth]\n"
+                             "   The text of the fourth.\n"_s;
+        const DelimitedTable::Dialect dialect = DelimitedTable::guessDialect(text, u"hits.txt"_s);
+        QCOMPARE(dialect.separator, QChar(u'|'));
+        QVERIFY(dialect.spaced);
+        QVERIFY(dialect.continued);
+        QVERIFY(DelimitedTable::looksLikeSpacedBars(text));
+
+        const DelimitedTable table(text, dialect);
+        QCOMPARE(table.rowCount(), 4);
+        QCOMPARE(table.columnCount(), 6); // the text is one more column
+        QCOMPARE(table.cell(0, 3), u"Subject, with a comma"_s);
+        QCOMPARE(table.cell(0, 5), u"The text of the first, which goes on, and on | and on."_s);
+        QCOMPARE(table.cell(1, 0), u"own"_s);
+        QCOMPARE(table.cell(1, 5), u"Two lines\n    of text."_s);
+        QCOMPARE(table.cell(2, 4), u"[third]"_s);
+        QCOMPARE(table.cell(2, 5), QString()); // a row without text below it
+        QCOMPARE(table.cell(3, 5), u"The text of the fourth."_s);
+        // Every row is one of the things found; none of them names the columns.
+        QVERIFY(!table.startsWithHeader());
+        QCOMPARE(table.findAll(u"text of"_s, 0, 10).size(), 2);
+        QCOMPARE(table.findAll(u"of text"_s, 0, 10).constFirst(), std::make_pair(1, 5));
+
+        // A row that is short of a value still has its text in the column of the texts.
+        const DelimitedTable ragged(u"a | b | c\n  first\nd | e\n  second\nf | g | h\n  third\n"_s, DelimitedTable::Dialect{u'|', true, true});
+        QCOMPARE(ragged.cell(1, 1), u"e"_s);
+        QCOMPARE(ragged.cell(1, 2), QString());
+        QCOMPARE(ragged.cell(1, 3), u"second"_s);
+
+        // Lines that are set in do not make a table of a text that is none.
+        QVERIFY(!DelimitedTable::looksLikeSpacedBars(u"Shopping:\n   bananas\n   oat milk\nErrands:\n   the parcel\n"_s));
+        // And the names of files decide as before.
+        QCOMPARE(DelimitedTable::guessDialect(text, u"hits.tsv"_s).separator, QChar(u'\t'));
+    }
+
     void tellsTheSeparator_data()
     {
         QTest::addColumn<QString>("text");

@@ -23,6 +23,7 @@
 #include "scripthost.h"
 #include "scripts.h"
 #include "searchquery.h"
+#include "textformat.h"
 #include "store.h"
 #include "task.h"
 #include "weblink.h"
@@ -62,6 +63,8 @@ namespace
 void pruneViewColumns();
 
 constexpr qint64 MaxPreviewTextBytes = 4 * 1024 * 1024;
+// How much of a plain text file is read to tell what it is written as.
+constexpr qint64 GuessedFormatBytes = 64 * 1024;
 constexpr int RenditionTimeoutMs = 120000;
 constexpr int RenditionMaxAgeDays = 90;
 // How much of a JSON Lines file is formatted when only its beginning is asked for.
@@ -1368,6 +1371,27 @@ QString Library::readText(qint64 id) const
 {
     const QString path = contentPath(id);
     return path.isEmpty() ? QString() : readTextFile(path, MaxPreviewTextBytes);
+}
+
+QString Library::guessedTextFormat(qint64 id) const
+{
+    const Document doc = Store::document(id);
+    if (!doc.isValid() || doc.kind != Kind::PlainText || doc.mimeType != "text/plain"_L1) {
+        return {};
+    }
+    const QString path = contentPath(id);
+    if (path.isEmpty()) {
+        return {};
+    }
+    switch (TextFormat::guess(readTextFile(path, GuessedFormatBytes))) {
+    case TextFormat::Guess::Markdown:
+        return u"markdown"_s;
+    case TextFormat::Guess::Table:
+        return u"table"_s;
+    case TextFormat::Guess::Plain:
+        break;
+    }
+    return {};
 }
 
 QVariantMap Library::formattedText(qint64 id, int maxRecords) const

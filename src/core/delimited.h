@@ -19,13 +19,48 @@ namespace Indeks
  * each cell is in it; a cell is cut out when it is asked for. Read in the usual lenient way:
  * a cell in quotes may hold separators, line breaks and doubled quotes; rows may differ in
  * length; lines without anything in them are left out.
+ *
+ * Bars are also written with room around them, by people and by programs that list what
+ * they found (`who | when | what`), and such a list may go on below each row with a line
+ * of text that is set in: see Dialect.
  */
 class DelimitedTable
 {
 public:
+    /** How a file writes its rows, beyond which sign separates the values. */
+    struct Dialect {
+        QChar separator = u',';
+        /**
+         * The separator only separates where it stands between spaces (`a | b`), so that a
+         * value may hold the sign itself (`a|b`). Values are taken without the spaces around
+         * them, and quotes are part of them: such values are text, which may well begin with
+         * one.
+         */
+        bool spaced = false;
+        /**
+         * A line that is set in belongs to the row above it, as one more value at its end:
+         * the text a row is about, below the row.
+         */
+        bool continued = false;
+    };
+
     DelimitedTable() = default;
     /** Takes @p text apart at @p separator. */
     DelimitedTable(const QString &text, QChar separator);
+    DelimitedTable(const QString &text, const Dialect &dialect);
+
+    /**
+     * How a file writes its rows, found by looking at its first lines: the separator as
+     * guessSeparator() finds it, and whether bars stand between spaces and rows go on in
+     * lines that are set in.
+     */
+    static Dialect guessDialect(const QString &text, const QString &fileName);
+    /**
+     * Whether @p text is rows of values with bars between spaces: every line that is not
+     * set in has the same number of them, and there are enough such lines for that to be
+     * no accident. Lines that are set in go on with the row above.
+     */
+    static bool looksLikeSpacedBars(const QString &text);
 
     /**
      * The separator a file uses, found by looking at its first lines: the one that occurs in
@@ -37,7 +72,11 @@ public:
 
     QChar separator() const
     {
-        return m_separator;
+        return m_dialect.separator;
+    }
+    Dialect dialect() const
+    {
+        return m_dialect;
     }
     int rowCount() const
     {
@@ -78,7 +117,7 @@ private:
     };
 
     QString m_text;
-    QChar m_separator = u',';
+    Dialect m_dialect;
     QList<Cell> m_cells;
     QList<quint32> m_rows; ///< where each row begins in m_cells, and at last where they end
     int m_columns = 0;

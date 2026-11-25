@@ -76,7 +76,7 @@ void TableModel::load()
             // Not the row the reading stopped in the middle of.
             text.truncate(qMax<qsizetype>(0, text.lastIndexOf(u'\n')));
         }
-        auto table = std::make_shared<const DelimitedTable>(text, DelimitedTable::guessSeparator(text, fileName));
+        auto table = std::make_shared<const DelimitedTable>(text, DelimitedTable::guessDialect(text, fileName));
         QMetaObject::invokeMethod(QCoreApplication::instance(), [self, ticket, table, partial] {
             if (!self || self->m_ticket != ticket) {
                 return; // another file by now

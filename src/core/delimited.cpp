@@ -17,6 +17,8 @@ namespace
 constexpr int SampleRows = 300;
 // How many lines are looked at to tell the separator.
 constexpr int SniffLines = 30;
+// How many lines are looked at to tell whether a text is rows with bars between spaces.
+constexpr int LookLines = 400;
 constexpr int MaxWidthHint = 60;
 }
 
@@ -98,9 +100,110 @@ QChar DelimitedTable::guessSeparator(const QString &text, const QString &fileNam
     return best;
 }
 
+namespace
+{
+bool isRoom(QChar ch)
+{
+    return ch == u' ' || ch == u'\t';
+}
+
+// What the lines of a text say about bars between spaces.
+struct BarLines {
+    int rows = 0; ///< lines that are not set in
+    int continuations = 0; ///< lines that are
+    int width = -1; ///< bars between spaces in a row; the same in all of them if `even`
+    bool even = true;
+    bool allSpaced = true; ///< no bar in a row stands without room around it
+    bool beginsWithRow = true;
+};
+
+BarLines barLines(const QString &text, int maxLines)
+{
+    BarLines found;
+    const qsizetype size = text.size();
+    qsizetype start = 0;
+    int lines = 0;
+    while (start < size && lines < maxLines) {
+        qsizetype end = text.indexOf(u'\n', start);
+        const bool whole = end >= 0;
+        if (!whole) {
+            end = size;
+        }
+        const QStringView line = QStringView(text).mid(start, end - start);
+        start = end + 1;
+        if (line.trimmed().isEmpty()) {
+            continue;
+        }
+        // The last line may be cut short where the text is only the beginning of a file.
+        if (!whole && lines > 5) {
+            break;
+        }
+        ++lines;
+        if (isRoom(line.at(0))) {
+            ++found.continuations;
+            found.beginsWithRow = found.beginsWithRow && found.rows > 0;
+            continue;
+        }
+        int spaced = 0;
+        for (qsizetype i = 0; i < line.size(); ++i) {
+            if (line.at(i) != u'|') {
+                continue;
+            }
+            if (i > 0 && isRoom(line.at(i - 1)) && i + 1 < line.size() && isRoom(line.at(i + 1))) {
+                ++spaced;
+            } else {
+                found.allSpaced = false;
+            }
+        }
+        ++found.rows;
+        if (found.width < 0) {
+            found.width = spaced;
+        } else if (spaced != found.width) {
+            found.even = false;
+        }
+    }
+    return found;
+}
+
+// As many rows as it takes for their agreeing to be no accident: more where there is
+// only one bar to a line.
+bool enoughRows(const BarLines &lines)
+{
+    return lines.even && lines.beginsWithRow && lines.width >= 1 && lines.rows >= (lines.width >= 2 ? 3 : 5);
+}
+}
+
+bool DelimitedTable::looksLikeSpacedBars(const QString &text)
+{
+    return enoughRows(barLines(text, LookLines));
+}
+
+DelimitedTable::Dialect DelimitedTable::guessDialect(const QString &text, const QString &fileName)
+{
+    Dialect dialect;
+    dialect.separator = guessSeparator(text, fileName);
+    const BarLines lines = barLines(text, LookLines);
+    if (enoughRows(lines) && lines.continuations > 0 && dialect.separator != u'\t') {
+        // Rows with text below them. Whatever sign that text is full of, it is not the
+        // separator.
+        return {u'|', true, true};
+    }
+    if (dialect.separator == u'|') {
+        // Bars between spaces, the same number in every row: then a bar without room is
+        // part of a value. In a file too short to tell, they all have to have their room.
+        dialect.spaced = lines.continuations == 0 && lines.width >= 1 && lines.even && (lines.allSpaced || enoughRows(lines));
+    }
+    return dialect;
+}
+
 DelimitedTable::DelimitedTable(const QString &text, QChar separator)
+    : DelimitedTable(text, Dialect{separator, false, false})
+{
+}
+
+DelimitedTable::DelimitedTable(const QString &text, const Dialect &dialect)
     : m_text(text)
-    , m_separator(separator)
+    , m_dialect(dialect)
 {
     const qsizetype size = m_text.size();
     const QChar *data = m_text.constData();
@@ -109,6 +212,23 @@ DelimitedTable::DelimitedTable(const QString &text, QChar separator)
     if (size > 0 && data[0] == QChar(0xFEFF)) {
         i = 1;
     }
+    const QChar separator = dialect.separator;
+    const bool spaced = dialect.spaced;
+    const auto separates = [&](qsizetype at) {
+        return data[at] == separator && (!spaced || (at > 0 && isRoom(data[at - 1]) && at + 1 < size && isRoom(data[at + 1])));
+    };
+    const auto lineEnds = [&](qsizetype at) {
+        return data[at] == u'\n' || data[at] == u'\r';
+    };
+    // Past the end of the line at @p at, however it is written.
+    const auto nextLine = [&](qsizetype at) {
+        if (at < size && data[at] == u'\r' && at + 1 < size && data[at + 1] == u'\n') {
+            ++at;
+        }
+        return qMin(size, at + 1);
+    };
+    // The text below a row stands in the column after the last one the rows have.
+    const int width = dialect.continued ? qMax(0, barLines(text, LookLines).width) + 1 : 0;
     m_cells.reserve(size / 8);
     m_rows.reserve(size / 64);
 
@@ -136,9 +256,49 @@ DelimitedTable::DelimitedTable(const QString &text, QChar separator)
     };
 
     while (i < size) {
+        if (dialect.continued && !rowOpen && isRoom(data[i])) {
+            // A line that is set in: it goes on with the row above, and so do the lines
+            // that follow it and are set in too.
+            qsizetype from = i;
+            while (from < size && isRoom(data[from])) {
+                ++from;
+            }
+            if (from >= size || lineEnds(from)) {
+                i = nextLine(from); // nothing in it
+                continue;
+            }
+            qsizetype end = from;
+            for (;;) {
+                while (end < size && !lineEnds(end)) {
+                    ++end;
+                }
+                i = nextLine(end);
+                qsizetype next = i;
+                while (next < size && isRoom(data[next])) {
+                    ++next;
+                }
+                if (next == i || next >= size || lineEnds(next)) {
+                    break;
+                }
+                end = next;
+            }
+            while (end > from && isRoom(data[end - 1])) {
+                --end;
+            }
+            if (m_rows.isEmpty()) {
+                m_rows.append(quint32(m_cells.size())); // text with no row above it
+            }
+            const qsizetype rowBegin = m_rows.constLast();
+            while (m_cells.size() - rowBegin < width) {
+                m_cells.append(Cell{quint32(from), 0, 0});
+            }
+            m_cells.append(Cell{quint32(from), quint32(end - from), 0});
+            m_columns = qMax(m_columns, int(m_cells.size() - rowBegin));
+            continue;
+        }
         beginRow();
         Cell cell;
-        if (data[i] == u'"') {
+        if (!spaced && data[i] == u'"') {
             // In quotes: up to the quote that is not doubled.
             qsizetype j = i + 1;
             bool escaped = false;
@@ -158,16 +318,27 @@ DelimitedTable::DelimitedTable(const QString &text, QChar separator)
             cell.escaped = escaped;
             i = qMin(size, j + 1);
             // Whatever follows the closing quote before the separator is not worth keeping.
-            while (i < size && data[i] != m_separator && data[i] != u'\n' && data[i] != u'\r') {
+            while (i < size && !separates(i) && !lineEnds(i)) {
                 ++i;
             }
         } else {
             qsizetype j = i;
-            while (j < size && data[j] != m_separator && data[j] != u'\n' && data[j] != u'\r') {
+            while (j < size && !separates(j) && !lineEnds(j)) {
                 ++j;
             }
-            cell.start = quint32(i);
-            cell.length = quint32(j - i);
+            qsizetype from = i;
+            qsizetype to = j;
+            if (spaced) {
+                // Without the room that is part of the separator.
+                while (from < to && isRoom(data[from])) {
+                    ++from;
+                }
+                while (to > from && isRoom(data[to - 1])) {
+                    --to;
+                }
+            }
+            cell.start = quint32(from);
+            cell.length = quint32(to - from);
             i = j;
         }
         m_cells.append(cell);
@@ -175,7 +346,7 @@ DelimitedTable::DelimitedTable(const QString &text, QChar separator)
         if (i >= size) {
             break;
         }
-        if (data[i] == m_separator) {
+        if (separates(i)) {
             ++i;
             if (i >= size) {
                 m_cells.append(Cell{quint32(size), 0, 0}); // the line ends with a separator
@@ -223,7 +394,8 @@ bool DelimitedTable::looksNumeric(QStringView text)
 
 bool DelimitedTable::startsWithHeader() const
 {
-    if (rowCount() < 2) {
+    // Rows with text below them are a list of things found, not a sheet with a head.
+    if (rowCount() < 2 || m_dialect.continued) {
         return false;
     }
     const quint32 count = m_rows.at(1) - m_rows.at(0);

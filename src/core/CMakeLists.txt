@@ -6,6 +6,8 @@ add_library(indekscore STATIC)
 target_sources(indekscore PRIVATE
     canvas.cpp
     canvas.h
+    textformat.cpp
+    textformat.h
     weblink.cpp
     weblink.h
     database.cpp

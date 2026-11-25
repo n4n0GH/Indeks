@@ -184,6 +184,13 @@ public:
     Q_INVOKABLE void discardLocalCopy(qint64 id);
     Q_INVOKABLE QString readText(qint64 id) const;
     /**
+     * What a plain text file is written as, going by its beginning: "markdown", "table" for
+     * values in rows and columns, or nothing for text. Only asked of files that claim to be
+     * nothing but text (`text/plain`); what says what it is by its name is taken at its word.
+     * See TextFormat.
+     */
+    Q_INVOKABLE QString guessedTextFormat(qint64 id) const;
+    /**
      * The text of a JSON Lines document, or of JSON written without line breaks, laid out for
      * reading: indented, one member per line. Never what gets saved. The map is empty for
      * anything else; otherwise it holds

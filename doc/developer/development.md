@@ -63,6 +63,7 @@ See [architecture.md](architecture.md) for what is in them.
 - `appstreamtest` checks the metadata file.
 - `searchquerytest` checks what the search language compiles to.
 - `delimitedtest` checks the reading of CSV and TSV.
+- `textformattest` checks what plain text is taken for: Markdown, a table, or text.
 - `librarytest` drives the core through `Library` with real files in temporary folders:
   indexing, moved and deleted files, mailboxes, rules, scripts, to-dos, the trash. It needs
   no display. Tests that need Tesseract, LibreOffice, Python or bubblewrap are skipped where

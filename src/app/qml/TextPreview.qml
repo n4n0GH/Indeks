@@ -26,11 +26,16 @@ ColumnLayout {
     // A JSON Lines file stays one even if a record quotes enough markup to pass for a web page.
     readonly property bool jsonLines: /\.(jsonl|ndjson)$/i.test(info.name ?? "")
     readonly property bool html: !jsonLines && (info.mime === "text/html" || info.mime === "application/xhtml+xml")
-    readonly property bool markdown: info.mime === "text/markdown"
+    // What a file that only claims to be text is written as, going by what is in it:
+    // "markdown", "table" or nothing; see Library::guessedTextFormat(). Such a file is shown
+    // as what it is, and as it is in the file on request, like one that says so by its name.
+    property string guessed: App.library.guessedTextFormat(documentId)
+    readonly property bool markdown: info.mime === "text/markdown" || guessed === "markdown"
     /** Formatted text, which is shown as it is meant to look. */
     readonly property bool rich: html || markdown
     /** Values in rows and columns, which are shown as a table. */
     readonly property bool tabular: /\.(csv|tsv|tab)$/i.test(info.name ?? "") || ["text/csv", "text/tab-separated-values", "text/x-comma-separated-values"].includes(info.mime ?? "")
+        || guessed === "table"
     property bool editing: false
     /** Shows the file as it is instead of what it is laid out as. */
     property bool raw: false
@@ -50,7 +55,7 @@ ColumnLayout {
 
     // The colouring rules for this kind of file. Plain prose has none ("None"), and running
     // the highlighter with that leaves the text invisible, so it is only used for real ones.
-    readonly property var syntax: Syntax.Repository.definitionForFileName(info.name ?? "")
+    readonly property var syntax: guessed === "markdown" ? Syntax.Repository.definitionForName("Markdown") : Syntax.Repository.definitionForFileName(info.name ?? "")
     readonly property bool highlighted: code && syntax.name.length > 0 && syntax.name !== "None"
 
     // JSON Lines, and JSON written without line breaks, are laid out for reading: a member per
@@ -118,7 +123,12 @@ ColumnLayout {
         if ((info.size ?? 0) > App.library.maxTextSize()) {
             return i18nc("@info", "The beginning of a large file");
         }
-        return raw ? i18nc("@info", "Shown as it is in the file") : "";
+        if (raw) {
+            return i18nc("@info", "Shown as it is in the file");
+        }
+        // Said where the file does not say so itself: the reader may wonder why a text
+        // file looks the way it does.
+        return rendered && guessed === "markdown" ? i18nc("@info", "Shown as Markdown, which is what its text looks like") : "";
     }
 
     readonly property list<Kirigami.Action> viewActions: [
@@ -419,6 +429,8 @@ ColumnLayout {
             return false;
         }
         savedText = currentText;
+        // What was written may be something else than what was there.
+        guessed = App.library.guessedTextFormat(documentId);
         return true;
     }
 

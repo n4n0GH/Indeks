@@ -39,10 +39,35 @@ Lines that are too long wrap and continue below their own indentation.
 - **Selecting and copying:** With the text in focus, `Ctrl+A` selects all of it and `Ctrl+C`
   copies the selection.
 
+### Text files that are something else
+
+A file called `.txt` is not always just text. Indeks looks at the beginning of a plain text
+file and shows it as what it is written as:
+
+- **Markdown:** A text with headings, links, bold words, code or a table in the marks of
+  Markdown is shown formatted, like a Markdown document. The bar above the preview says so.
+- **A table:** A text whose lines all have the same number of tabs, commas, semicolons or
+  bars is shown as a table, like a CSV or TSV file.
+- **A list with bars between spaces:** Lines of values with ` | ` between them
+  (`who | when | what`) are a table too. A value may hold a bar that has no spaces around
+  it. A line that is set in belongs to the row above it and is shown as one more column at
+  the end: the text a row is about, below the row.
+
+*Show Unformatted*, or *View Raw* for a table (`Ctrl+U`), in the bar above the preview
+always shows the text as it is in the file; the same button goes back. *Edit Text* works on
+the text as it is in the file too.
+
+The guess is a careful one, so that a letter or a list does not lose its line breaks: a
+text with one heading and nothing else stays text, and so do lines of settings that begin
+with `#`, a list with a dash before each line, and fewer than three rows of values. Only
+files that claim to be nothing but text are looked at this way. A file that says what it is
+by its name, `.md` or `.csv`, is taken at its word.
+
 ## Markdown and HTML
 
 Markdown and HTML documents are shown formatted. *Show Unformatted* (`Ctrl+U`) in the bar
-above the preview shows the source instead.
+above the preview shows the source instead. A plain text file that is written in Markdown
+is shown the same way; see *Text files that are something else* above.
 
 *Edit Text* works on the source of a Markdown document. An HTML document that is shown
 formatted is edited as it looks.
@@ -113,13 +138,15 @@ scripts.
 Files of values in rows and columns are shown as a table, with the column names at the top,
 numbers aligned to the right and the rows numbered as in the file.
 
-- The separator (comma, semicolon, tab or bar) is detected from the first lines.
+- The separator (comma, semicolon, tab or bar) is detected from the first lines. Bars that
+  stand between spaces (` | `) separate without the spaces becoming part of the values.
 - *Column Names* switches whether the first row is treated as names.
 - Drag the line between two column names to change a column's width.
 - Click a cell to make it current; the arrow keys move on from it and `Ctrl+C` copies it.
 - *View Raw* (`Ctrl+U`) shows the file as text.
 
-Of a file larger than 48 MiB the table shows the beginning.
+Of a file larger than 48 MiB the table shows the beginning. A plain text file that holds
+such values is shown as a table too; see *Text files that are something else* above.
 
 ## JSON and JSON Lines
 

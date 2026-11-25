@@ -1430,6 +1430,30 @@ def process(document):
         m_library->removeSource(source);
     }
 
+    void tellsWhatATextFileIsWrittenAs()
+    {
+        // A file that only claims to be text is looked into; see textformattest for what
+        // counts as what.
+        const qint64 prose = m_library->createDocument(u"Letter draft"_s, u"txt"_s, u"Dear Ms. Rutherford,\n\nthank you for the marzipan.\n"_s);
+        const qint64 marked = m_library->createDocument(u"Findings"_s, u"txt"_s, u"# Findings\n\nLeads only.\n\n## Method\n\nEvery message was read.\n"_s);
+        const qint64 values = m_library->createDocument(u"Harvest"_s, u"txt"_s, u"month\ttomatoes\tbeans\nJune\t31\t12\nJuly\t55\t18\n"_s);
+        QVERIFY(prose > 0 && marked > 0 && values > 0);
+        QCOMPARE(m_library->guessedTextFormat(prose), QString());
+        QCOMPARE(m_library->guessedTextFormat(marked), u"markdown"_s);
+        QCOMPARE(m_library->guessedTextFormat(values), u"table"_s);
+        // It goes by what is in the file now.
+        QVERIFY(m_library->saveText(prose, u"- [ ] answer the letter\n- [x] eat the marzipan\n"_s));
+        QCOMPARE(m_library->guessedTextFormat(prose), u"markdown"_s);
+        // What says what it is by its name is not second-guessed, and neither is what is no text.
+        QCOMPARE(m_library->guessedTextFormat(idOf(u"notes.md"_s)), QString());
+        QCOMPARE(m_library->guessedTextFormat(idOf(u"report.pdf"_s)), QString());
+        QCOMPARE(m_library->guessedTextFormat(0), QString());
+
+        m_library->moveToTrash(ids({prose, marked, values}));
+        m_library->emptyTrash();
+        QVERIFY(!Store::document(marked).isValid());
+    }
+
     void workingWithADocumentTakesItOutOfTheInbox()
     {
         const qint64 id = m_library->createDocument(u"Errands"_s, u"txt"_s, u"Collect the parcel of marzipan.\n"_s);

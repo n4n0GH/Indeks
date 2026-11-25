@@ -10,6 +10,12 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **Text files that are Markdown or tables:** A plain text file (`.txt`) that is written in
+  Markdown is shown formatted, and one that holds values in rows and columns is shown as a
+  table. That goes for lists with ` | ` between the values too, also where each row has a
+  line of text set in below it, which becomes a column of its own. *Show Unformatted* or
+  *View Raw* (`Ctrl+U`) shows the text as it is in the file. See *Documents → Text files
+  that are something else*.
 - **Finding inside a document:** A third tab in the side panel, with the magnifying glass,
   searches within the document that is shown: what you type is marked in the document, the
   places are listed with the words around them, and `Enter`, the arrows or `F3` step through
