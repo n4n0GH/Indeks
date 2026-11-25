@@ -163,6 +163,15 @@ Every command is in the command bar. This list says what each one does.
 - **Search:** Goes to the search field.
 - **Advanced Search:** Shows or hides the filter bar.
 - **Show Sidebar**, **Show Preview**, **Show Side Panel:** Show or hide that part.
+- **No Preview**, **Preview Below Documents**, **Preview Beside Documents:** The three
+  choices of the *Preview* button in the toolbar.
+- **Sort Table by Current Column, A to Z** (and **Z to A**, **Smallest Number First**,
+  **Largest Number First**), **Show Table in the Order of the File**, **Hide Current Column
+  of the Table**, **Show All Columns of the Table:** For a table in the preview, what the
+  menu of its columns offers, for the column of the cell that is chosen. See
+  *Documents → Tables*.
+- **Move Section of the Selected Sidebar Entry Up**, **… Down:** Changes the order of the
+  sections of the *Database* tab, like dragging a section by its title.
 - **Preview Beside the List:** Puts the preview to the right of the list instead of below
   it, or back.
 - **Show Document Information**, **Show To-Do List:** Bring that tab up, in whichever

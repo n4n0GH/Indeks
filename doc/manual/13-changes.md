@@ -10,6 +10,16 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **Tables can be sorted, and columns hidden:** Right-click the name of a column or a cell of
+  a table in the preview to sort the rows by that column, by its text or by its numbers,
+  and to hide the column. A click on the name of a column sorts too. See *Documents →
+  Tables*.
+- **The sections of the sidebar can be put in order:** Drag *Smart Groups*, *Saved
+  Searches*, *Groups*, *Tags* or *Locations* by its title to where it is to stand.
+- **The size of the database** stands beside its name at the bottom of the sidebar.
+- **One button for the preview:** The two buttons that showed the preview and put it beside
+  the list are one button with a menu: *No Preview*, *Preview Below Documents*, *Preview
+  Beside Documents*. In a toolbar you arranged yourself it takes the place of the two.
 - **A rule or script is always selected:** Under *Rules* and *Scripts* the first entry is
   selected when the list comes up, and after one was deleted the next one is. Before, a
   list with a single entry in it offered nothing to delete until that entry was clicked.

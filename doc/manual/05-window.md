@@ -19,8 +19,8 @@ From left to right, the toolbar holds at first:
   *Move to Trash*.
 - **The search field** (`Ctrl+F`). See *Finding*.
 - **The filter button** (`Ctrl+Alt+F`), which opens the filter bar, and *Save Search…*.
-- **The preview button** (`F10`), and beside it the button that puts the preview beside the
-  list or below it; see *Preview*.
+- **The Preview button**, with a menu that says whether there is a preview and where: *No
+  Preview*, *Preview Below Documents* or *Preview Beside Documents*; see *Preview*.
 - **The side panel button** (`Ctrl+Shift+B` or `F11`).
 - **The menu**, which holds every command, sorted into *Go*, *Document*, *Preview*, *Sidebar*
   and *Scripts*.
@@ -46,7 +46,9 @@ yours to say; see *Arranging the panels* below.
 ### The Database tab
 
 This tab chooses what the list shows. Its sections can be folded with the arrow before
-their title. The numbers on the right count the documents in each entry. They are worked
+their title, and put into another order: drag a section by its title, *Smart Groups* or
+*Tags* for instance, to where it is to stand; a line shows where that is. The places at the
+top, from *Inbox* to *Trash*, stay where they are. The numbers on the right count the documents in each entry. They are worked
 out in the background: in a large database they follow a change a moment later, and after a
 database was opened they appear a moment after the entries.
 
@@ -88,8 +90,11 @@ the documents back. What you were changing stays as it was until you return. See
 Commands and keys for documents rest while the middle of the window is about rules or
 scripts: `Del` removes the selected rule or script then, not a document.
 
-**The database button.** The bottom of the sidebar names the open database. A click lists
-the others; a right-click offers *Rename Database…*, *Databases…*, *Add Database…* and *New Database…*.
+**The database button.** The bottom of the sidebar names the open database, and at its
+right end how much room the database takes on the disk: its folder with the index, the
+documents made in Indeks and the working copies. The number is brought up to date every
+minute. A click lists the other databases; a right-click offers *Rename Database…*,
+*Databases…*, *Add Database…* and *New Database…*.
 
 **The activity display.** While Indeks opens a database, reads files, recognises text,
 fetches remote files or runs scripts, a line above the database button says what it is
@@ -163,15 +168,21 @@ Column widths and the row height are the same in every view.
 The preview shows the selected document. `F10` shows and hides it. Drag the border between
 list and preview to change its size.
 
-**Below or beside the list.** The preview stands below the list at first. The button beside
-the preview button in the toolbar, or *Menu → Preview → Preview Beside the List*, puts it to
-the right of the list instead, which suits a wide screen: the list keeps its full height, and a page is shown larger. Choose it again to have
-the preview below. Indeks remembers the choice.
+**Below or beside the list.** The *Preview* button in the toolbar, and *Menu → Preview*,
+offer three choices:
+
+- **No Preview:** The list has the room to itself.
+- **Preview Below Documents:** As at first.
+- **Preview Beside Documents:** The preview stands to the right of the list, which suits a
+  wide screen: the list keeps its full height, and a page is shown larger.
+
+The icon of the button shows which one holds. Indeks remembers the choice.
 
 - Beside the list the preview takes half of the room until you drag the border.
 - The list is narrower then. If its columns no longer fit, some are left out; see *List of
   documents*.
-- Choosing it while the preview is hidden shows the preview.
+- The commands *Show Preview* and *Preview Beside the List* are still there for the command
+  bar and for keys; *Preview Beside the List* shows the preview if it was hidden.
 
 ![A PDF in the preview with a sticky note](images/preview.png)
 

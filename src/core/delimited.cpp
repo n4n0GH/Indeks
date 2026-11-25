@@ -392,6 +392,60 @@ bool DelimitedTable::looksNumeric(QStringView text)
     return !trimmed.isEmpty() && number.matchView(trimmed).hasMatch();
 }
 
+std::optional<double> DelimitedTable::number(QStringView text)
+{
+    if (!looksNumeric(text)) {
+        return std::nullopt;
+    }
+    // The digits, the signs between them and what stands for a power of ten.
+    QString digits;
+    bool negative = false;
+    for (const QChar ch : text.trimmed()) {
+        if (ch.isDigit() || ch == u'.' || ch == u',') {
+            digits.append(ch);
+        } else if (ch == u'-' && digits.isEmpty()) {
+            negative = true;
+        } else if ((ch == u'e' || ch == u'E') && !digits.isEmpty()) {
+            digits.append(u'e');
+        } else if ((ch == u'-' || ch == u'+') && digits.endsWith(u'e')) {
+            digits.append(ch);
+        }
+    }
+    const qsizetype power = digits.indexOf(u'e');
+    QString mantissa = power < 0 ? digits : digits.left(power);
+    // Which of the two signs is before the fraction: the one that comes last, if both are
+    // there. One alone that has exactly three digits behind it, or that is there more than
+    // once, groups thousands.
+    const qsizetype comma = mantissa.lastIndexOf(u',');
+    const qsizetype point = mantissa.lastIndexOf(u'.');
+    QChar fraction;
+    if (comma >= 0 && point >= 0) {
+        fraction = comma > point ? u',' : u'.';
+    } else if (comma >= 0 || point >= 0) {
+        const QChar sign = comma >= 0 ? u',' : u'.';
+        const qsizetype at = qMax(comma, point);
+        const bool groups = mantissa.count(sign) > 1 || (mantissa.size() - at - 1 == 3 && at > 0 && at <= 3);
+        fraction = groups ? QChar() : sign;
+    }
+    QString plain;
+    for (const QChar ch : std::as_const(mantissa)) {
+        if (ch.isDigit()) {
+            plain.append(ch);
+        } else if (ch == fraction) {
+            plain.append(u'.');
+        }
+    }
+    if (power >= 0) {
+        plain.append(digits.mid(power));
+    }
+    bool ok = false;
+    const double value = plain.toDouble(&ok);
+    if (!ok) {
+        return std::nullopt;
+    }
+    return negative ? -value : value;
+}
+
 bool DelimitedTable::startsWithHeader() const
 {
     // Rows with text below them are a list of things found, not a sheet with a head.

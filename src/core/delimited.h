@@ -8,6 +8,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 namespace Indeks
 {
 
@@ -108,6 +110,12 @@ public:
     QList<std::pair<int, int>> findAll(const QString &text, int fromRow, int limit) const;
 
     static bool looksNumeric(QStringView text);
+    /**
+     * The number a cell holds, written as people write amounts: with signs, with digits in
+     * groups, with a comma or a point before the fraction, with a currency or a percent sign
+     * beside it. Nothing for what looksNumeric() would not take for a number.
+     */
+    static std::optional<double> number(QStringView text);
 
 private:
     struct Cell {

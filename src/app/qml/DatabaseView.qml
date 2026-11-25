@@ -8,7 +8,8 @@ import org.kde.kirigami as Kirigami
 
 // The database, as a view of a panel: every entry is a place to look at, and clicking one
 // changes what the list of documents shows. Documents can be dropped on groups, tags, the
-// inbox and the trash.
+// inbox and the trash. The sections that have a heading (smart groups, saved searches,
+// groups, tags, locations) stand in the order the user drags them into by their headings.
 //
 // One of the views that the user puts into whichever area of whichever panel; see
 // PanelLayout and SidePanel.
@@ -40,6 +41,75 @@ QQC2.Pane {
 
     function acceptsDocuments(kind: string, key: string): bool {
         return kind === "group" || kind === "tag" || key === "place:inbox" || key === "place:trash" || key === "place:flagged";
+    }
+
+    // --------------------------------------------------------- putting the sections in order
+    //
+    // A heading that is dragged takes its section along. What it is dragged over says where
+    // the section goes: before a section that stands above it, behind one that stands below.
+
+    readonly property string sectionKey: "application/x-indeks-sidebar-section"
+    /** The section whose heading is being dragged; empty while none is. */
+    property string draggedSection
+    property string draggedLabel
+    /** The section the dragged one would be put beside, and on which side. */
+    property string targetSection
+    readonly property bool targetAfter: draggedSection.length > 0 && targetSection.length > 0
+        && App.sidebar.sectionIndex(targetSection) > App.sidebar.sectionIndex(draggedSection)
+
+    function dragSection(section: string, label: string, scenePoint: point): void {
+        draggedSection = section;
+        draggedLabel = label;
+        moveSectionDrag(scenePoint);
+    }
+
+    function moveSectionDrag(scenePoint: point): void {
+        const place = root.mapFromItem(null, scenePoint.x, scenePoint.y);
+        sectionChip.x = place.x + Kirigami.Units.largeSpacing;
+        sectionChip.y = place.y - sectionChip.height / 2;
+    }
+
+    function dropSection(): void {
+        if (draggedSection.length === 0) {
+            return;
+        }
+        const section = draggedSection;
+        const target = targetSection;
+        const after = targetAfter;
+        sectionChip.Drag.drop();
+        draggedSection = "";
+        targetSection = "";
+        if (target.length > 0 && target !== section) {
+            // A moment later: the rows are made anew, the one that is dragged with them.
+            Qt.callLater(() => App.sidebar.moveSection(section, target, after));
+        }
+    }
+
+    // What follows the pointer, and what the rows see coming.
+    Rectangle {
+        id: sectionChip
+
+        z: 100
+        visible: root.draggedSection.length > 0
+        width: chipLabel.implicitWidth + Kirigami.Units.largeSpacing * 2
+        height: chipLabel.implicitHeight + Kirigami.Units.smallSpacing * 2
+        radius: Kirigami.Units.cornerRadius
+        color: Kirigami.Theme.backgroundColor
+        border.color: Kirigami.Theme.highlightColor
+        opacity: 0.9
+
+        Drag.active: visible
+        Drag.keys: [root.sectionKey]
+        Drag.hotSpot.x: -Kirigami.Units.largeSpacing
+        Drag.hotSpot.y: height / 2
+
+        QQC2.Label {
+            id: chipLabel
+
+            anchors.centerIn: parent
+            text: root.draggedLabel
+            font.weight: Font.DemiBold
+        }
     }
 
     function step(delta: int): void {
@@ -76,6 +146,8 @@ QQC2.Pane {
                 required property string kind
                 required property real itemId
                 required property bool isHeader
+                required property string section
+                required property bool sectionEnd
                 required property bool collapsed
                 required property bool offline
                 required property bool isCurrent
@@ -149,6 +221,50 @@ QQC2.Pane {
                             entryMenu.popup();
                         }
                     }
+                }
+
+                // A heading is dragged to where its section is to be.
+                DragHandler {
+                    enabled: entry.isHeader
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+                    grabPermissions: PointerHandler.CanTakeOverFromAnything
+                    onActiveChanged: {
+                        if (active) {
+                            root.dragSection(entry.section, entry.label, centroid.scenePosition);
+                        } else {
+                            root.dropSection();
+                        }
+                    }
+                    onCentroidChanged: {
+                        if (active) {
+                            root.moveSectionDrag(centroid.scenePosition);
+                        }
+                    }
+                }
+                // Every row of a section that has a heading is a place to drop one on.
+                DropArea {
+                    anchors.fill: parent
+                    enabled: root.draggedSection.length > 0 && entry.section !== "library" && entry.section !== root.draggedSection
+                    keys: [root.sectionKey]
+                    onEntered: root.targetSection = entry.section
+                    // Said again with every move: the row that was left may say so after
+                    // the next one was entered.
+                    onPositionChanged: root.targetSection = entry.section
+                    onExited: {
+                        if (root.targetSection === entry.section) {
+                            root.targetSection = "";
+                        }
+                    }
+                }
+                // Where the section would go: above the heading of the one it is put before,
+                // below the last row of the one it is put behind.
+                Rectangle {
+                    visible: root.targetSection === entry.section && (root.targetAfter ? entry.sectionEnd : entry.isHeader)
+                    y: root.targetAfter ? parent.height - height : 0
+                    width: parent.width
+                    height: 3
+                    color: Kirigami.Theme.highlightColor
                 }
 
                 DropArea {

@@ -67,12 +67,12 @@ does the work. It is built as three programs and one library.
 | `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. There are two: `App.documents` is the list in the window, and `App.linkCandidates` is what the dialog for linked documents finds for what is typed there. The second is switched off (`active`) while that dialog is closed, so that it reads nothing. A dialog that lets the user pick documents by searching can use it the same way, one dialog at a time. |
 | `SearchWorker` | `searchworker.*` | Reads every list of `DocumentModel`, and runs full text searches, in a thread of its own, so that neither a click in the sidebar nor typing is held up. |
 | `PanelLayout` | `panellayout.*` | Which view is in which area of the sidebar and the side panel, and which view each area shows; see *The two panels and their views*. |
-| `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. The entries are listed at once; the numbers come from `CountWorker`. |
+| `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. The entries are listed at once; the numbers come from `CountWorker`. The sections with a heading stand in the order the user gave them (`sectionOrder`, `moveSection()`; the setting `sidebarSections`). |
 | `CountWorker` | `countworker.*` | Counts the documents behind sidebar entries in a thread of its own. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
 | `Welcome` | `welcome.*` | What a new installation is asked before anything is made: start a new database, and where, or open one that exists. Runs in `main()` before there is an `App`, with `WelcomeWindow.qml`, and notes the choice in the settings. |
 | `DatabaseChoice` | `databasechoice.*` | What may be chosen as a database and what is said about a choice, for `App` and `Welcome` alike. |
-| `TableModel` | `tablemodel.*` | CSV and TSV files as a table. |
+| `TableModel` | `tablemodel.*` | CSV and TSV files as a table. Rows and columns are counted as the table is shown: without the columns the user hid (`m_shown`), in the order the rows are sorted into (`m_order`, worked out in a pool thread by `sortBy()`). The file and `DelimitedTable` know nothing of either. |
 | `PdfText` | `pdftext.*` | Text selection on PDF pages that snaps to the nearest text. |
 | `InkCanvas` | `inkcanvas.*` | Freehand drawing on pages and pictures. |
 | `CodeLayout` | `codelayout.*` | Lays out long text files a window at a time. |
@@ -249,7 +249,8 @@ A **view** is what a tab leads to. There are five: `database` (`DatabaseView`),
 - **A new view** needs a name in `PanelLayout` (its home, title, icon and tooltip), an
   instance in `Main.qml`, and nothing else: tabs, menus and commands follow.
 - **Below the areas** of the panel that has the database view stand the database button and
-  `ActivityIndicator`.
+  `ActivityIndicator`. The button says how large the database folder is
+  (`Library::databaseSizeText`, added up in a pool thread at start and every minute).
 - **`App::showSidePanel(view)`** brings a view up wherever it is and shows its panel.
 
 ## Documents or automation
@@ -307,6 +308,7 @@ What the toolbar shows between its two panel buttons is a list of names in the s
 | --- | --- |
 | `menu_add`, `menu_new` | The two buttons with a menu. |
 | `separator` | A dividing line. |
+| `menu_preview` | The button with the three choices for the preview (`preview_none`, `preview_below`, `preview_beside`, kept in step with the two toggles by `App::syncPreviewChoice()`). It stands for the two buttons there were; toolbars from before get it in their place, once (`toolbarLayout` 3). |
 | `search_field` | The search field: an action whose `displayComponent` is the field, so that the toolbar places it like a button. It is made anew whenever the list changes; `MainToolBar.searchField` is the one there is, or null. |
 | `spacer` | The flexible space. `MainToolBar.rebuild()` splits the list at the first one into two `Kirigami.ActionToolBar`s, the second of which stands at the far end. |
 

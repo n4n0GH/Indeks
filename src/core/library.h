@@ -46,6 +46,12 @@ class Library : public QObject
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
     /** Folder of the database that is open. */
     Q_PROPERTY(QString databaseDir READ databaseDir NOTIFY databaseChanged)
+    /**
+     * How much room the database takes on the disk, as people write sizes: its folder with
+     * the index, the documents made in Indeks and the working copies. Empty until it has
+     * been measured, which happens in the background, at start and every so often.
+     */
+    Q_PROPERTY(QString databaseSizeText READ databaseSizeText NOTIFY databaseSizeChanged)
     /** Whether Office documents can be shown as they look, which takes LibreOffice. */
     Q_PROPERTY(bool officeViewAvailable READ officeViewAvailable CONSTANT)
     Q_PROPERTY(QStringList ocrLanguages READ ocrLanguages CONSTANT)
@@ -78,6 +84,7 @@ public:
     /** The file or location the status is about, if it is about one. */
     QString statusDetail() const;
     /** Share of the running work that is done, 0 to 1; negative while that cannot be told. */
+    QString databaseSizeText() const;
     double progress() const;
     bool ocrAvailable() const;
     QString databaseDir() const;
@@ -434,6 +441,7 @@ Q_SIGNALS:
     void todosChanged();
     void viewColumnsChanged();
     void busyChanged();
+    void databaseSizeChanged();
     void statusChanged();
     void activityChanged();
     void contentReady(qint64 id, const QString &path);
@@ -465,6 +473,8 @@ private:
      * yet and going through all documents takes seconds in a large one.
      */
     void dropAbandonedLater();
+    /** Adds up the files of the database folder, in the background; see databaseSizeText. */
+    void measureDatabase();
     /** Has the indexer reclaim space in the index file if enough of it is unused. */
     void tidyIfDue();
     void touch();
@@ -516,6 +526,9 @@ private:
     std::atomic<quint64> m_countTicket = 0;
     /** Goes up with every change of database: what was found in another one does not count. */
     quint64 m_databaseTicket = 0;
+    qint64 m_databaseSize = -1;
+    bool m_measuring = false;
+    QTimer m_measureTimer;
     bool m_renditionRunning = false;
     RenditionRequest m_renditionWaiting; ///< the newest request while another one is being made
     bool m_started = false;

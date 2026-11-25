@@ -145,6 +145,28 @@ numbers aligned to the right and the rows numbered as in the file.
 - Click a cell to make it current; the arrow keys move on from it and `Ctrl+C` copies it.
 - *View Raw* (`Ctrl+U`) shows the file as text.
 
+**Sorting rows and hiding columns.** Right-click the name of a column, or a cell:
+
+![The menu of a column](images/table-menu.png)
+
+- **Sort A to Z**, **Sort Z to A:** Puts the rows in the order of the text in that column,
+  as a dictionary would, whatever its case.
+- **Sort Smallest First**, **Sort Largest First:** Offered for a column of numbers; goes by
+  the numbers, also where they are written with a currency, a percent sign or digits in
+  groups (`1,250.50`).
+- **Order of the File:** Back to the rows as they are in the file.
+- **Hide Column** takes the column out of view; **Show Hidden Columns** brings all back.
+- **Copy Cell**, in the menu of a cell, copies what the cell holds.
+
+A click on the name of a column sorts by it too: once upwards, again downwards, a third time
+back to the order of the file. An arrow beside the name shows which way. Cells that are
+empty, or hold no number where numbers are sorted, come last either way.
+
+The numbers at the left are the lines of the file, and stay with their rows wherever those
+are sorted to. The bar above the table says what it is sorted by and how many columns are
+hidden. None of this changes the file, and it is not kept: the next time the table is shown,
+it is shown as it is in the file.
+
 Of a file larger than 48 MiB the table shows the beginning. A plain text file that holds
 such values is shown as a table too; see *Text files that are something else* above.
 

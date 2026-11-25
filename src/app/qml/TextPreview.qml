@@ -104,8 +104,20 @@ ColumnLayout {
             }
             const rows = i18ncp("@info part of: N rows, M columns", "%1 row", "%1 rows", data.rows);
             const columns = i18ncp("@info part of: N rows, M columns", "%1 column", "%1 columns", data.columns);
-            return data.partial ? i18nc("@info a table that is only shown in part: rows, columns", "The first %1, %2", rows, columns)
-                                : i18nc("@info size of a table: rows, columns", "%1, %2", rows, columns);
+            const size = data.partial ? i18nc("@info a table that is only shown in part: rows, columns", "The first %1, %2", rows, columns)
+                                      : i18nc("@info size of a table: rows, columns", "%1, %2", rows, columns);
+            // What the reader did to the table: it is not the file as it stands any more.
+            const changes = [];
+            if (data.hiddenColumns > 0) {
+                changes.push(i18ncp("@info columns of a table that are not shown", "%1 hidden", "%1 hidden", data.hiddenColumns));
+            }
+            if (data.sorting) {
+                changes.push(i18nc("@info:status", "sorting…"));
+            } else if (data.sorted) {
+                changes.push(data.sortColumn >= 0 ? i18nc("@info %1 is the name of a column", "sorted by %1", data.columnName(data.sortColumn))
+                                                  : i18nc("@info", "sorted"));
+            }
+            return changes.length > 0 ? i18nc("@info size of a table, and what was done to it", "%1 (%2)", size, changes.join(", ")) : size;
         }
         if (structured) {
             if (!structure.lines) {
@@ -377,6 +389,13 @@ ColumnLayout {
     onFindTextChanged: findInCode()
     onCodeChanged: findInCode()
     onEditingChanged: findInCode()
+
+    /** One of the commands for a table, by the name of its action; see DataTable. */
+    function tableCommand(what: string): void {
+        if (table && tableLoader.item) {
+            tableLoader.item.command(what);
+        }
+    }
 
     // Selects the first search word found so that the reader lands where the hit is.
     function showFirstHit(): void {

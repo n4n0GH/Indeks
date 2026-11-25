@@ -114,6 +114,8 @@ QQC2.Pane {
             visible: root.hasDatabase
         }
         QQC2.ItemDelegate {
+            id: databaseButton
+
             Layout.fillWidth: true
             visible: root.hasDatabase
             icon.name: "server-database"
@@ -123,6 +125,31 @@ QQC2.Pane {
             topPadding: Kirigami.Units.largeSpacing
             bottomPadding: Kirigami.Units.largeSpacing
             onClicked: root.actions.databases.trigger()
+
+            // The name, and at the far end how much room the database takes on the disk.
+            contentItem: RowLayout {
+                spacing: Kirigami.Units.smallSpacing
+
+                Kirigami.Icon {
+                    source: databaseButton.icon.name
+                    implicitWidth: Kirigami.Units.iconSizes.smallMedium
+                    implicitHeight: implicitWidth
+                }
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    text: databaseButton.text
+                    font: databaseButton.font
+                    elide: Text.ElideRight
+                }
+                QQC2.Label {
+                    visible: text.length > 0
+                    text: App.library.databaseSizeText
+                    font: Kirigami.Theme.smallFont
+                    color: Kirigami.Theme.disabledTextColor
+
+                    Accessible.name: i18nc("@info size of the database on the disk", "Size on disk: %1", text)
+                }
+            }
 
             TapHandler {
                 acceptedButtons: Qt.RightButton

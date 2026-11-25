@@ -71,12 +71,13 @@ is not installed, this page says so.
 - **Flexible Space:** Empty room that takes up what is left over. What comes before it
   stands at the left, what comes after it at the right end of the toolbar. At first it
   stands before the search field. There can be one.
-- **Add Button…:** Adds a command, or the *Search Field* if you took it off.
+- **Add Button…:** Adds a command, one of the buttons with a menu (*Add*, *New*, *Preview*),
+  or the *Search Field* if you took it off.
 - **Add Separator**, **Add Flexible Space:** Add a dividing line, or the flexible space.
 - **Restore Defaults:** Returns to what Indeks starts with.
 - **Show text beside the icons:** Without text more buttons fit; their names appear when the
-  pointer rests on them. The buttons for filters, saving a search and the preview show their
-  icon only either way.
+  pointer rests on them. The buttons for filters and for saving a search show their icon
+  only either way.
 
 The buttons for the sidebar and the side panel and the menu keep their places. *Edit* and
 *Add Note…* have their place in the bar above the preview and are not offered here.

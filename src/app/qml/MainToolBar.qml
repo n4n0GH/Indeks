@@ -57,6 +57,8 @@ QQC2.ToolBar {
                 action = addMenu;
             } else if (name === "menu_new") {
                 action = newMenu;
+            } else if (name === "menu_preview") {
+                action = previewMenu;
             } else if (name === "search_field") {
                 action = searchAction;
             } else {
@@ -212,6 +214,16 @@ QQC2.ToolBar {
                     root.actions.newTodo
                 ]
             }
+            // Whether there is a preview, and where: one choice of three, in a menu like
+            // those of Add and New. The icon of the button shows which one holds.
+            Kirigami.Action {
+                id: previewMenu
+
+                text: i18nc("@action:intoolbar", "Preview")
+                tooltip: i18nc("@info:tooltip", "Whether the selected document is shown, and where")
+                icon.name: !Config.previewVisible ? "view-preview" : Config.previewBeside ? "view-split-left-right" : "view-split-top-bottom"
+                children: [root.actions.previewNone, root.actions.previewBelow, root.actions.previewBesideDocuments]
+            }
             Kirigami.Action {
                 id: newMenuSeparator2
 
@@ -302,8 +314,9 @@ QQC2.ToolBar {
                 }
                 QQC2.Menu {
                     title: i18nc("@title:menu", "Preview")
-                    QQC2.MenuItem { action: root.actions.preview }
-                    QQC2.MenuItem { action: root.actions.previewBeside }
+                    QQC2.MenuItem { action: root.actions.previewNone }
+                    QQC2.MenuItem { action: root.actions.previewBelow }
+                    QQC2.MenuItem { action: root.actions.previewBesideDocuments }
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { action: root.actions.rawView }
                     QQC2.MenuSeparator {}

@@ -10,6 +10,8 @@
 
 #include <QDeadlineTimer>
 
+#include <functional>
+
 using namespace Indeks;
 using namespace Qt::StringLiterals;
 
@@ -173,6 +175,8 @@ QHash<int, QByteArray> SidebarModel::roleNames() const
         {KindRole, "kind"},
         {ItemIdRole, "itemId"},
         {HeaderRole, "isHeader"},
+        {SectionRole, "section"},
+        {SectionEndRole, "sectionEnd"},
         {CollapsedRole, "collapsed"},
         {OfflineRole, "offline"},
         {CurrentRole, "isCurrent"},
@@ -205,6 +209,11 @@ QVariant SidebarModel::data(const QModelIndex &index, int role) const
         return item.id;
     case HeaderRole:
         return item.header;
+    case SectionRole:
+        return item.section;
+    case SectionEndRole:
+        // The last row of its section: where a section that is moved behind it goes.
+        return index.row() + 1 >= m_items.size() || m_items.at(index.row() + 1).section != item.section;
     case CollapsedRole:
         return m_collapsed.contains(item.section);
     case OfflineRole:
@@ -264,82 +273,101 @@ void SidebarModel::rebuild()
     addCounted(library, u"place"_s, u"place:flagged"_s, i18nc("@item sidebar", "Pinned"), u"pin"_s, u"is:pinned"_s);
     addCounted(library, u"place"_s, u"place:trash"_s, i18nc("@item sidebar", "Trash"), u"user-trash"_s, u"is:trashed"_s);
 
-    // Smart groups: built-in searches
-    const QString smart = u"smart"_s;
-    addHeader(items, smart, i18nc("@title:group sidebar", "Smart Groups"));
-    addCounted(smart, u"smart"_s, u"smart:today"_s, i18nc("@item sidebar", "Added Today"), u"view-calendar-day"_s, u"added:today"_s);
-    addCounted(smart, u"smart"_s, u"smart:week"_s, i18nc("@item sidebar", "Added This Week"), u"view-calendar-week"_s, u"added:7d"_s);
-    addCounted(smart, u"smart"_s, u"smart:unfiled"_s, i18nc("@item sidebar", "Not in a Group"), u"folder-open"_s, u"is:unfiled"_s);
-    addCounted(smart, u"smart"_s, u"smart:untagged"_s, i18nc("@item sidebar", "Untagged"), u"tag"_s, u"is:untagged"_s);
-    addCounted(smart, u"smart"_s, u"smart:annotated"_s, i18nc("@item sidebar", "Annotated"), u"draw-freehand"_s, u"is:annotated"_s);
-    addCounted(smart, u"smart"_s, u"smart:duplicates"_s, i18nc("@item sidebar", "Duplicates"), u"edit-copy"_s, u"is:duplicate"_s);
-    if (!m_collapsed.contains(smart)) {
-        wanted.append({u"smart:missing"_s, u"is:missing"_s});
-        const int missing = m_counts.value(u"smart:missing"_s, 0);
-        if (missing > 0 || m_currentKey == "smart:missing"_L1) {
-            if (Item *item = add(smart, u"smart"_s, u"smart:missing"_s, i18nc("@item sidebar", "Missing Files"), u"dialog-warning"_s, u"is:missing"_s)) {
-                item->count = missing;
+    // The sections that follow, each with its heading, in the order the user gave them.
+    const QHash<QString, std::function<void()>> sections = {
+        {u"smart"_s,
+         [&] {
+            // Smart groups: built-in searches
+            const QString smart = u"smart"_s;
+            addHeader(items, smart, i18nc("@title:group sidebar", "Smart Groups"));
+            addCounted(smart, u"smart"_s, u"smart:today"_s, i18nc("@item sidebar", "Added Today"), u"view-calendar-day"_s, u"added:today"_s);
+            addCounted(smart, u"smart"_s, u"smart:week"_s, i18nc("@item sidebar", "Added This Week"), u"view-calendar-week"_s, u"added:7d"_s);
+            addCounted(smart, u"smart"_s, u"smart:unfiled"_s, i18nc("@item sidebar", "Not in a Group"), u"folder-open"_s, u"is:unfiled"_s);
+            addCounted(smart, u"smart"_s, u"smart:untagged"_s, i18nc("@item sidebar", "Untagged"), u"tag"_s, u"is:untagged"_s);
+            addCounted(smart, u"smart"_s, u"smart:annotated"_s, i18nc("@item sidebar", "Annotated"), u"draw-freehand"_s, u"is:annotated"_s);
+            addCounted(smart, u"smart"_s, u"smart:duplicates"_s, i18nc("@item sidebar", "Duplicates"), u"edit-copy"_s, u"is:duplicate"_s);
+            if (!m_collapsed.contains(smart)) {
+                wanted.append({u"smart:missing"_s, u"is:missing"_s});
+                const int missing = m_counts.value(u"smart:missing"_s, 0);
+                if (missing > 0 || m_currentKey == "smart:missing"_L1) {
+                    if (Item *item = add(smart, u"smart"_s, u"smart:missing"_s, i18nc("@item sidebar", "Missing Files"), u"dialog-warning"_s, u"is:missing"_s)) {
+                        item->count = missing;
+                    }
+                }
             }
-        }
-    }
-
-    // Saved searches
-    const QString searches = u"searches"_s;
-    addHeader(items, searches, i18nc("@title:group sidebar", "Saved Searches"));
-    const QVariantList savedSearches = m_library->savedSearches();
-    for (const QVariant &entry : savedSearches) {
-        const QVariantMap search = entry.toMap();
-        const QString query = search.value(u"query"_s).toString();
-        const QString key = "search:"_L1 + search.value(u"id"_s).toString();
-        if (Item *item = add(searches, u"search"_s, key, search.value(u"name"_s).toString(), u"search"_s, query)) {
-            item->id = search.value(u"id"_s).toLongLong();
-            item->count = m_counts.value(key, -1);
-            wanted.append({key, query});
-        }
-    }
-
-    // Groups
-    const QString groups = u"groups"_s;
-    addHeader(items, groups, i18nc("@title:group sidebar", "Groups"));
-    const QVariantList groupList = m_library->groups();
-    for (const QVariant &entry : groupList) {
-        const QVariantMap group = entry.toMap();
-        const QString id = group.value(u"id"_s).toString();
-        if (Item *item = add(groups, u"group"_s, "group:"_L1 + id, group.value(u"name"_s).toString(), u"folder"_s, "groupid:"_L1 + id)) {
-            item->id = id.toLongLong();
-            item->count = group.value(u"count"_s).toInt();
-            item->depth = group.value(u"depth"_s).toInt();
-        }
-    }
-
-    // Tags
-    const QString tags = u"tags"_s;
-    addHeader(items, tags, i18nc("@title:group sidebar", "Tags"));
-    const QVariantList tagList = m_library->tags();
-    for (const QVariant &entry : tagList) {
-        const QVariantMap tag = entry.toMap();
-        const QString id = tag.value(u"id"_s).toString();
-        if (Item *item = add(tags, u"tag"_s, "tag:"_L1 + id, tag.value(u"name"_s).toString(), u"tag"_s, "tagid:"_L1 + id)) {
-            item->id = id.toLongLong();
-            item->count = tag.value(u"count"_s).toInt();
-        }
-    }
-
-    // Where the documents are
-    const QString sources = u"sources"_s;
-    addHeader(items, sources, i18nc("@title:group sidebar", "Locations"));
-    addCounted(sources, u"place"_s, u"place:local"_s, i18nc("@item sidebar", "Stored in Indeks"), u"folder-database"_s, u"is:local"_s);
-    // Their numbers come with the others, from the background.
-    const QVariantList sourceList = m_library->sources(false);
-    for (const QVariant &entry : sourceList) {
-        const QVariantMap source = entry.toMap();
-        const QString id = source.value(u"id"_s).toString();
-        const bool local = source.value(u"local"_s).toBool();
-        const QString key = CountWorker::sourceKeyPrefix() + id;
-        if (Item *item = add(sources, u"source"_s, key, source.value(u"name"_s).toString(), local ? u"folder"_s : u"folder-remote"_s, "sourceid:"_L1 + id)) {
-            item->id = id.toLongLong();
-            item->count = m_counts.value(key, 0);
-            item->offline = !source.value(u"available"_s).toBool();
+         }},
+        {u"searches"_s,
+         [&] {
+            // Saved searches
+            const QString searches = u"searches"_s;
+            addHeader(items, searches, i18nc("@title:group sidebar", "Saved Searches"));
+            const QVariantList savedSearches = m_library->savedSearches();
+            for (const QVariant &entry : savedSearches) {
+                const QVariantMap search = entry.toMap();
+                const QString query = search.value(u"query"_s).toString();
+                const QString key = "search:"_L1 + search.value(u"id"_s).toString();
+                if (Item *item = add(searches, u"search"_s, key, search.value(u"name"_s).toString(), u"search"_s, query)) {
+                    item->id = search.value(u"id"_s).toLongLong();
+                    item->count = m_counts.value(key, -1);
+                    wanted.append({key, query});
+                }
+            }
+         }},
+        {u"groups"_s,
+         [&] {
+            // Groups
+            const QString groups = u"groups"_s;
+            addHeader(items, groups, i18nc("@title:group sidebar", "Groups"));
+            const QVariantList groupList = m_library->groups();
+            for (const QVariant &entry : groupList) {
+                const QVariantMap group = entry.toMap();
+                const QString id = group.value(u"id"_s).toString();
+                if (Item *item = add(groups, u"group"_s, "group:"_L1 + id, group.value(u"name"_s).toString(), u"folder"_s, "groupid:"_L1 + id)) {
+                    item->id = id.toLongLong();
+                    item->count = group.value(u"count"_s).toInt();
+                    item->depth = group.value(u"depth"_s).toInt();
+                }
+            }
+         }},
+        {u"tags"_s,
+         [&] {
+            // Tags
+            const QString tags = u"tags"_s;
+            addHeader(items, tags, i18nc("@title:group sidebar", "Tags"));
+            const QVariantList tagList = m_library->tags();
+            for (const QVariant &entry : tagList) {
+                const QVariantMap tag = entry.toMap();
+                const QString id = tag.value(u"id"_s).toString();
+                if (Item *item = add(tags, u"tag"_s, "tag:"_L1 + id, tag.value(u"name"_s).toString(), u"tag"_s, "tagid:"_L1 + id)) {
+                    item->id = id.toLongLong();
+                    item->count = tag.value(u"count"_s).toInt();
+                }
+            }
+         }},
+        {u"sources"_s,
+         [&] {
+            // Where the documents are
+            const QString sources = u"sources"_s;
+            addHeader(items, sources, i18nc("@title:group sidebar", "Locations"));
+            addCounted(sources, u"place"_s, u"place:local"_s, i18nc("@item sidebar", "Stored in Indeks"), u"folder-database"_s, u"is:local"_s);
+            // Their numbers come with the others, from the background.
+            const QVariantList sourceList = m_library->sources(false);
+            for (const QVariant &entry : sourceList) {
+                const QVariantMap source = entry.toMap();
+                const QString id = source.value(u"id"_s).toString();
+                const bool local = source.value(u"local"_s).toBool();
+                const QString key = CountWorker::sourceKeyPrefix() + id;
+                if (Item *item = add(sources, u"source"_s, key, source.value(u"name"_s).toString(), local ? u"folder"_s : u"folder-remote"_s, "sourceid:"_L1 + id)) {
+                    item->id = id.toLongLong();
+                    item->count = m_counts.value(key, 0);
+                    item->offline = !source.value(u"available"_s).toBool();
+                }
+            }
+         }},
+    };
+    for (const QString &section : std::as_const(m_sectionOrder)) {
+        if (const auto build = sections.constFind(section); build != sections.constEnd()) {
+            (*build)();
         }
     }
 
@@ -454,6 +482,74 @@ void SidebarModel::setCollapsedSections(const QStringList &sections)
     m_collapsed = sections;
     Q_EMIT collapsedSectionsChanged();
     reload();
+}
+
+QStringList SidebarModel::defaultSectionOrder()
+{
+    return {u"smart"_s, u"searches"_s, u"groups"_s, u"tags"_s, u"sources"_s};
+}
+
+void SidebarModel::setSectionOrder(const QStringList &order)
+{
+    // Every section once, and only sections there are; one that is not named, as one a
+    // later version brings would not be, keeps its place at the end.
+    const QStringList known = defaultSectionOrder();
+    QStringList wanted;
+    for (const QString &section : order) {
+        if (known.contains(section) && !wanted.contains(section)) {
+            wanted.append(section);
+        }
+    }
+    for (const QString &section : known) {
+        if (!wanted.contains(section)) {
+            wanted.append(section);
+        }
+    }
+    if (wanted == m_sectionOrder) {
+        return;
+    }
+    m_sectionOrder = wanted;
+    Q_EMIT sectionOrderChanged();
+    reload();
+}
+
+int SidebarModel::sectionIndex(const QString &section) const
+{
+    return int(m_sectionOrder.indexOf(section));
+}
+
+void SidebarModel::moveSection(const QString &section, const QString &target, bool after)
+{
+    QStringList order = m_sectionOrder;
+    if (section == target || !order.contains(section) || !order.contains(target)) {
+        return;
+    }
+    order.removeOne(section);
+    order.insert(order.indexOf(target) + (after ? 1 : 0), section);
+    setSectionOrder(order);
+}
+
+bool SidebarModel::canShiftSection(const QString &section, int by) const
+{
+    const qsizetype at = m_sectionOrder.indexOf(section);
+    return at >= 0 && by != 0 && at + by >= 0 && at + by < m_sectionOrder.size();
+}
+
+void SidebarModel::shiftSection(const QString &section, int by)
+{
+    if (!canShiftSection(section, by)) {
+        return;
+    }
+    QStringList order = m_sectionOrder;
+    const qsizetype at = order.indexOf(section);
+    order.move(at, at + by);
+    setSectionOrder(order);
+}
+
+QString SidebarModel::currentSection() const
+{
+    const Item *item = current();
+    return item ? item->section : QString();
 }
 
 void SidebarModel::toggleSection(const QString &section)

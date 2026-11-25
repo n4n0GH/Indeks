@@ -37,6 +37,7 @@
 
 #include <QBuffer>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QImage>
 #include <QLineF>
@@ -65,6 +66,8 @@ void pruneViewColumns();
 constexpr qint64 MaxPreviewTextBytes = 4 * 1024 * 1024;
 // How much of a plain text file is read to tell what it is written as.
 constexpr qint64 GuessedFormatBytes = 64 * 1024;
+// How often the room the database takes on the disk is added up anew.
+constexpr int MeasureIntervalMs = 60 * 1000;
 constexpr int RenditionTimeoutMs = 120000;
 constexpr int RenditionMaxAgeDays = 90;
 // How much of a JSON Lines file is formatted when only its beginning is asked for.
@@ -218,6 +221,10 @@ Library::Library(QObject *parent)
 
     m_availabilityTimer.setInterval(15000);
     connect(&m_availabilityTimer, &QTimer::timeout, this, &Library::checkAvailability);
+
+    // The size of the database is said beside its name; it grows while files are read.
+    m_measureTimer.setInterval(MeasureIntervalMs);
+    connect(&m_measureTimer, &QTimer::timeout, this, &Library::measureDatabase);
 
     m_remoteTimer.setInterval(30 * 60 * 1000);
     connect(&m_remoteTimer, &QTimer::timeout, this, [this] {
@@ -477,6 +484,9 @@ QString Library::switchDatabase(const QString &dir, bool create)
     m_scriptReports.clear();
     Q_EMIT databaseAboutToChange();
     ++m_databaseTicket;
+    // Nothing is known about the size of the other one yet.
+    m_databaseSize = -1;
+    Q_EMIT databaseSizeChanged();
     DatabaseFolder::release(previous);
     Database::closeConnection();
     Paths::setDatabaseDir(target);
@@ -540,6 +550,8 @@ void Library::start(bool rescan)
     // Documents that are only here for work of the user's which has since gone, and the space
     // that removed documents left behind. After the scans, which may remove more.
     dropAbandonedLater();
+    measureDatabase();
+    m_measureTimer.start();
 }
 
 bool Library::isBusy() const
@@ -752,6 +764,43 @@ void Library::tidyIfDue()
     if (m_started && Maintenance::isDue()) {
         m_indexer->tidy();
     }
+}
+
+QString Library::databaseSizeText() const
+{
+    return m_databaseSize < 0 ? QString() : KFormat().formatByteSize(double(m_databaseSize), 1);
+}
+
+void Library::measureDatabase()
+{
+    if (m_measuring) {
+        return;
+    }
+    m_measuring = true;
+    m_countPool.start([this, database = m_databaseTicket, dir = Paths::dataDir()] {
+        // Everything in the folder: the index and what belongs to it, the documents made
+        // in Indeks, the working copies, the scripts. Going through a folder of many copies
+        // takes a moment, which is why this is not done where the window would wait.
+        qint64 total = 0;
+        QDirIterator files(dir, QDir::Files | QDir::Hidden | QDir::NoSymLinks, QDirIterator::Subdirectories);
+        while (files.hasNext() && !m_renditionAbort) {
+            total += files.nextFileInfo().size();
+        }
+        QMetaObject::invokeMethod(
+            this,
+            [this, database, total] {
+                m_measuring = false;
+                if (database != m_databaseTicket) {
+                    measureDatabase(); // another database by now: that one, then
+                    return;
+                }
+                if (total != m_databaseSize) {
+                    m_databaseSize = total;
+                    Q_EMIT databaseSizeChanged();
+                }
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void Library::dropAbandonedLater()

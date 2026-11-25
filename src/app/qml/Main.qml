@@ -422,6 +422,15 @@ StatefulApp.StatefulWindow {
             case "view_raw":
                 previewPane.toggleRaw();
                 break;
+            case "table_sort_az":
+            case "table_sort_za":
+            case "table_sort_smallest":
+            case "table_sort_largest":
+            case "table_unsort":
+            case "table_hide_column":
+            case "table_show_columns":
+                previewPane.tableCommand(what);
+                break;
             case "doc_find":
                 // The panel was just brought up: its field takes the keys once it is there.
                 Qt.callLater(findView.focusField);

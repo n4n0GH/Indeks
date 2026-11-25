@@ -92,6 +92,11 @@ Item {
         function onLayoutReset(): void {
             root.runFind();
         }
+        // The rows in another order: what was found is elsewhere, and the top is another row.
+        function onSortChanged(): void {
+            view.contentY = 0;
+            root.runFind();
+        }
     }
 
     // Columns start out as wide as what their first rows hold, within reason; dragging the
@@ -99,6 +104,129 @@ Item {
     function naturalWidth(column: int): real {
         const characters = Math.max(3, Math.min(40, tableModel.widthHint(column)));
         return Math.ceil(characters * metrics.advanceWidth("0") * 1.08) + cellPadding * 2 + 1;
+    }
+
+    // ------------------------------------------------------- hiding columns and sorting rows
+    //
+    // What the menu of a column and of a cell offers, and a click on the name of a column.
+    // The table is shown differently by it; the file stays as it is.
+
+    // The column the commands of the application are for: the one of the cell that is
+    // chosen, or the first.
+    readonly property int currentColumn: Math.max(0, view.currentColumn)
+
+    function sortBy(column: int, numeric: bool, descending: bool): void {
+        tableModel.sortBy(column, numeric, descending);
+    }
+
+    // A click on the name of a column: first upwards, then downwards, then as in the file.
+    function sortNext(column: int): void {
+        if (tableModel.sortColumn !== column) {
+            sortBy(column, tableModel.isNumeric(column), false);
+        } else if (!tableModel.sortDescending) {
+            sortBy(column, tableModel.sortNumeric, true);
+        } else {
+            tableModel.clearSort();
+        }
+    }
+
+    /** One of the commands of the application for a table, by the name of its action. */
+    function command(what: string): void {
+        switch (what) {
+        case "table_sort_az":
+            sortBy(currentColumn, false, false);
+            break;
+        case "table_sort_za":
+            sortBy(currentColumn, false, true);
+            break;
+        case "table_sort_smallest":
+            sortBy(currentColumn, true, false);
+            break;
+        case "table_sort_largest":
+            sortBy(currentColumn, true, true);
+            break;
+        case "table_unsort":
+            tableModel.clearSort();
+            break;
+        case "table_hide_column":
+            tableModel.hideColumn(currentColumn);
+            break;
+        case "table_show_columns":
+            tableModel.showAllColumns();
+            break;
+        }
+    }
+
+    function showMenu(column: int, row: int): void {
+        columnMenu.column = column;
+        columnMenu.row = row;
+        columnMenu.popup();
+    }
+
+    QQC2.Menu {
+        id: columnMenu
+
+        // The column it is for, and the row of the cell it was asked for at; -1 for a
+        // menu that was asked for at the name of the column.
+        property int column: -1
+        property int row: -1
+        readonly property bool numeric: column >= 0 && tableModel.isNumeric(column)
+
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Copy Cell")
+            icon.name: "edit-copy"
+            visible: columnMenu.row >= 0
+            height: visible ? implicitHeight : 0
+            onTriggered: App.copyText(tableModel.cellText(columnMenu.row, columnMenu.column))
+        }
+        QQC2.MenuSeparator {
+            visible: columnMenu.row >= 0
+            height: visible ? implicitHeight : 0
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu sort the rows of a table by the text of a column", "Sort A to Z")
+            icon.name: "view-sort-ascending"
+            onTriggered: root.sortBy(columnMenu.column, false, false)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu sort the rows of a table by the text of a column", "Sort Z to A")
+            icon.name: "view-sort-descending"
+            onTriggered: root.sortBy(columnMenu.column, false, true)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu sort the rows of a table by the numbers in a column", "Sort Smallest First")
+            icon.name: "view-sort-ascending"
+            visible: columnMenu.numeric
+            height: visible ? implicitHeight : 0
+            onTriggered: root.sortBy(columnMenu.column, true, false)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu sort the rows of a table by the numbers in a column", "Sort Largest First")
+            icon.name: "view-sort-descending"
+            visible: columnMenu.numeric
+            height: visible ? implicitHeight : 0
+            onTriggered: root.sortBy(columnMenu.column, true, true)
+        }
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu show the rows of a table as they are in the file", "Order of the File")
+            icon.name: "view-sort"
+            enabled: tableModel.sorted || tableModel.sorting
+            onTriggered: tableModel.clearSort()
+        }
+        QQC2.MenuSeparator {}
+        QQC2.MenuItem {
+            text: i18nc("@action:inmenu", "Hide Column")
+            icon.name: "view-hidden"
+            enabled: tableModel.columns > 1
+            onTriggered: tableModel.hideColumn(columnMenu.column)
+        }
+        QQC2.MenuItem {
+            text: tableModel.hiddenColumns > 0 ? i18ncp("@action:inmenu", "Show the Hidden Column", "Show All %1 Hidden Columns", tableModel.hiddenColumns)
+                                               : i18nc("@action:inmenu", "Show Hidden Columns")
+            icon.name: "view-visible"
+            enabled: tableModel.hiddenColumns > 0
+            onTriggered: tableModel.showAllColumns()
+        }
     }
 
     function copyCurrent(): void {
@@ -148,16 +276,29 @@ Item {
     component HeadCell: Rectangle {
         property alias text: label.text
         property alias alignment: label.horizontalAlignment
+        /** An arrow that says which way the rows are sorted by this column; empty for none. */
+        property string mark
 
         implicitHeight: root.rowHeight
         color: Kirigami.Theme.alternateBackgroundColor
 
+        Kirigami.Icon {
+            id: markIcon
+
+            anchors.right: parent.right
+            anchors.rightMargin: Kirigami.Units.smallSpacing
+            anchors.verticalCenter: parent.verticalCenter
+            visible: parent.mark.length > 0
+            width: visible ? Kirigami.Units.iconSizes.small : 0
+            height: Kirigami.Units.iconSizes.small
+            source: parent.mark
+        }
         QQC2.Label {
             id: label
 
             anchors.fill: parent
             anchors.leftMargin: root.cellPadding
-            anchors.rightMargin: root.cellPadding
+            anchors.rightMargin: root.cellPadding + (markIcon.visible ? markIcon.width + Kirigami.Units.smallSpacing : 0)
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
             textFormat: Text.PlainText
@@ -201,13 +342,23 @@ Item {
 
             text: display
             alignment: tableModel.isNumeric(column) ? Text.AlignRight : Text.AlignLeft
+            mark: tableModel.sortColumn !== column ? "" : tableModel.sortDescending ? "arrow-down" : "arrow-up"
 
-            QQC2.ToolTip.text: display
-            QQC2.ToolTip.visible: nameHover.hovered && display.length > 0
+            QQC2.ToolTip.text: display.length > 0 ? i18nc("@info:tooltip %1 is the name of a column", "%1. Click to sort by it; right-click for more.", display)
+                                                  : i18nc("@info:tooltip", "Click to sort by this column; right-click for more.")
+            QQC2.ToolTip.visible: nameHover.hovered && !columnMenu.visible
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
             HoverHandler {
                 id: nameHover
+            }
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onTapped: root.sortNext(column)
+            }
+            TapHandler {
+                acceptedButtons: Qt.RightButton
+                onTapped: root.showMenu(column, -1)
             }
         }
     }
@@ -324,6 +475,14 @@ Item {
             TapHandler {
                 onTapped: view.forceActiveFocus()
             }
+            TapHandler {
+                acceptedButtons: Qt.RightButton
+                onTapped: {
+                    view.forceActiveFocus();
+                    selection.setCurrentIndex(tableModel.index(cell.row, cell.column), ItemSelectionModel.NoUpdate);
+                    root.showMenu(cell.column, cell.row);
+                }
+            }
         }
 
         WheelHandler {
@@ -354,7 +513,7 @@ Item {
 
     QQC2.BusyIndicator {
         anchors.centerIn: parent
-        running: tableModel.loading
+        running: tableModel.loading || tableModel.sorting
         visible: running
     }
 

@@ -65,6 +65,12 @@ QQC2.Pane {
             viewer.item.showNote(note);
         }
     }
+    /** One of the commands for a table in the preview, by the name of its action. */
+    function tableCommand(what: string): void {
+        if (viewer.item?.tableCommand) {
+            viewer.item.tableCommand(what);
+        }
+    }
     function toggleRaw(): void {
         if (viewer.item?.rawAvailable) {
             viewer.item.raw = !viewer.item.raw;
@@ -275,6 +281,11 @@ QQC2.Pane {
         target: App
         property: "rawViewAvailable"
         value: viewer.item?.rawAvailable ?? false
+    }
+    Binding {
+        target: App
+        property: "tableShown"
+        value: viewer.item?.table ?? false
     }
     Binding {
         target: App

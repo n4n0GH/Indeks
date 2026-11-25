@@ -56,6 +56,41 @@ private Q_SLOTS:
         QVERIFY(table.findAll(u"nowhere"_s, 0, 100).isEmpty());
     }
 
+    void readsNumbers_data()
+    {
+        QTest::addColumn<QString>("text");
+        QTest::addColumn<bool>("isNumber");
+        QTest::addColumn<double>("value");
+
+        QTest::newRow("plain") << u"42"_s << true << 42.0;
+        QTest::newRow("negative") << u"-17"_s << true << -17.0;
+        QTest::newRow("point") << u"3.25"_s << true << 3.25;
+        QTest::newRow("comma") << u"3,25"_s << true << 3.25;
+        QTest::newRow("groups with commas") << u"1,250.50"_s << true << 1250.5;
+        QTest::newRow("groups with points") << u"1.250,50"_s << true << 1250.5;
+        QTest::newRow("thousands alone") << u"12,345"_s << true << 12345.0;
+        QTest::newRow("several groups") << u"1.234.567"_s << true << 1234567.0;
+        QTest::newRow("currency") << u"€ 5"_s << true << 5.0;
+        QTest::newRow("percent") << u"12 %"_s << true << 12.0;
+        QTest::newRow("power of ten") << u"1.5e3"_s << true << 1500.0;
+        QTest::newRow("with room around it") << u"  7  "_s << true << 7.0;
+        QTest::newRow("a word") << u"seven"_s << false << 0.0;
+        QTest::newRow("a date") << u"2026-11-25"_s << false << 0.0;
+        QTest::newRow("empty") << QString() << false << 0.0;
+    }
+
+    void readsNumbers()
+    {
+        QFETCH(QString, text);
+        QFETCH(bool, isNumber);
+        QFETCH(double, value);
+        const std::optional<double> number = DelimitedTable::number(text);
+        QCOMPARE(number.has_value(), isNumber);
+        if (isNumber) {
+            QCOMPARE(*number, value);
+        }
+    }
+
     void readsBarsBetweenSpaces()
     {
         // Values with a bar between spaces, as people and programs write lists. A value may

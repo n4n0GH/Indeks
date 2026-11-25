@@ -64,6 +64,8 @@ class App : public AbstractKirigamiApplication
      * latter right now. Set by the window.
      */
     Q_PROPERTY(bool rawViewAvailable READ isRawViewAvailable WRITE setRawViewAvailable NOTIFY previewChanged)
+    /** The preview shows a table, whose columns can be hidden and sorted by. Set by the preview. */
+    Q_PROPERTY(bool tableShown READ isTableShown WRITE setTableShown NOTIFY previewChanged)
     Q_PROPERTY(bool rawView READ isRawView WRITE setRawView NOTIFY previewChanged)
     /**
      * What the middle of the window is about: "database" for the documents, "automation"
@@ -140,6 +142,11 @@ public:
         return m_rawViewAvailable;
     }
     void setRawViewAvailable(bool available);
+    bool isTableShown() const
+    {
+        return m_tableShown;
+    }
+    void setTableShown(bool shown);
     bool isRawView() const
     {
         return m_rawView;
@@ -294,6 +301,8 @@ private:
     QAction *addRequest(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut = QKeySequence());
     QAction *addToggle(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut, bool checked, const std::function<void(bool)> &handler);
     void updateActions();
+    /** Marks which of the three choices for the preview is the one that holds. */
+    void syncPreviewChoice();
     /** Names the commands that move views between the panels after where each view is. */
     void updatePanelActions();
     QVariantList selection() const;
@@ -332,6 +341,7 @@ private:
     bool m_textEditing = false;
     bool m_previewZoomable = false;
     bool m_rawViewAvailable = false;
+    bool m_tableShown = false;
     bool m_rawView = false;
     EditMode m_editMode = EditMode::None;
     QVariantMap m_clipping;

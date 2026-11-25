@@ -104,6 +104,9 @@ Item {
         name: "view_preview_beside"
         displayHint: Kirigami.DisplayHint.IconOnly
     }
+    readonly property Kirigami.Action previewNone: Wrapped { name: "preview_none" }
+    readonly property Kirigami.Action previewBelow: Wrapped { name: "preview_below" }
+    readonly property Kirigami.Action previewBesideDocuments: Wrapped { name: "preview_beside" }
     readonly property Kirigami.Action resetPanels: Wrapped { name: "panel_reset" }
     readonly property Kirigami.Action showInfo: Wrapped { name: "view_info" }
     readonly property Kirigami.Action showTodos: Wrapped { name: "view_todos" }

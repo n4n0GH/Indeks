@@ -83,7 +83,13 @@ const QStringList formerActions = {QStringLiteral("add_files")};
 // What stood at fixed places at the far end of the toolbar before it could be chosen, in
 // that order, the flexible space that keeps it at that end first.
 const QStringList formerlyFixedInToolbar = {QStringLiteral("spacer"),       QStringLiteral("search_field"), QStringLiteral("search_advanced"),
-                                            QStringLiteral("save_search"),  QStringLiteral("view_preview"), QStringLiteral("view_preview_beside")};
+                                            QStringLiteral("save_search"),  QStringLiteral("menu_preview")};
+// The two buttons for the preview, which one button with a menu stands for now.
+const QStringList formerPreviewButtons = {QStringLiteral("view_preview"), QStringLiteral("view_preview_beside")};
+// What is done to the table in the preview, to the column of the cell that is chosen there.
+constexpr QLatin1StringView tableActions[] = {
+    "table_sort_az"_L1, "table_sort_za"_L1, "table_sort_smallest"_L1, "table_sort_largest"_L1, "table_unsort"_L1, "table_hide_column"_L1, "table_show_columns"_L1,
+};
 // A script that keeps failing for a rule is not complained about more often than this.
 constexpr qint64 ScriptComplaintIntervalSecs = 60;
 
@@ -133,8 +139,23 @@ App::App(QObject *parent)
                 }
             }
         }
-        if (before || toolbar != chosen) {
-            config->setToolbarLayout(2);
+        // The button that shows the preview and the one that puts it beside the list are
+        // one button with a menu now. It takes the place of the first of the two, once;
+        // whoever puts one of them back later keeps it.
+        const bool twoButtons = config->toolbarLayout() < 3;
+        if (twoButtons) {
+            QStringList merged;
+            for (const QString &name : std::as_const(toolbar)) {
+                if (!formerPreviewButtons.contains(name)) {
+                    merged.append(name);
+                } else if (!merged.contains(u"menu_preview"_s)) {
+                    merged.append(u"menu_preview"_s);
+                }
+            }
+            toolbar = merged;
+        }
+        if (before || twoButtons || toolbar != chosen) {
+            config->setToolbarLayout(3);
             config->setToolbarActions(toolbar);
             config->save();
         }
@@ -146,6 +167,7 @@ App::App(QObject *parent)
     m_linkCandidates->setSortColumn(u"name"_s);
     m_linkCandidates->setSortDescending(false);
     m_sidebar->setCollapsedSections(config->collapsedSections());
+    m_sidebar->setSectionOrder(config->sidebarSections());
 
     connect(m_sidebar, &SidebarModel::currentChanged, this, [this] {
         m_documents->setScope(m_sidebar->currentQuery());
@@ -158,6 +180,11 @@ App::App(QObject *parent)
         config->setSortColumn(m_documents->sortColumn());
         config->setSortDescending(m_documents->sortDescending());
         config->save();
+    });
+    connect(m_sidebar, &SidebarModel::sectionOrderChanged, this, [this, config] {
+        config->setSidebarSections(m_sidebar->sectionOrder());
+        config->save();
+        updateActions();
     });
     connect(m_sidebar, &SidebarModel::collapsedSectionsChanged, this, [this, config] {
         config->setCollapsedSections(m_sidebar->collapsedSections());
@@ -439,6 +466,13 @@ void App::setupActions()
         const int removed = m_library->removeDoneTodos();
         Q_EMIT passiveMessage(i18ncp("@info", "%1 completed to-do was removed.", "%1 completed to-dos were removed.", removed));
     });
+    // The order of the sections of the database view; what dragging a heading does.
+    addAction(u"sidebar_section_up"_s, i18nc("@action", "Move Section of the Selected Sidebar Entry Up"), u"go-up"_s, {}, [this] {
+        m_sidebar->shiftSection(m_sidebar->currentSection(), -1);
+    });
+    addAction(u"sidebar_section_down"_s, i18nc("@action", "Move Section of the Selected Sidebar Entry Down"), u"go-down"_s, {}, [this] {
+        m_sidebar->shiftSection(m_sidebar->currentSection(), 1);
+    });
     addRequest(u"edit_sidebar_item"_s, i18nc("@action", "Edit Selected Sidebar Entry…"), u"document-edit"_s);
     addRequest(u"delete_sidebar_item"_s, i18nc("@action", "Delete Selected Sidebar Entry…"), u"edit-delete"_s);
     {
@@ -556,6 +590,39 @@ void App::setupActions()
                       preview->setChecked(true);
                   }
               });
+    // The same as one choice of three, which is what the button in the toolbar offers:
+    // no preview, below the list, or beside it.
+    const auto choosePreview = [this, config](bool visible, bool beside) {
+        if (QAction *where = action(u"view_preview_beside"_s); where && visible && where->isChecked() != beside) {
+            where->setChecked(beside);
+        }
+        if (QAction *preview = action(u"view_preview"_s); preview && preview->isChecked() != visible) {
+            preview->setChecked(visible);
+        }
+        syncPreviewChoice();
+    };
+    addAction(u"preview_none"_s, i18nc("@action", "No Preview"), u"view-preview"_s, {}, [choosePreview] {
+        choosePreview(false, false);
+    })->setCheckable(true);
+    addAction(u"preview_below"_s, i18nc("@action", "Preview Below Documents"), u"view-split-top-bottom"_s, {}, [choosePreview] {
+        choosePreview(true, false);
+    })->setCheckable(true);
+    addAction(u"preview_beside"_s, i18nc("@action", "Preview Beside Documents"), u"view-split-left-right"_s, {}, [choosePreview] {
+        choosePreview(true, true);
+    })->setCheckable(true);
+    connect(config, &Config::previewVisibleChanged, this, &App::syncPreviewChoice);
+    connect(config, &Config::previewBesideChanged, this, &App::syncPreviewChoice);
+    syncPreviewChoice();
+
+    // A table in the preview: what the menu of its columns offers, for the column of the
+    // cell that is chosen.
+    addRequest(u"table_sort_az"_s, i18nc("@action", "Sort Table by Current Column, A to Z"), u"view-sort-ascending"_s);
+    addRequest(u"table_sort_za"_s, i18nc("@action", "Sort Table by Current Column, Z to A"), u"view-sort-descending"_s);
+    addRequest(u"table_sort_smallest"_s, i18nc("@action", "Sort Table by Current Column, Smallest Number First"), u"view-sort-ascending"_s);
+    addRequest(u"table_sort_largest"_s, i18nc("@action", "Sort Table by Current Column, Largest Number First"), u"view-sort-descending"_s);
+    addRequest(u"table_unsort"_s, i18nc("@action", "Show Table in the Order of the File"), u"view-sort"_s);
+    addRequest(u"table_hide_column"_s, i18nc("@action", "Hide Current Column of the Table"), u"view-hidden"_s);
+    addRequest(u"table_show_columns"_s, i18nc("@action", "Show All Columns of the Table"), u"view-visible"_s);
 
     addAction(u"view_info"_s, i18nc("@action", "Show Document Information"), u"documentinfo"_s, {}, [this] {
         showSidePanel(u"info"_s);
@@ -721,6 +788,8 @@ void App::updateActions()
     // Not counted here: that is a walk through all documents, with every change of the
     // selection. The sidebar has the number, a moment later in a large index.
     enable(u"empty_trash"_s, m_sidebar->countOf(u"place:trash"_s) > 0);
+    enable(u"sidebar_section_up"_s, !automation && m_sidebar->canShiftSection(m_sidebar->currentSection(), -1));
+    enable(u"sidebar_section_down"_s, !automation && m_sidebar->canShiftSection(m_sidebar->currentSection(), 1));
     enable(u"select_all"_s, !automation && m_documents->count() > 0);
     enable(u"save_search"_s, !automation && !m_documents->effectiveFilter().isEmpty());
     const bool editable = kind == "group"_L1 || kind == "tag"_L1 || kind == "search"_L1 || kind == "source"_L1;
@@ -743,6 +812,9 @@ void App::updateActions()
     enable(u"view_zoom_out"_s, m_previewZoomable);
     enable(u"view_zoom_reset"_s, m_previewZoomable);
     enable(u"view_raw"_s, m_rawViewAvailable);
+    for (const QLatin1StringView name : tableActions) {
+        enable(name, m_tableShown);
+    }
     enable(u"doc_run_script"_s, any && !inTrash);
     enable(u"scripts_stop"_s, m_library->scriptsRunning());
     const QList<QAction *> all = mainCollection()->actions();
@@ -936,6 +1008,15 @@ void App::setPreviewZoomable(bool zoomable)
     }
 }
 
+void App::setTableShown(bool shown)
+{
+    if (m_tableShown != shown) {
+        m_tableShown = shown;
+        Q_EMIT previewChanged();
+        updateActions();
+    }
+}
+
 void App::setRawViewAvailable(bool available)
 {
     if (m_rawViewAvailable != available) {
@@ -988,6 +1069,20 @@ void App::setSidebarTab(const QString &tab)
     }
     Q_EMIT automationChanged();
     updateActions();
+}
+
+void App::syncPreviewChoice()
+{
+    const Config *config = Config::self();
+    const bool visible = config->previewVisible();
+    const bool beside = config->previewBeside();
+    // Whichever was clicked has changed its own mark by then; all three say how it is.
+    const std::pair<QLatin1StringView, bool> choices[] = {{"preview_none"_L1, !visible}, {"preview_below"_L1, visible && !beside}, {"preview_beside"_L1, visible && beside}};
+    for (const auto &[name, chosen] : choices) {
+        if (QAction *choice = action(name)) {
+            choice->setChecked(chosen);
+        }
+    }
 }
 
 void App::updatePanelActions()
@@ -1558,6 +1653,9 @@ QVariantMap App::toolbarItem(const QString &name)
     } else if (name == "menu_new"_L1) {
         text = i18nc("@item toolbar button with a menu", "New (menu)");
         icon = u"document-new"_s;
+    } else if (name == "menu_preview"_L1) {
+        text = i18nc("@item toolbar button with a menu", "Preview (menu)");
+        icon = u"view-preview"_s;
     } else if (name == "search_field"_L1) {
         text = i18nc("@item the field in the toolbar to type a search into", "Search Field");
         icon = u"search"_s;
@@ -1580,7 +1678,7 @@ QVariantMap App::toolbarItem(const QString &name)
 QVariantList App::toolbarCandidates()
 {
     QVariantList result;
-    for (const QString &special : {u"menu_add"_s, u"menu_new"_s, u"search_field"_s}) {
+    for (const QString &special : {u"menu_add"_s, u"menu_new"_s, u"menu_preview"_s, u"search_field"_s}) {
         result.append(toolbarItem(special));
     }
     QVariantList actions;

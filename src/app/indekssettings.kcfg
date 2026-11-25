@@ -91,6 +91,10 @@
             <min>0</min>
             <max>365</max>
         </entry>
+        <entry name="sidebarSections" type="StringList">
+            <label>The sections of the database view that have a heading, in the order they are listed in. See SidebarModel::sectionOrder.</label>
+            <default>smart,searches,groups,tags,sources</default>
+        </entry>
         <entry name="panelLeftTop" type="StringList">
             <label>The views in the upper area of the sidebar on the left, in the order of their tabs. See PanelLayout.</label>
             <default>database,automation</default>
@@ -161,10 +165,10 @@
         </entry>
         <entry name="toolbarActions" type="StringList">
             <label>What the toolbar shows between the buttons for the sidebar and the side panel: names of actions, "menu_add", "menu_new", "separator", "search_field", and "spacer", after which everything stands at the far end.</label>
-            <default>menu_add,menu_new,separator,doc_tag,doc_group,doc_flag,separator,doc_open,doc_trash,spacer,search_field,search_advanced,save_search,view_preview,view_preview_beside</default>
+            <default>menu_add,menu_new,separator,doc_tag,doc_group,doc_flag,separator,doc_open,doc_trash,spacer,search_field,search_advanced,save_search,menu_preview</default>
         </entry>
         <entry name="toolbarLayout" type="Int">
-            <label>Which form toolbarActions is in. From 2 on it names the search field and the buttons beside it, which had fixed places before.</label>
+            <label>Which form toolbarActions is in. From 2 on it names the search field and the buttons beside it, which had fixed places before. From 3 on one button with a menu (menu_preview) stands for the two buttons of the preview.</label>
             <default>1</default>
         </entry>
         <entry name="toolbarIconsOnly" type="Bool">
