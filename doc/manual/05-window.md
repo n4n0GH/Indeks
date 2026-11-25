@@ -44,7 +44,9 @@ The sidebar has two tabs at its top, shown by their icons: *Database* and *Autom
 ### The Database tab
 
 This tab chooses what the list shows. Its sections can be folded with the arrow before
-their title. The numbers on the right count the documents in each entry.
+their title. The numbers on the right count the documents in each entry. They are worked
+out in the background: in a large database they follow a change a moment later, and after a
+database was opened they appear a moment after the entries.
 
 - **Inbox:** Documents that still need your attention.
 - **All Documents:** Everything in the open database.
@@ -85,9 +87,20 @@ rule or script here, not a document.
 **The database button.** The bottom of the sidebar names the open database. A click lists
 the others; a right-click offers *Rename Database…*, *Databases…*, *Add Database…* and *New Database…*.
 
-**The activity display.** While Indeks reads files, recognises text, fetches remote files or
-runs scripts, a line above the database button says what it is doing. A click on it lists
-the file being worked on and everything that waits.
+**The activity display.** While Indeks opens a database, reads files, recognises text,
+fetches remote files or runs scripts, a line above the database button says what it is
+doing. A click on it lists the file being worked on and everything that waits.
+
+*Opening database…* stands there, with the name of the database, from the moment the window
+comes up or another database is switched to until its list of documents and the numbers in
+the sidebar are there. In a small database that is over before it can be read; in one of
+some hundred thousand documents it takes a few seconds, the first time after the computer
+was started most of all. The window can be used meanwhile.
+
+*Listing documents…* stands there, with the name of the entry, when a list takes more than a
+moment to come: the duplicates among some hundred thousand documents take about a second.
+What the list showed before stays, dimmed, until the new one is there. A search through the
+text of all documents that takes that long says *Searching…*.
 
 ## List of documents
 
@@ -171,7 +184,8 @@ Buttons that do not fit move into a menu at the end of the bar.
 
 ## Side panel
 
-The panel on the right has two tabs at its top. `F11` shows and hides the panel.
+The panel on the right has three tabs at its top, shown by their icons: *Information*,
+*To-Do* and *Find*. `F11` shows and hides the panel.
 
 ### Information
 
@@ -197,6 +211,12 @@ to link them with one another.
 The second tab is the list of things to do. See *Organising → To-dos*.
 
 ![The to-do list](images/todo.png)
+
+### Find
+
+The third tab, with the magnifying glass, searches within the document that is shown in the
+preview: a field for what to find, the number of places it stands at with arrows to step
+through them, and those places as a list. See *Finding → Finding inside a document*.
 
 ## Command bar
 

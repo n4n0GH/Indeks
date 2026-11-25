@@ -10,6 +10,26 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **Finding inside a document:** A third tab in the side panel, with the magnifying glass,
+  searches within the document that is shown: what you type is marked in the document, the
+  places are listed with the words around them, and `Enter`, the arrows or `F3` step through
+  them. *Find in Document…* (`Ctrl+D`) opens it. It works in text, tables, PDF and Office
+  documents and e-mails. See *Finding → Finding inside a document*.
+- **Saved searches are put together like rules:** The dialog for saving and changing a
+  search lists its filters one to a line, with *Add Filter*, a pencil to change one, a cross
+  to take one off, and the number of documents they find. Searches saved before are taken
+  apart into filters where that is possible. See *Finding → Saved searches*.
+- **Lists no longer hold the window up:** Every list of documents is read in the
+  background. In a large database, going to an entry such as *Duplicates* no longer makes
+  the window stand still; the activity display says *Listing documents…* until the list is
+  there.
+- **Opening a large database:** Indeks no longer stands still while a large database is
+  opened. The window comes up at once, the activity display says *Opening database…* until
+  the list of documents and the numbers in the sidebar are there, and the window can be used
+  meanwhile. This goes for switching to another database too.
+- **The numbers in the sidebar are counted in the background:** In a large database every
+  change, a tag or a new document, held the window up for a moment while the numbers were
+  counted again. They now follow a moment later, without holding anything up.
 - **Scripts run in the Flatpak:** The Flatpak could not run scripts, and said that
   bubblewrap was not installed, which no installing would have mended. Scripts now run
   there in a sandbox that Flatpak itself provides, with the same limits: no network,

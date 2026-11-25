@@ -5,6 +5,7 @@
 
 #include "types.h"
 
+#include <QHash>
 #include <QSqlQuery>
 
 namespace Indeks::Store
@@ -76,4 +77,20 @@ void fileReturned(qint64 id);
 
 /** "1,2,3" for use in `IN (...)`. */
 QString idList(const QList<qint64> &ids);
+
+/**
+ * How many documents the query in the search language finds, as the list would show them:
+ * without the trash and without what is inside other documents, unless the query asks for
+ * either. Goes through the list of documents and takes a moment in a large index.
+ */
+int count(const QString &queryText);
+/** How many documents each indexed location has, by its id, counted the same way. */
+QHash<qint64, int> sourceCounts();
+/**
+ * Whether there are documents dropAbandoned() of Library has to look at: such whose file is
+ * gone or whose location is no longer indexed. Goes through the list of documents.
+ */
+bool hasAbandonedCandidates();
+/** The condition for them, on the table `documents d`. */
+QString abandonedCondition();
 }

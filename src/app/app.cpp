@@ -162,6 +162,17 @@ App::App(QObject *parent)
         config->setCollapsedSections(m_sidebar->collapsedSections());
         config->save();
     });
+    // Opening a database is over when both the list and the numbers of the sidebar are there.
+    const auto opened = [this, was = isOpening()]() mutable {
+        if (was != isOpening()) {
+            was = isOpening();
+            Q_EMIT openingChanged();
+        }
+    };
+    connect(m_documents, &DocumentModel::openingChanged, this, opened);
+    connect(m_sidebar, &SidebarModel::openingChanged, this, opened);
+    // "Empty Trash" goes by the number the sidebar has for the trash.
+    connect(m_sidebar, &SidebarModel::countsChanged, this, &App::updateActions);
     connect(m_library, &Library::message, this, &App::passiveMessage);
     connect(m_library, &Library::documentCreated, this, [this](qint64 id) {
         // Show what was just made: go to the inbox if the document is not in the current list.
@@ -223,6 +234,11 @@ App::~App()
 {
     Config::self()->save();
     s_instance = nullptr;
+}
+
+bool App::isOpening() const
+{
+    return m_documents->isOpening() || m_sidebar->isOpening();
 }
 
 App *App::instance()
@@ -511,6 +527,14 @@ void App::setupActions()
     addAction(u"view_todos"_s, i18nc("@action", "Show To-Do List"), u"view-task"_s, {}, [this] {
         showSidePanel(u"todo"_s);
     });
+    // Searching within the document that is shown, in the panel on the right. Ctrl+F is
+    // the search for documents; this is the one for a place in one of them.
+    addAction(u"doc_find"_s, i18nc("@action", "Find in Document…"), u"edit-find"_s, Qt::CTRL | Qt::Key_D, [this] {
+        showSidePanel(u"find"_s);
+        Q_EMIT request(u"doc_find"_s);
+    });
+    addRequest(u"find_next"_s, i18nc("@action", "Find Next in Document"), u"go-down"_s, Qt::Key_F3);
+    addRequest(u"find_previous"_s, i18nc("@action", "Find Previous in Document"), u"go-up"_s, Qt::SHIFT | Qt::Key_F3);
 
     addRequest(u"view_activity"_s, i18nc("@action", "Show Indexing Activity"), u"view-process-system"_s);
     addRequest(u"view_columns"_s, i18nc("@action", "Choose List Columns and Row Height…"), u"view-file-columns"_s);
@@ -658,7 +682,9 @@ void App::updateActions()
     enable(u"doc_revert"_s, anyCopy);
     enable(u"doc_trash"_s, any && !inTrash);
     enable(u"doc_restore"_s, any && inTrash);
-    enable(u"empty_trash"_s, m_library->count(u"is:trashed"_s) > 0);
+    // Not counted here: that is a walk through all documents, with every change of the
+    // selection. The sidebar has the number, a moment later in a large index.
+    enable(u"empty_trash"_s, m_sidebar->countOf(u"place:trash"_s) > 0);
     enable(u"select_all"_s, !automation && m_documents->count() > 0);
     enable(u"save_search"_s, !automation && !m_documents->effectiveFilter().isEmpty());
     const bool editable = kind == "group"_L1 || kind == "tag"_L1 || kind == "search"_L1 || kind == "source"_L1;
@@ -952,7 +978,7 @@ void App::setCurrentScript(const QString &file)
 void App::showSidePanel(const QString &tab)
 {
     Config *config = Config::self();
-    config->setRightPanelTab(tab == "todo"_L1 ? u"todo"_s : u"info"_s);
+    config->setRightPanelTab(tab == "todo"_L1 || tab == "find"_L1 ? tab : u"info"_s);
     config->save();
     if (QAction *panel = action(u"view_right_sidebar"_s); panel && !panel->isChecked()) {
         panel->setChecked(true);

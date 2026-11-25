@@ -43,6 +43,11 @@ class App : public AbstractKirigamiApplication
     Q_PROPERTY(ActivityModel *activity READ activity CONSTANT)
     /** Name of the database that is open. */
     Q_PROPERTY(QString databaseName READ databaseName NOTIFY databasesChanged)
+    /**
+     * The database was just opened, at start or by switching to it, and its list of
+     * documents or the numbers in the sidebar are still being read in the background.
+     */
+    Q_PROPERTY(bool opening READ isOpening NOTIFY openingChanged)
     Q_PROPERTY(bool annotating READ isAnnotating WRITE setAnnotating NOTIFY annotatingChanged)
     /** Whether the form for searching by name, content and properties is shown. */
     Q_PROPERTY(bool advancedSearch READ isAdvancedSearch WRITE setAdvancedSearch NOTIFY advancedSearchChanged)
@@ -193,6 +198,7 @@ public:
     /** Passes the settings on to the indexer and saves them. */
     Q_INVOKABLE void applySettings();
     QString databaseName() const;
+    bool isOpening() const;
     /**
      * The databases Indeks knows: the local one first, then those that were added. Maps with
      * `name`, `path`, `active`, `builtin`, `reachable`, `network` and `problem` (why it cannot
@@ -263,6 +269,7 @@ Q_SIGNALS:
     void annotatingChanged();
     void advancedSearchChanged();
     void databasesChanged();
+    void openingChanged();
     void textEditingChanged();
     void previewChanged();
     void automationChanged();

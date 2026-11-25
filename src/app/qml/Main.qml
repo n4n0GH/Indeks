@@ -99,6 +99,8 @@ StatefulApp.StatefulWindow {
 
                 // The search form sits above what it finds.
                 AdvancedSearchPanel {
+                    id: filterBar
+
                     Layout.fillWidth: true
                     visible: App.advancedSearch && !App.automation
                     actions: appActions
@@ -166,6 +168,7 @@ StatefulApp.StatefulWindow {
                             id: previewPane
 
                             actions: appActions
+                            findText: sidePanel.findText
                         }
                         AutomationPane {
                             id: automationPane
@@ -181,6 +184,7 @@ StatefulApp.StatefulWindow {
 
                 visible: Config.rightSidebarVisible
                 actions: appActions
+                preview: previewPane
                 onNoteActivated: note => previewPane.showNote(note)
                 onTodoEditRequested: id => todoDialog.edit(id)
                 QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 16
@@ -312,6 +316,16 @@ StatefulApp.StatefulWindow {
             case "view_raw":
                 previewPane.toggleRaw();
                 break;
+            case "doc_find":
+                // The panel was just brought up: its field takes the keys once it is there.
+                Qt.callLater(sidePanel.focusFind);
+                break;
+            case "find_next":
+                root.findStep(true);
+                break;
+            case "find_previous":
+                root.findStep(false);
+                break;
             case "doc_clear_drawing":
                 confirmDialog.ask(i18nc("@title:window", "Remove All Drawings?"),
                                   i18nc("@info", "Everything drawn on “%1” will be removed. The document itself is not affected.", App.library.documentInfo(currentId).name),
@@ -347,7 +361,7 @@ StatefulApp.StatefulWindow {
                                });
                 break;
             case "save_search":
-                searchDialog.ask(0, "", root.currentSearchText());
+                searchDialog.askNew(root.currentSearchPieces(), filterBar.visible ? filterBar.filters : []);
                 break;
             case "go_rules":
                 App.automationPage = "rules";
@@ -441,9 +455,23 @@ StatefulApp.StatefulWindow {
     }
 
     // The search to save: what the current place stands for plus what is typed in the search field.
-    function currentSearchText(): string {
+    // To the next or the previous place the search within the document found. Without that
+    // search in view there is nothing to step through: it is brought up instead.
+    function findStep(forward: bool): void {
+        if (sidePanel.findText.length === 0) {
+            App.action("doc_find").trigger();
+        } else if (forward) {
+            previewPane.findNext();
+        } else {
+            previewPane.findPrevious();
+        }
+    }
+
+    // What narrows the list down besides the filter bar, as pieces of the query language:
+    // the place that is selected in the sidebar, and what is typed in the search field.
+    function currentSearchPieces(): list<string> {
         const scope = App.sidebar.currentKind === "place" || App.sidebar.currentKind === "smart" || App.sidebar.currentKind === "search" ? App.sidebar.currentQuery : "";
-        return [scope, App.documents.effectiveFilter].filter(part => part.trim().length > 0).join(" ");
+        return [scope, App.documents.filter].filter(part => part.trim().length > 0);
     }
 
     // The name is this computer's word for the database; its folder stays what it is.
@@ -461,8 +489,8 @@ StatefulApp.StatefulWindow {
                                if (!Config.previewVisible) {
                                    appActions.preview.trigger();
                                }
-                               // The new document is selected and shown by now; start writing right away.
-                               previewPane.startEditing();
+                               // Start writing right away, as soon as the new document is shown.
+                               previewPane.editOnceShown(id);
                            }
                        });
     }
@@ -473,7 +501,7 @@ StatefulApp.StatefulWindow {
         } else if (kind === "tag") {
             nameDialog.ask(i18nc("@title:window", "Rename Tag"), i18nc("@info", "New name:"), label, name => App.library.renameTag(itemId, name));
         } else if (kind === "search") {
-            searchDialog.ask(itemId, label, App.sidebar.currentQuery);
+            searchDialog.edit(itemId, label, App.sidebar.currentQuery);
         }
     }
 

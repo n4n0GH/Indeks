@@ -6,9 +6,10 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// What Indeks is doing in the background: scanning, indexing, recognising text, fetching
-// remote files. Slides in at the bottom of the sidebar while there is something to report
-// and takes no room otherwise. A click asks for the list of everything that waits.
+// What Indeks is doing in the background: opening a database, scanning, indexing,
+// recognising text, fetching remote files. Slides in at the bottom of the sidebar while there
+// is something to report and takes no room otherwise. A click asks for the list of
+// everything that waits.
 Item {
     id: root
 
@@ -20,10 +21,51 @@ Item {
     property string detail
     property real progress: -1
 
-    readonly property bool busy: App.library.busy
-    readonly property string status: App.library.status
-    readonly property string statusDetail: App.library.statusDetail
-    readonly property real statusProgress: App.library.progress
+    // A database that was just opened is said first, for the moment it takes: its list and
+    // the numbers beside the entries above are being read. Whatever else has begun by then,
+    // looking for changes for one, is said after it.
+    readonly property bool opening: App.opening
+    // The list of documents is being read, which takes a moment for the large entries of a
+    // large database (the duplicates above all), or a search is under way, and has been for
+    // a moment: most lists are there before anybody could look.
+    property bool listing: false
+    readonly property bool loading: !opening && App.documents.loading
+    readonly property bool searching: listing && App.documents.effectiveFilter.length > 0
+
+    onLoadingChanged: {
+        if (loading) {
+            listingDelay.restart();
+        } else {
+            listingDelay.stop();
+            listing = false;
+        }
+    }
+    // Whoever waited this long for a list is told at once what for, without the delay that
+    // keeps the display from twitching for work that goes on in the background.
+    onListingChanged: {
+        if (listing) {
+            settle.stop();
+            update();
+            shown = true;
+        }
+    }
+
+    Timer {
+        id: listingDelay
+
+        interval: Kirigami.Units.humanMoment / 8
+        onTriggered: root.listing = root.loading
+    }
+    readonly property bool busy: App.library.busy || opening || listing
+    readonly property string status: opening ? i18nc("@info:status", "Opening database…")
+        : searching ? i18nc("@info:status", "Searching…")
+        : listing ? i18nc("@info:status", "Listing documents…")
+        : App.library.status
+    readonly property string statusDetail: opening ? App.databaseName
+        : searching ? App.documents.effectiveFilter
+        : listing ? App.sidebar.currentLabel
+        : App.library.statusDetail
+    readonly property real statusProgress: opening || listing ? -1 : App.library.progress
 
     signal clicked()
 
@@ -37,6 +79,15 @@ Item {
             text = status;
             detail = statusDetail;
             progress = statusProgress;
+        }
+    }
+
+    // A database that is being opened as the window comes up is said from the first moment
+    // on, without sliding in: there is nothing yet that it could make twitch.
+    Component.onCompleted: {
+        if (opening) {
+            update();
+            shown = true;
         }
     }
 

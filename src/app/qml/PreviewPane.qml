@@ -71,6 +71,66 @@ QQC2.Pane {
         }
     }
 
+    // ---------------------------------------------------------- searching within the document
+    //
+    // The panel that asks for it (FindPane) sets `findText`; the viewer finds, marks and
+    // brings into view. A viewer that can be searched offers, by these names:
+    //
+    //   findable   whether it can be searched right now
+    //   findText   what to find; set from here
+    //   findCount  how many places it found, findMore if there are more than it counted
+    //   findIndex  the hit it brought the reader to last, -1 for none
+    //   findHit(i) what to say about hit i: `label` (its page, line or cell), and the text
+    //              around it as `before`, `match`, `after`
+    //   showHit(i) brings hit i into view
+    //
+    // Viewers without these (pictures, canvases) cannot be searched.
+
+    /** What to find in the document that is shown; empty for nothing. */
+    property string findText
+    readonly property bool findAvailable: viewer.status === Loader.Ready && (viewer.item?.findable ?? false)
+    readonly property int findCount: findAvailable && findText.length > 0 ? viewer.item.findCount : 0
+    readonly property bool findMore: findAvailable && (viewer.item.findMore ?? false)
+    readonly property int findIndex: findAvailable ? viewer.item.findIndex : -1
+    /** Why the document cannot be searched, where it is one that could be otherwise. */
+    readonly property bool findPaused: viewer.status === Loader.Ready && (viewer.item?.editing ?? false)
+
+    function findHit(at: int): var {
+        return findAvailable ? viewer.item.findHit(at) : ({});
+    }
+    function findGo(at: int): void {
+        if (findAvailable && at >= 0 && at < findCount) {
+            viewer.item.showHit(at);
+        }
+    }
+    // Round and round: after the last hit comes the first.
+    function findNext(): void {
+        if (findCount > 0) {
+            findGo((findIndex + 1) % findCount);
+        }
+    }
+    function findPrevious(): void {
+        if (findCount > 0) {
+            findGo(findIndex <= 0 ? findCount - 1 : findIndex - 1);
+        }
+    }
+    // What is typed is found as it is typed: the reader is brought to the first hit of
+    // every new search.
+    function findFirst(): void {
+        if (findCount > 0 && findIndex < 0) {
+            findGo(0);
+        }
+    }
+    onFindCountChanged: Qt.callLater(findFirst)
+    onFindIndexChanged: Qt.callLater(findFirst)
+
+    Binding {
+        target: viewer.item
+        property: "findText"
+        value: root.findText
+        when: root.findAvailable
+    }
+
     padding: 0
     Kirigami.Theme.colorSet: Kirigami.Theme.View
     Kirigami.Theme.inherit: false
@@ -138,6 +198,7 @@ QQC2.Pane {
             "canvas": canvasComponent
         };
         viewer.sourceComponent = components[kind] ?? null;
+        editIfWanted();
     }
 
     function reload(): void {
@@ -174,6 +235,23 @@ QQC2.Pane {
         }
     }
 
+    // A document that is to be written in as soon as it is shown: one that was just made.
+    // In a large database the list it is selected in takes a moment to come, and the
+    // preview shows it only then.
+    property real editWanted: 0
+
+    function editOnceShown(id: real): void {
+        editWanted = id;
+        editIfWanted();
+    }
+
+    function editIfWanted(): void {
+        if (editWanted > 0 && shownId === editWanted && viewer.status === Loader.Ready && viewer.item?.startEditing) {
+            editWanted = 0;
+            viewer.item.startEditing();
+        }
+    }
+
     function finishEditing(): void {
         if (viewer.item && viewer.item.finishEditing) {
             viewer.item.finishEditing();
@@ -204,7 +282,13 @@ QQC2.Pane {
         value: viewer.item?.raw ?? false
     }
 
-    onDocumentIdChanged: reload()
+    onDocumentIdChanged: {
+        if (documentId > 0 && documentId !== editWanted) {
+            // Another document was selected in the meantime: that one is not for writing in.
+            editWanted = 0;
+        }
+        reload();
+    }
     Component.onCompleted: reload()
 
     Connections {
@@ -344,6 +428,19 @@ QQC2.Pane {
 
             readonly property string indexedText: App.library.indexedText(root.shownId)
 
+            // Searching within the text; see above for what the preview asks for.
+            property alias findText: extractedFind.text
+            readonly property bool findable: indexedText.length > 0
+            readonly property int findCount: extractedFind.count
+            readonly property bool findMore: extractedFind.more
+            readonly property int findIndex: extractedFind.index
+            function findHit(at: int): var {
+                return extractedFind.hit(at);
+            }
+            function showHit(at: int): void {
+                extractedFind.show(at);
+            }
+
             // For the bar above the preview; see PreviewToolBar.
             readonly property string status: indexedText.length > 0 ? i18nc("@info:status", "The text Indeks found in the document") : ""
             readonly property bool zoomable: indexedText.length > 0
@@ -395,11 +492,15 @@ QQC2.Pane {
             }
 
             QQC2.ScrollView {
+                id: extractedScroll
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: extracted.indexedText.length > 0
 
                 QQC2.TextArea {
+                    id: extractedText
+
                     readOnly: true
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
@@ -409,6 +510,13 @@ QQC2.Pane {
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * root.textZoom
                     background: Rectangle {
                         color: Kirigami.Theme.backgroundColor
+                    }
+
+                    TextFind {
+                        id: extractedFind
+
+                        edit: extractedText
+                        flickable: extractedScroll.contentItem as Flickable
                     }
 
                     WheelHandler {

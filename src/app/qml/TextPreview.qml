@@ -295,6 +295,7 @@ ColumnLayout {
         if (!editing && !table) {
             showFirstHit();
         }
+        findInCode();
     }
 
     // The other way of showing the same file. A moment later: which view is up follows from
@@ -306,6 +307,66 @@ ColumnLayout {
             load();
         }
     }
+
+    // ------------------------------------------------------------- searching within the text
+    //
+    // What the preview asks of a view that can be searched; see PreviewPane. The table and
+    // the rendered text do it themselves (DataTable, TextFind); text that is shown as it is
+    // in the file is searched here, in all of it, of which the view may hold only a part.
+
+    property string findText
+    /** Not while the text is being written: the places would be off with every key. */
+    readonly property bool findable: !editing
+    // Where the text was found, as places in `sourceText`.
+    property var codeHits: []
+    property bool codeMore: false
+    property int codeIndex: -1
+    readonly property int findCount: table ? (tableLoader.item?.findCount ?? 0) : code ? codeHits.length : proseFind.count
+    readonly property bool findMore: table ? (tableLoader.item?.findMore ?? false) : code ? codeMore : proseFind.more
+    readonly property int findIndex: table ? (tableLoader.item?.findIndex ?? -1) : code ? codeIndex : proseFind.index
+
+    function findInCode(): void {
+        codeIndex = -1;
+        if (!code || editing || findText.length === 0) {
+            codeHits = [];
+            codeMore = false;
+            return;
+        }
+        const found = proseFind.positionsIn(sourceText, findText, proseFind.most);
+        codeMore = found.length > proseFind.most;
+        codeHits = codeMore ? found.slice(0, proseFind.most) : found;
+    }
+
+    function findHit(at: int): var {
+        if (table) {
+            return tableLoader.item?.findHit(at) ?? ({});
+        }
+        if (!code) {
+            return proseFind.hit(at);
+        }
+        if (at < 0 || at >= codeHits.length) {
+            return ({});
+        }
+        // Lines are named where they are numbered, and as the file numbers them.
+        const position = codeHits[at];
+        const label = highlighted && !structured ? i18nc("@info a line of a text, by its number", "Line %1", codeView.lines.lineOfSource(position) + 1) : "";
+        return proseFind.described(sourceText, position, findText.length, label);
+    }
+
+    function showHit(at: int): void {
+        if (table) {
+            tableLoader.item?.showHit(at);
+        } else if (!code) {
+            proseFind.show(at);
+        } else if (at >= 0 && at < codeHits.length) {
+            codeIndex = at;
+            codeView.select(codeHits[at], findText.length);
+        }
+    }
+
+    onFindTextChanged: findInCode()
+    onCodeChanged: findInCode()
+    onEditingChanged: findInCode()
 
     // Selects the first search word found so that the reader lands where the hit is.
     function showFirstHit(): void {
@@ -461,6 +522,8 @@ ColumnLayout {
             // Folding goes by brackets outside of strings, which only data formats promise to be
             // meaningful.
             foldable: root.structured || /json/i.test(root.syntax.name)
+            marks: root.code && !root.editing ? root.codeHits : []
+            markLength: root.findText.length
             onSaveRequested: root.save()
             onEscapePressed: root.finishEditing()
         }
@@ -490,6 +553,15 @@ ColumnLayout {
                 Kirigami.Theme.inherit: false
 
                 onLinkActivated: link => Qt.openUrlExternally(link)
+
+                TextFind {
+                    id: proseFind
+
+                    edit: area
+                    flickable: root.proseFlick
+                    text: root.findText
+                    active: root.rendered && !root.editing
+                }
 
                 WheelHandler {
                     acceptedModifiers: Qt.ControlModifier
@@ -537,6 +609,7 @@ ColumnLayout {
                 fileName: root.info.name ?? ""
                 zoom: root.textZoom
                 searchTerms: root.searchTerms
+                findText: root.findText
                 onZoomRequested: larger => root.zoomStep(larger)
             }
         }

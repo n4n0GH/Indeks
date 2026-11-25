@@ -307,6 +307,10 @@ QQC2.ToolBar {
                     QQC2.MenuSeparator {}
                     QQC2.MenuItem { action: root.actions.rawView }
                     QQC2.MenuSeparator {}
+                    QQC2.MenuItem { action: root.actions.find }
+                    QQC2.MenuItem { action: root.actions.findNext }
+                    QQC2.MenuItem { action: root.actions.findPrevious }
+                    QQC2.MenuSeparator {}
                     QQC2.MenuItem { action: root.actions.zoomIn }
                     QQC2.MenuItem { action: root.actions.zoomOut }
                     QQC2.MenuItem { action: root.actions.zoomReset }

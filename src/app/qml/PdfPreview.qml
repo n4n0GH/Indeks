@@ -23,6 +23,64 @@ ColumnLayout {
     /** Page to show first, e.g. the one the user was on before the document was reloaded. */
     property int initialPage: 0
 
+    // ---------------------------------------------------------- searching within the document
+    // What the preview asks of a view that can be searched; see PreviewPane. The search is
+    // Qt's own, which goes through the pages one after the other: the hits come in as it goes.
+
+    property string findText
+    readonly property bool findable: pdf.status === PdfDocument.Ready
+    readonly property int findCount: findText.length > 0 ? searchModel.count : 0
+    readonly property bool findMore: false
+    property int findIndex: -1
+    onFindTextChanged: findIndex = -1
+
+    // What the search knows about each hit; see QPdfSearchModel::Role.
+    readonly property int pageRole: Qt.UserRole
+    readonly property int indexOnPageRole: Qt.UserRole + 1
+    readonly property int locationRole: Qt.UserRole + 2
+    readonly property int contextBeforeRole: Qt.UserRole + 3
+    readonly property int contextAfterRole: Qt.UserRole + 4
+
+    function findHit(at: int): var {
+        if (at < 0 || at >= findCount) {
+            return ({});
+        }
+        // Qt hands the words around a hit over with a sign for every line break in them.
+        const hit = searchModel.index(at, 0);
+        const before = (searchModel.data(hit, contextBeforeRole) ?? "").replace(/[\s\u23ce]+/g, " ");
+        return {
+            label: i18nc("@info a page of a document, by its number", "Page %1", searchModel.data(hit, pageRole) + 1),
+            // From a whole word on, where the passage is cut short.
+            before: before.length > 40 ? before.slice(before.length - 40).replace(/^\S*\s/, "") : before,
+            match: findText,
+            after: (searchModel.data(hit, contextAfterRole) ?? "").replace(/[\s\u23ce]+/g, " ").slice(0, 80)
+        };
+    }
+
+    function showHit(at: int): void {
+        if (at < 0 || at >= findCount) {
+            return;
+        }
+        findIndex = at;
+        const hit = searchModel.index(at, 0);
+        const page = searchModel.data(hit, pageRole);
+        // Which of the hits is the one the reader is at: the page, and its number on the page.
+        searchModel.currentPage = page;
+        searchModel.currentResult = searchModel.data(hit, indexOnPageRole);
+        // The page to the top of the view, then down to a third above the hit.
+        const place = searchModel.data(hit, locationRole);
+        const points = pdf.pagePointSize(page);
+        pages.positionViewAtIndex(page, ListView.Beginning);
+        if (points.width > 0) {
+            const down = place.y * paperWidth / points.width - pages.height / 3;
+            const last = pages.contentHeight - pages.height + pages.originY + pages.bottomMargin;
+            pages.contentY = Math.max(pages.contentY, Math.min(last, pages.contentY + down));
+        }
+    }
+
+    // How wide a page is shown; the same for all of them.
+    readonly property real paperWidth: Math.floor(Math.max(Kirigami.Units.gridUnit * 6, (pages.width - Kirigami.Units.gridUnit * 2) * zoom))
+
     readonly property int currentPage: Math.max(0, pages.indexAt(pages.width / 2, pages.contentY + pages.height / 2))
     readonly property int pageCount: pdf.pageCount
     property real zoom: 1.0
@@ -126,7 +184,9 @@ ColumnLayout {
         id: searchModel
 
         document: pdf
-        searchString: root.searchTerms.length > 0 ? root.searchTerms[0] : ""
+        // What is searched for within this document; while nothing is, the first word the
+        // list of documents was searched for.
+        searchString: root.findText.length > 0 ? root.findText : root.searchTerms.length > 0 ? root.searchTerms[0] : ""
     }
 
     QQC2.ScrollView {
@@ -168,7 +228,7 @@ ColumnLayout {
                     id: paper
 
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: Math.floor(Math.max(Kirigami.Units.gridUnit * 6, (pages.width - Kirigami.Units.gridUnit * 2) * root.zoom))
+                    width: root.paperWidth
                     height: Math.round(width * pageItem.pointSize.height / pageItem.pointSize.width)
                     // The page itself is content, not interface: paper is white under every colour scheme.
                     color: "white"
@@ -205,6 +265,15 @@ ColumnLayout {
                                     searchModel.searchString; // re-evaluate when the search changes
                                     return searchModel.boundingPolygonsOnPage(pageItem.index);
                                 }
+                            }
+                        }
+                        // The hit the reader was brought to.
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.5)
+                            scale: Qt.size(pageItem.pageScale, pageItem.pageScale)
+                            PathMultiline {
+                                paths: root.findIndex >= 0 && searchModel.currentPage === pageItem.index ? searchModel.currentResultBoundingPolygons : []
                             }
                         }
                         ShapePath {

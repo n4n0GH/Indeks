@@ -83,6 +83,11 @@ public:
     Q_INVOKABLE QString cellText(int row, int column) const;
     /** Column (x) and row (y) of the first cell that holds one of @p terms; (-1, -1) if none does. */
     Q_INVOKABLE QPoint find(const QStringList &terms) const;
+    /**
+     * Every cell that contains @p text, whatever its case, row by row and @p limit of them
+     * at most: each as a point with the column as x and the row as y.
+     */
+    Q_INVOKABLE QVariantList findAll(const QString &text, int limit) const;
 
 Q_SIGNALS:
     void pathChanged();

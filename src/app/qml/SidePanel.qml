@@ -9,11 +9,24 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
 // The panel on the right, which serves more than one purpose: tabs at its top lead to what
-// Indeks knows about the selected document and to the list of things to do.
+// Indeks knows about the selected document, to the list of things to do, and to searching
+// within the document that is shown in the preview.
 QQC2.Pane {
     id: root
 
     required property Actions actions
+    /** The preview, whose document the search tab searches. */
+    required property PreviewPane preview
+
+    /**
+     * What the search tab asks the preview to find: what is typed there, while that tab is
+     * in view. Marks nobody asked for any longer are not left in the document.
+     */
+    readonly property string findText: visible && tabs[tabIndex] === "find" ? findPane.text : ""
+
+    function focusFind(): void {
+        findPane.focusField();
+    }
 
     /** A note that is stuck to a page was clicked: the page is wanted in view. */
     signal noteActivated(var note)
@@ -21,7 +34,7 @@ QQC2.Pane {
     signal todoEditRequested(real id)
 
     // In the order of the tabs.
-    readonly property list<string> tabs: ["info", "todo"]
+    readonly property list<string> tabs: ["info", "todo", "find"]
     readonly property int tabIndex: Math.max(0, tabs.indexOf(Config.rightPanelTab))
 
     padding: 0
@@ -46,6 +59,11 @@ QQC2.Pane {
                     text: i18nc("@title:tab the list of things to do", "To-Do")
                     tooltip: i18nc("@info:tooltip", "To-do list")
                     icon.name: "view-task"
+                },
+                Kirigami.Action {
+                    text: i18nc("@title:tab searching within the selected document", "Find")
+                    tooltip: i18nc("@info:tooltip", "Find in the selected document")
+                    icon.name: "search"
                 }
             ]
             // The tabs show their icons alone, which leaves the bar lower; what each is for
@@ -95,6 +113,12 @@ QQC2.Pane {
             TodoPane {
                 actions: root.actions
                 onEditRequested: id => root.todoEditRequested(id)
+            }
+            FindPane {
+                id: findPane
+
+                actions: root.actions
+                preview: root.preview
             }
         }
     }

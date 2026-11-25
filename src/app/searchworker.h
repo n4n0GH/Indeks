@@ -5,10 +5,12 @@
 
 #include <QHash>
 #include <QList>
+#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <QWaitCondition>
 
 #include <atomic>
 
@@ -49,7 +51,25 @@ struct SearchTickets {
 };
 
 /**
- * Runs searches through the text of all documents away from the user interface.
+ * Where the worker leaves a list the document model is waiting for at that very moment.
+ *
+ * Most lists are read within a few milliseconds. The model waits that long for one it asked
+ * for, and whatever arrives in that time is shown before the model returns to its caller,
+ * as if it had read the list itself. A list that takes longer comes with found() instead.
+ */
+struct SearchHandover {
+    QMutex mutex;
+    QWaitCondition arrived;
+    /** The request the model waits for right now; 0 for none. */
+    quint64 awaited = 0;
+    bool there = false;
+    QList<DocumentRow> rows;
+    bool truncated = false;
+};
+
+/**
+ * Reads the list of documents, and runs searches through the text of all documents, away
+ * from the user interface.
  *
  * Looking a word up in a large index can take seconds, the shorter the word the longer, and
  * so can reading the text of large documents for the passages shown with the results. Both
@@ -63,7 +83,7 @@ class SearchWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit SearchWorker(const SearchTickets *tickets);
+    explicit SearchWorker(const SearchTickets *tickets, SearchHandover *handover);
 
     /** Runs the list's query in the calling thread. At most @p maxRows rows are returned. */
     static QList<DocumentRow> fetch(const QString &sql, const QVariantList &binds, int maxRows, bool *truncated);
@@ -82,6 +102,7 @@ Q_SIGNALS:
 
 private:
     const SearchTickets *const m_tickets;
+    SearchHandover *const m_handover;
 };
 
 Q_DECLARE_METATYPE(DocumentRow)

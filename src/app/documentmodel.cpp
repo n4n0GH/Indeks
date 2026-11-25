@@ -21,6 +21,10 @@ using namespace Qt::StringLiterals;
 namespace
 {
 constexpr int MaxRows = 20000;
+// How long the list waits for what it asked the search thread for before it lets the answer
+// come by itself. Long enough for any list of a database of ordinary size, short enough not
+// to be felt where it is not.
+constexpr int QuickAnswerMs = 30;
 // How many rows' passages are looked up in one go: about what is in view and a little more.
 constexpr int ExcerptsAtOnce = 48;
 
@@ -57,7 +61,7 @@ DocumentModel::DocumentModel(Library *library, QObject *parent)
     qRegisterMetaType<QHash<qint64, QString>>();
 
     m_thread.setObjectName(u"indeks-search"_s);
-    m_worker = new SearchWorker(&m_tickets);
+    m_worker = new SearchWorker(&m_tickets, &m_handover);
     m_worker->moveToThread(&m_thread);
     // Runs in the search thread itself, as its last act.
     connect(&m_thread, &QThread::finished, m_worker, &SearchWorker::close, Qt::DirectConnection);
@@ -68,7 +72,7 @@ DocumentModel::DocumentModel(Library *library, QObject *parent)
         apply(rows, truncated, m_pendingExcerptTerms);
         if (ticket == m_tickets.search) {
             // Unless that asked for the list once more, see apply().
-            setLoading(false);
+            loaded();
         }
     });
     connect(m_worker, &SearchWorker::excerptsReady, this, [this](quint64 ticket, const QHash<qint64, QString> &excerpts, bool last) {
@@ -90,20 +94,23 @@ DocumentModel::DocumentModel(Library *library, QObject *parent)
     m_thread.start();
 
     connect(library, &Library::changed, this, [this] {
-        load(Load::Refreshed);
+        if (m_loading) {
+            // A list is on its way. Asking again with every change would only put it off,
+            // for as long as documents keep coming in; it is read once more when it is there.
+            m_refreshWanted = true;
+            return;
+        }
+        load(Load::Refreshed, true);
     });
     connect(library, &Library::databaseAboutToChange, this, [this] {
         // What is on its way belongs to the database that is being left, and the search
-        // thread must let go of that database's file.
-        ++m_tickets.search;
-        forgetExcerpts();
-        setLoading(false);
-        m_lingering.clear();
-        m_handled.clear();
-        m_dismissed.clear();
+        // thread must let go of that database's file. What is listed belongs to it too, and
+        // the list of the other database takes a moment to come.
+        clear();
         if (m_thread.isRunning()) {
             QMetaObject::invokeMethod(m_worker, &SearchWorker::close, Qt::BlockingQueuedConnection);
         }
+        setOpening(m_active);
     });
 }
 
@@ -407,9 +414,33 @@ void DocumentModel::forgetExcerpts()
 
 void DocumentModel::setLoading(bool loading)
 {
-    if (m_loading != loading) {
-        m_loading = loading;
+    const bool was = isLoading();
+    m_loading = loading;
+    if (was != isLoading()) {
         Q_EMIT loadingChanged();
+    }
+}
+
+void DocumentModel::setOpening(bool opening)
+{
+    if (m_opening != opening) {
+        m_opening = opening;
+        Q_EMIT openingChanged();
+    }
+}
+
+void DocumentModel::loaded()
+{
+    setLoading(false);
+    setOpening(false);
+    if (m_wantedId != 0) {
+        const qint64 wanted = m_wantedId;
+        m_wantedId = 0;
+        selectId(wanted);
+    }
+    if (m_refreshWanted) {
+        m_refreshWanted = false;
+        load(Load::Refreshed, true);
     }
 }
 
@@ -424,8 +455,17 @@ void DocumentModel::setActive(bool active)
         load(Load::Navigated);
         return;
     }
-    // Whatever is still being searched for is no longer wanted, and nothing is listed.
+    // Whatever is still being searched for is no longer wanted, and nothing is listed. A
+    // list that shows nothing has nothing to open either.
+    clear();
+    m_refreshWanted = false;
+    setOpening(false);
+}
+
+void DocumentModel::clear()
+{
     ++m_tickets.search;
+    m_wantedId = 0;
     forgetExcerpts();
     setLoading(false);
     m_lingering.clear();
@@ -540,7 +580,7 @@ QSet<qint64> DocumentModel::leavers(const QList<Row> &found) const
     return gone;
 }
 
-void DocumentModel::load(Load load)
+void DocumentModel::load(Load load, bool quiet)
 {
     if (!m_active) {
         return;
@@ -555,6 +595,16 @@ void DocumentModel::load(Load load)
         m_lingering.clear();
         m_dismissed.clear();
         m_handled = m_selected;
+        m_wantedId = 0;
+    }
+    // Whatever changed in the index, this reads it.
+    m_refreshWanted = false;
+    if (m_quiet != quiet) {
+        const bool was = isLoading();
+        m_quiet = quiet;
+        if (was != isLoading()) {
+            Q_EMIT loadingChanged();
+        }
     }
     m_load = load;
     const SearchQuery scopeQuery(m_scope);
@@ -594,25 +644,55 @@ void DocumentModel::load(Load load)
     // Whatever is still being searched for is overtaken by this.
     const quint64 ticket = ++m_tickets.search;
 
-    if (plain) {
-        bool truncated = false;
-        const QList<Row> rows = SearchWorker::fetch(sql, query.binds(), MaxRows, &truncated);
-        apply(rows, truncated, {});
-        if (ticket == m_tickets.search) {
-            setLoading(false);
-        }
+    // Every list is read in the search thread. Words are looked up in the text of all
+    // documents, which can take seconds in a large index; and a list of the documents alone
+    // (a place, a tag, a filter on what is known about a document) is a walk through all of
+    // them, a second for the duplicates among some hundred thousand. The list keeps what it
+    // shows until then.
+    m_pendingExcerptTerms = filterQuery.ftsExpression().isEmpty() ? QStringList() : filterQuery.terms();
+    const auto ask = [this, ticket, sql, binds = query.binds()] {
+        QMetaObject::invokeMethod(
+            m_worker,
+            [worker = m_worker, ticket, sql, binds] {
+                worker->search(ticket, sql, binds, MaxRows);
+            },
+            Qt::QueuedConnection);
+    };
+    if (!plain || m_opening || !m_thread.isRunning()) {
+        // Nothing to wait for: a search takes its time, and of an index that was just
+        // opened nothing is in memory, so that waiting would keep the window from coming up.
+        setLoading(true);
+        ask();
         return;
     }
-    // Words are looked up in the text of all documents, which can take seconds in a large
-    // index. That happens in the background; the list keeps what it shows until then.
-    m_pendingExcerptTerms = filterQuery.ftsExpression().isEmpty() ? QStringList() : filterQuery.terms();
-    setLoading(true);
-    QMetaObject::invokeMethod(
-        m_worker,
-        [worker = m_worker, ticket, sql, binds = query.binds()] {
-            worker->search(ticket, sql, binds, MaxRows);
-        },
-        Qt::QueuedConnection);
+    // Most such lists are there within milliseconds, and then they are shown here and now:
+    // whoever asked finds the list read when this returns, and nothing flickers.
+    QList<Row> rows;
+    bool truncated = false;
+    bool there = false;
+    {
+        QMutexLocker locker(&m_handover.mutex);
+        m_handover.awaited = ticket;
+        m_handover.there = false;
+        ask();
+        m_handover.arrived.wait(&m_handover.mutex, QDeadlineTimer(QuickAnswerMs));
+        m_handover.awaited = 0;
+        there = m_handover.there;
+        if (there) {
+            rows = std::move(m_handover.rows);
+            truncated = m_handover.truncated;
+            m_handover.rows.clear();
+            m_handover.there = false;
+        }
+    }
+    if (!there) {
+        setLoading(true); // it comes with found()
+        return;
+    }
+    apply(rows, truncated, {});
+    if (ticket == m_tickets.search) {
+        loaded();
+    }
 }
 
 void DocumentModel::apply(const QList<Row> &found, bool foundTruncated, const QStringList &excerptTerms)
@@ -624,7 +704,7 @@ void DocumentModel::apply(const QList<Row> &found, bool foundTruncated, const QS
             // Documents the user is working with would drop out of the list. It is read once
             // more with them in it, and only that is shown.
             m_lingering.unite(gone);
-            load(Load::Lingering);
+            load(Load::Lingering, m_quiet);
             return;
         }
     }
@@ -812,6 +892,9 @@ void DocumentModel::selectId(qint64 id)
     if (m_rowOfId.contains(id)) {
         m_anchor = id;
         setSelection({id}, id);
+    } else if (m_loading) {
+        // The list it may be in is on its way.
+        m_wantedId = id;
     }
 }
 

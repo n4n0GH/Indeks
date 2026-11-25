@@ -17,6 +17,8 @@ target_sources(indeks PRIVATE
     app.h
     codelayout.cpp
     codelayout.h
+    countworker.cpp
+    countworker.h
     databasechoice.cpp
     databasechoice.h
     documentmodel.cpp

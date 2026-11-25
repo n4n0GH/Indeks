@@ -212,8 +212,9 @@ QQC2.Pane {
     readonly property real rowIcon: Config.listRowSize === 0 ? Kirigami.Units.iconSizes.small
                                   : Config.listRowSize === 2 ? Kirigami.Units.iconSizes.medium : Kirigami.Units.iconSizes.smallMedium
 
-    // A search through the text of all documents is under way and has been for a moment.
-    // Most are over before anybody could look; saying so each time would only flicker.
+    // The list is being read, or a search through the text of all documents is under way,
+    // and has been for a moment. Most are over before anybody could look; saying so each
+    // time would only flicker.
     property bool searching: false
     readonly property bool loading: App.documents.loading
 
@@ -833,7 +834,9 @@ QQC2.Pane {
                         anchors.centerIn: parent
                         width: parent.width - Kirigami.Units.gridUnit * 4
                         visible: list.count === 0 && root.searching
-                        text: i18nc("@info:progress", "Searching…")
+                        text: App.documents.opening ? i18nc("@info:progress", "Opening database…")
+                            : App.documents.effectiveFilter.length > 0 ? i18nc("@info:progress", "Searching…")
+                            : i18nc("@info:progress", "Listing documents…")
                     }
 
                     Kirigami.PlaceholderMessage {

@@ -62,6 +62,11 @@ public:
     int widthHint(int column) const;
     /** The first cell at or after row @p fromRow that contains one of @p terms; {-1, -1} if none does. */
     std::pair<int, int> find(const QStringList &terms, int fromRow = 0) const;
+    /**
+     * Every cell from row @p fromRow on that contains @p text, whatever its case, row by
+     * row; @p limit of them at most.
+     */
+    QList<std::pair<int, int>> findAll(const QString &text, int fromRow, int limit) const;
 
     static bool looksNumeric(QStringView text);
 

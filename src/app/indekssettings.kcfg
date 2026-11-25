@@ -92,7 +92,7 @@
             <max>365</max>
         </entry>
         <entry name="rightPanelTab" type="String">
-            <label>What the panel on the right shows: "info" about the selected document, or the "todo" list.</label>
+            <label>What the panel on the right shows: "info" about the selected document, the "todo" list, or "find" for searching within the document.</label>
             <default>info</default>
         </entry>
         <entry name="previewVisible" type="Bool">

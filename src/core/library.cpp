@@ -473,6 +473,7 @@ QString Library::switchDatabase(const QString &dir, bool create)
     m_ruleRuns.clear();
     m_scriptReports.clear();
     Q_EMIT databaseAboutToChange();
+    ++m_databaseTicket;
     DatabaseFolder::release(previous);
     Database::closeConnection();
     Paths::setDatabaseDir(target);
@@ -535,8 +536,7 @@ void Library::start(bool rescan)
     m_indexer->processOcrQueue();
     // Documents that are only here for work of the user's which has since gone, and the space
     // that removed documents left behind. After the scans, which may remove more.
-    dropAbandoned();
-    tidyIfDue();
+    dropAbandonedLater();
 }
 
 bool Library::isBusy() const
@@ -622,13 +622,9 @@ void Library::touchDocument(qint64 id)
 // ---------------------------------------------------------------------------------------------
 // Indexed locations
 
-QVariantList Library::sources() const
+QVariantList Library::sources(bool counted) const
 {
-    QHash<qint64, int> counts;
-    QSqlQuery countQuery = Database::exec(u"SELECT source_id, COUNT(*) FROM documents WHERE trashed = 0 AND parent_id = 0 GROUP BY source_id"_s);
-    while (countQuery.next()) {
-        counts.insert(countQuery.value(0).toLongLong(), countQuery.value(1).toInt());
-    }
+    const QHash<qint64, int> counts = counted ? Store::sourceCounts() : QHash<qint64, int>();
 
     QVariantList result;
     const QList<Source> all = Store::sources();
@@ -755,15 +751,36 @@ void Library::tidyIfDue()
     }
 }
 
+void Library::dropAbandonedLater()
+{
+    m_countPool.start([this, database = m_databaseTicket] {
+        // With a connection of its own, for this once: the thread is the pool's, and what
+        // it keeps open would be in the way when another database is switched to.
+        const bool any = Store::hasAbandonedCandidates();
+        Database::closeConnection();
+        QMetaObject::invokeMethod(
+            this,
+            [this, database, any] {
+                if (database != m_databaseTicket || !Database::isOpen()) {
+                    return; // another database by now
+                }
+                if (any) {
+                    // By now the list of documents is in memory, and this is quick.
+                    dropAbandoned();
+                }
+                tidyIfDue();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
 void Library::dropAbandoned()
 {
     // Only documents that are here for the user's work alone can be abandoned: those whose
     // file is gone and those left over from a location that is no longer indexed. There are
     // few of them, so looking at all is cheap.
     QList<Document> candidates;
-    // What is in the trash stays there until the trash is emptied.
-    QSqlQuery query =
-        Database::exec(u"SELECT %1 FROM documents d WHERE (d.missing <> 0 OR d.leftover = 1) AND d.owned = 0 AND d.trashed = 0"_s.arg(Store::documentColumns()));
+    QSqlQuery query = Database::exec(u"SELECT %1 FROM documents d WHERE %2"_s.arg(Store::documentColumns(), Store::abandonedCondition()));
     while (query.next()) {
         candidates.append(Store::readDocument(query));
     }
@@ -1166,15 +1183,7 @@ QVariantMap Library::documentInfo(qint64 id) const
 
 int Library::count(const QString &queryText) const
 {
-    const SearchQuery query(queryText);
-    QString sql = u"SELECT COUNT(*) FROM documents d WHERE "_s + query.where();
-    if (!query.includesTrash()) {
-        sql += " AND d.trashed = 0"_L1;
-    }
-    if (!query.reachesInside()) {
-        sql += " AND d.parent_id = 0"_L1;
-    }
-    return Database::value(sql, query.binds()).toInt();
+    return Store::count(queryText);
 }
 
 QString Library::contentPath(qint64 id) const
@@ -2017,24 +2026,54 @@ QVariantList Library::savedSearches() const
     return result;
 }
 
-qint64 Library::saveSearch(qint64 id, const QString &name, const QString &query)
+// Where the filters of a saved search are kept: with the single values of the database, as
+// the columns of a view are, so that the table of searches is the one older versions know.
+static QString searchFiltersKey(qint64 id)
+{
+    return u"search-filters:%1"_s.arg(id);
+}
+
+qint64 Library::saveSearch(qint64 id, const QString &name, const QString &query, const QVariantList &filters)
 {
     const QString trimmed = name.simplified();
-    if (trimmed.isEmpty() || query.trimmed().isEmpty()) {
+    const QString text = query.trimmed();
+    if (trimmed.isEmpty() || text.isEmpty()) {
         return 0;
     }
+    Transaction transaction;
     if (id > 0) {
-        Database::exec(u"UPDATE searches SET name = ?, query = ? WHERE id = ?"_s, {trimmed, query.trimmed(), id});
+        Database::exec(u"UPDATE searches SET name = ?, query = ? WHERE id = ?"_s, {trimmed, text, id});
     } else {
-        id = Database::exec(u"INSERT INTO searches (name, query) VALUES (?, ?)"_s, {trimmed, query.trimmed()}).lastInsertId().toLongLong();
+        id = Database::exec(u"INSERT INTO searches (name, query) VALUES (?, ?)"_s, {trimmed, text}).lastInsertId().toLongLong();
     }
+    if (filters.isEmpty()) {
+        Database::exec(u"DELETE FROM meta WHERE key = ?"_s, {searchFiltersKey(id)});
+    } else {
+        // With the query they come to: whoever changes the query alone leaves them behind,
+        // and they are not taken for it then.
+        const QJsonObject stored{{u"query"_s, text}, {u"filters"_s, QJsonArray::fromVariantList(filters)}};
+        Database::exec(u"INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)"_s,
+                       {searchFiltersKey(id), QString::fromUtf8(QJsonDocument(stored).toJson(QJsonDocument::Compact))});
+    }
+    transaction.commit();
     touch();
     return id;
+}
+
+QVariantList Library::savedSearchFilters(qint64 id) const
+{
+    const QJsonObject stored = QJsonDocument::fromJson(Database::value(u"SELECT value FROM meta WHERE key = ?"_s, {searchFiltersKey(id)}).toString().toUtf8()).object();
+    const QString query = Database::value(u"SELECT query FROM searches WHERE id = ?"_s, {id}).toString();
+    if (stored.isEmpty() || stored.value(u"query"_s).toString() != query) {
+        return {};
+    }
+    return stored.value(u"filters"_s).toArray().toVariantList();
 }
 
 void Library::deleteSearch(qint64 id)
 {
     Database::exec(u"DELETE FROM searches WHERE id = ?"_s, {id});
+    Database::exec(u"DELETE FROM meta WHERE key = ?"_s, {searchFiltersKey(id)});
     pruneViewColumns();
     touch();
 }

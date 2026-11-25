@@ -274,6 +274,18 @@ private Q_SLOTS:
         QCOMPARE(sources.size(), 1);
         QCOMPARE(sources.first().toMap().value(u"count"_s).toInt(), 7);
         QVERIFY(sources.first().toMap().value(u"available"_s).toBool());
+
+        // What the sidebar asks for from another thread: the same numbers, by themselves,
+        // and the locations without them.
+        QCOMPARE(Store::count(QString()), 7);
+        QCOMPARE(Store::count(u"pineapple OR zeppelin"_s), 2);
+        QCOMPARE(Store::sourceCounts().value(source), 7);
+        const QVariantList uncounted = m_library->sources(false);
+        QCOMPARE(uncounted.size(), 1);
+        QCOMPARE(uncounted.first().toMap().value(u"count"_s).toInt(), 0);
+        QCOMPARE(uncounted.first().toMap().value(u"id"_s).toLongLong(), source);
+        // Nothing here is kept for the user's work alone.
+        QVERIFY(!Store::hasAbandonedCandidates());
     }
 
     void tagsAndGroups()
@@ -370,6 +382,8 @@ private Q_SLOTS:
         QVERIFY(!Store::document(groceries).trashed);
         QCOMPARE(m_library->count(u"is:missing"_s), 1);
         QCOMPARE(m_library->count(u"pineapple"_s), 1); // still searchable
+        // It is one of those that are looked at again whenever work of the user's goes.
+        QVERIFY(Store::hasAbandonedCandidates());
         m_library->rescanAll();
         settle();
         QVERIFY(!Store::document(groceries).trashed);
@@ -1239,8 +1253,31 @@ def process(document):
         QCOMPARE(m_library->savedSearches().size(), 1);
         QCOMPARE(m_library->saveSearch(id, u"PDFs"_s, u"kind:pdf"_s), id);
         QCOMPARE(m_library->savedSearches().first().toMap().value(u"name"_s).toString(), u"PDFs"_s);
+        // Saved as words alone, it has no filters to be changed by.
+        QVERIFY(m_library->savedSearchFilters(id).isEmpty());
+
+        // What the search was put together from is kept with it ...
+        const QVariantList filters = {
+            QVariantMap{{u"type"_s, u"kind"_s}, {u"label"_s, u"PDF documents"_s}, {u"query"_s, u"kind:pdf"_s}},
+            QVariantMap{{u"type"_s, u"words"_s}, {u"label"_s, u"Search: turbines"_s}, {u"query"_s, u"turbines"_s}, {u"data"_s, QVariantMap{{u"text"_s, u"turbines"_s}}}},
+        };
+        QCOMPARE(m_library->saveSearch(id, u"PDFs"_s, u"kind:pdf turbines"_s, filters), id);
+        const QVariantList kept = m_library->savedSearchFilters(id);
+        QCOMPARE(kept.size(), 2);
+        QCOMPARE(kept.at(0).toMap().value(u"query"_s).toString(), u"kind:pdf"_s);
+        QCOMPARE(kept.at(1).toMap().value(u"data"_s).toMap().value(u"text"_s).toString(), u"turbines"_s);
+        QCOMPARE(m_library->count(m_library->savedSearches().first().toMap().value(u"query"_s).toString()), 1);
+        // ... and is not taken for a query that was changed without it, as an older Indeks would.
+        Database::exec(u"UPDATE searches SET query = 'kind:pdf' WHERE id = ?"_s, {id});
+        QVERIFY(m_library->savedSearchFilters(id).isEmpty());
+        // Stored without filters, none are left behind either.
+        QCOMPARE(m_library->saveSearch(id, u"PDFs"_s, u"kind:pdf turbines"_s), id);
+        QVERIFY(m_library->savedSearchFilters(id).isEmpty());
+
+        QCOMPARE(m_library->saveSearch(id, u"PDFs"_s, u"kind:pdf"_s, filters.mid(0, 1)), id);
         m_library->deleteSearch(id);
         QVERIFY(m_library->savedSearches().isEmpty());
+        QVERIFY(Database::value(u"SELECT COUNT(*) FROM meta WHERE key LIKE 'search-filters:%'"_s).toInt() == 0);
     }
 
     void trashedDocumentsStayAway()

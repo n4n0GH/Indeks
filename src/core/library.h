@@ -109,7 +109,11 @@ public:
     int indexDefaultJobs() const;
 
     // Indexed locations
-    Q_INVOKABLE QVariantList sources() const;
+    /**
+     * The indexed locations. Counting their documents goes through the list of all
+     * documents; whoever does not show the numbers, or gets them elsewhere, passes false.
+     */
+    Q_INVOKABLE QVariantList sources(bool counted = true) const;
     Q_INVOKABLE qint64 addSource(const QUrl &url, const QString &name = QString(), bool recursive = true);
     Q_INVOKABLE void removeSource(qint64 id);
     Q_INVOKABLE void rescanSource(qint64 id);
@@ -256,7 +260,17 @@ public:
     // Saved searches
     Q_INVOKABLE QVariantList savedSearches() const;
     /** Creates the search if @p id is 0. */
-    Q_INVOKABLE qint64 saveSearch(qint64 id, const QString &name, const QString &query);
+    /**
+     * Stores a search under @p name; @p id 0 for a new one. @p filters is what the query was
+     * put together from in the editor (see FilterStack in the application), kept so that
+     * the search can be changed the way it was made. Returns the id, 0 if nothing was stored.
+     */
+    Q_INVOKABLE qint64 saveSearch(qint64 id, const QString &name, const QString &query, const QVariantList &filters = {});
+    /**
+     * The filters a saved search was put together from. Empty if there are none, or if its
+     * query has been changed since by something that does not know of them.
+     */
+    Q_INVOKABLE QVariantList savedSearchFilters(qint64 id) const;
     Q_INVOKABLE void deleteSearch(qint64 id);
 
     // Rules
@@ -438,6 +452,12 @@ private:
      * gone. To be called after anything that takes notes, drawings, tags and the like away.
      */
     void dropAbandoned();
+    /**
+     * The same, without holding anything up: whether there is anything to look at is found
+     * out in the background first. For the start, when nothing of the index is in memory
+     * yet and going through all documents takes seconds in a large one.
+     */
+    void dropAbandonedLater();
     /** Has the indexer reclaim space in the index file if enough of it is unused. */
     void tidyIfDue();
     void touch();
@@ -483,9 +503,12 @@ private:
     QThreadPool m_renditionPool;
     /** Calls off renditions and counting alike. */
     std::atomic_bool m_renditionAbort = false;
-    // Counting the records of large JSON Lines files, likewise.
+    // Counting the records of large JSON Lines files, likewise, and looking through the
+    // index at start (dropAbandonedLater()).
     QThreadPool m_countPool;
     std::atomic<quint64> m_countTicket = 0;
+    /** Goes up with every change of database: what was found in another one does not count. */
+    quint64 m_databaseTicket = 0;
     bool m_renditionRunning = false;
     RenditionRequest m_renditionWaiting; ///< the newest request while another one is being made
     bool m_started = false;

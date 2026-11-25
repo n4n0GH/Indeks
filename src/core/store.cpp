@@ -7,6 +7,7 @@
 #include "mailbox.h"
 #include "maintenance.h"
 #include "paths.h"
+#include "searchquery.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -309,6 +310,40 @@ void fileReturned(qint64 id)
     if (Database::value(u"SELECT missing FROM documents WHERE id = ?"_s, {id}).toInt() == 2) {
         Database::exec(u"UPDATE documents SET trashed = 0 WHERE (id = ? OR parent_id = ?) AND trashed = 1"_s, {id, id});
     }
+}
+
+int count(const QString &queryText)
+{
+    const SearchQuery query(queryText);
+    QString sql = u"SELECT COUNT(*) FROM documents d WHERE "_s + query.where();
+    if (!query.includesTrash()) {
+        sql += " AND d.trashed = 0"_L1;
+    }
+    if (!query.reachesInside()) {
+        sql += " AND d.parent_id = 0"_L1;
+    }
+    return Database::value(sql, query.binds()).toInt();
+}
+
+QHash<qint64, int> sourceCounts()
+{
+    QHash<qint64, int> counts;
+    QSqlQuery query = Database::exec(u"SELECT source_id, COUNT(*) FROM documents WHERE trashed = 0 AND parent_id = 0 GROUP BY source_id"_s);
+    while (query.next()) {
+        counts.insert(query.value(0).toLongLong(), query.value(1).toInt());
+    }
+    return counts;
+}
+
+QString abandonedCondition()
+{
+    // What is in the trash stays there until the trash is emptied.
+    return u"(d.missing <> 0 OR d.leftover = 1) AND d.owned = 0 AND d.trashed = 0"_s;
+}
+
+bool hasAbandonedCandidates()
+{
+    return Database::value(u"SELECT EXISTS(SELECT 1 FROM documents d WHERE %1)"_s.arg(abandonedCondition())).toBool();
 }
 
 QString idList(const QList<qint64> &ids)

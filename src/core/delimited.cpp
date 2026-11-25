@@ -285,4 +285,22 @@ std::pair<int, int> DelimitedTable::find(const QStringList &terms, int fromRow) 
     return {-1, -1};
 }
 
+QList<std::pair<int, int>> DelimitedTable::findAll(const QString &text, int fromRow, int limit) const
+{
+    QList<std::pair<int, int>> cells;
+    if (text.isEmpty()) {
+        return cells;
+    }
+    for (int row = qMax(0, fromRow); row < rowCount() && cells.size() < limit; ++row) {
+        const quint32 first = m_rows.at(row);
+        const quint32 count = m_rows.at(row + 1) - first;
+        for (quint32 column = 0; column < count && cells.size() < limit; ++column) {
+            const Cell &cell = m_cells.at(first + column);
+            if (QStringView(m_text).mid(cell.start, cell.length).contains(text, Qt::CaseInsensitive)) {
+                cells.append({row, int(column)});
+            }
+        }
+    }
+    return cells;
+}
 }

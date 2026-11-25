@@ -42,7 +42,7 @@ Item {
     property string savedSnapshot
     readonly property bool dirty: loaded && snapshot !== savedSnapshot
     /** How many documents the conditions find at the moment; -1 while that is not known. */
-    readonly property int matchCount: matches.countable ? matches.count : -1
+    readonly property int matchCount: matches.matches
     readonly property bool complete: name.length > 0 && stack.query.trim().length > 0 && actionModel.count > 0
     readonly property bool canSave: complete && (dirty || ruleId === 0)
 
@@ -318,36 +318,12 @@ Item {
                 emptyChoices: true
                 hint: i18nc("@info", "Nothing yet. Add what a document has to match.")
             }
-            QQC2.Label {
+            MatchCount {
                 id: matches
 
-                // How many documents the conditions find at the moment. Looked up a moment after
-                // they change; not at all with a word of one or two letters among them, which
-                // takes seconds in a large index.
-                property int count: -1
-                readonly property bool countable: stack.query.trim().length > 0
-                    && !stack.filters.some(filter => (filter.type === "words" || filter.type === "content")
-                                                     && (filter.data?.text ?? "").split(/\s+/).some(word => word.replace(/"/g, "").length < 3))
-
                 Layout.fillWidth: true
-                visible: count >= 0 && countable
-                font: Kirigami.Theme.smallFont
-                color: Kirigami.Theme.disabledTextColor
-                text: i18ncp("@info", "%1 document matches at the moment.", "%1 documents match at the moment.", Math.max(0, count))
-
-                Connections {
-                    target: stack
-                    function onQueryChanged(): void {
-                        matches.count = -1;
-                        counter.restart();
-                    }
-                }
-                Timer {
-                    id: counter
-
-                    interval: Kirigami.Units.humanMoment / 8
-                    onTriggered: matches.count = matches.countable && root.visible ? App.library.count(stack.query) : -1
-                }
+                filterStack: stack
+                active: root.visible
             }
 
             // ------------------------------------------------------------------- the actions

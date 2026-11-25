@@ -29,7 +29,70 @@ Item {
     readonly property real cellPadding: Math.round(Kirigami.Units.smallSpacing * 1.5)
     readonly property real rowHeight: Math.ceil(metrics.height + Kirigami.Units.smallSpacing * 2)
     readonly property color gridColor: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, Kirigami.Theme.frameContrast)
-    readonly property list<string> wanted: searchTerms.map(term => term.toLowerCase()).filter(term => term.length > 0)
+    // The cells that are marked: those with what is searched for within this document, or,
+    // while nothing is, those with a word the list of documents was searched for.
+    readonly property list<string> wanted: findText.length > 0 ? [findText.toLowerCase()] : searchTerms.map(term => term.toLowerCase()).filter(term => term.length > 0)
+
+    // ------------------------------------------------------------ searching within the table
+    // What the preview asks of a view that can be searched; see PreviewPane.
+
+    property string findText
+    // The cells that hold the text: points with the column as x and the row as y.
+    property var findCells: []
+    readonly property int findCount: findCells.length
+    property bool findMore: false
+    property int findIndex: -1
+    readonly property int findMost: 5000
+
+    function runFind(): void {
+        findIndex = -1;
+        if (findText.length === 0 || tableModel.loading) {
+            findCells = [];
+            findMore = false;
+            return;
+        }
+        const cells = tableModel.findAll(findText, findMost + 1);
+        findMore = cells.length > findMost;
+        findCells = findMore ? cells.slice(0, findMost) : cells;
+    }
+
+    function findHit(at: int): var {
+        if (at < 0 || at >= findCells.length) {
+            return ({});
+        }
+        // The row by the number it has at the left of the table, which is its line in the file.
+        const cell = findCells[at];
+        const text = tableModel.cellText(cell.y, cell.x);
+        const position = Math.max(0, text.toLowerCase().indexOf(findText.toLowerCase()));
+        return {
+            label: i18nc("@info a cell of a table: number of the row, name of the column", "Row %1, %2", tableModel.headerData(cell.y, Qt.Vertical), tableModel.columnName(cell.x)),
+            before: text.slice(Math.max(0, position - 40), position).replace(/\s+/g, " "),
+            match: text.slice(position, position + findText.length),
+            after: text.slice(position + findText.length, position + findText.length + 80).replace(/\s+/g, " ")
+        };
+    }
+
+    function showHit(at: int): void {
+        if (at < 0 || at >= findCells.length) {
+            return;
+        }
+        findIndex = at;
+        const cell = findCells[at];
+        view.positionViewAtCell(cell, TableView.AlignVCenter | TableView.AlignLeft);
+        selection.setCurrentIndex(tableModel.index(cell.y, cell.x), ItemSelectionModel.NoUpdate);
+    }
+
+    onFindTextChanged: runFind()
+
+    Connections {
+        target: tableModel
+        function onLoadingChanged(): void {
+            root.runFind();
+        }
+        function onLayoutReset(): void {
+            root.runFind();
+        }
+    }
 
     // Columns start out as wide as what their first rows hold, within reason; dragging the
     // line between two column names changes that.

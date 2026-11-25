@@ -64,8 +64,9 @@ does the work. It is built as three programs and one library.
 | --- | --- | --- |
 | `App` | `app.*` | The application object (`AbstractKirigamiApplication`). Defines every action, keeps the settings in step, and is what QML reaches as `App`. |
 | `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. There are two: `App.documents` is the list in the window, and `App.linkCandidates` is what the dialog for linked documents finds for what is typed there. The second is switched off (`active`) while that dialog is closed, so that it reads nothing. A dialog that lets the user pick documents by searching can use it the same way, one dialog at a time. |
-| `SearchWorker` | `searchworker.*` | Runs full text searches in a thread of their own, so that typing is never held up. |
-| `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. |
+| `SearchWorker` | `searchworker.*` | Reads every list of `DocumentModel`, and runs full text searches, in a thread of its own, so that neither a click in the sidebar nor typing is held up. |
+| `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. The entries are listed at once; the numbers come from `CountWorker`. |
+| `CountWorker` | `countworker.*` | Counts the documents behind sidebar entries in a thread of its own. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
 | `Welcome` | `welcome.*` | What a new installation is asked before anything is made: start a new database, and where, or open one that exists. Runs in `main()` before there is an `App`, with `WelcomeWindow.qml`, and notes the choice in the settings. |
 | `DatabaseChoice` | `databasechoice.*` | What may be chosen as a database and what is said about a choice, for `App` and `Welcome` alike. |
@@ -110,6 +111,105 @@ flatpak-builder --run build-flatpak flatpak/io.github.n4n0gh.indeks.yml indeks
 
 A script that tags what it finds shows whether the sandbox holds: whether it can read the
 document, write to it, reach the network, and how many variables it has.
+
+## Opening a database
+
+Nothing of an index that was just opened is in memory, and whoever goes through the table
+of documents first waits for the disk: seconds, in an index of some hundred thousand
+documents. Counting goes through it even when it is in memory, about a second for the
+numbers of the sidebar in an index of that size. None of this may happen in the main
+thread, or the window comes up late and stands still after every change.
+
+| What | Where it runs | Notes |
+| --- | --- | --- |
+| The numbers of the sidebar | `CountWorker`, the count thread | `SidebarModel::reload()` lists the entries at once (`rebuild()`) and asks for the numbers (`requestCounts()`); an entry shows the number it had until the new one is there. One round runs at a time, and after a round the next waits as long as the round took (five seconds at most), so that indexing does not keep a processor counting. The locations are counted in one statement (`Store::sourceCounts()`). |
+| Every list of documents | `SearchWorker`, the search thread | See *Lists of documents* below. |
+| Documents kept only for the user's work | the pool thread of `Library` | `Library::start()` calls `dropAbandonedLater()`: whether there is anything to look at (`Store::hasAbandonedCandidates()`) is found out in the background, and only then `dropAbandoned()` runs in the main thread, with the table in memory by then. |
+
+- **`App.opening`** is true from the start, and again from `Library::databaseAboutToChange`,
+  until the list (`DocumentModel::opening`) and the numbers (`SidebarModel::opening`) of the
+  open database are there. `ActivityIndicator` says *Opening database…* while it is, before
+  anything the library reports.
+- **Switching** empties the list at `databaseAboutToChange` (`DocumentModel::clear()`): its
+  rows belong to the database that is left, and the rows of the other one take a moment.
+  The numbers are dropped with them, and both threads close their connection.
+- **Numbers are a moment behind.** Nothing may rely on a number of the sidebar being exact
+  right after a change. *Empty Trash…* is enabled by the number of the trash
+  (`SidebarModel::countOf()`), instead of counting with every change of the selection.
+- **What still walks the table in the main thread:** `Library::count()` where a dialog
+  asks for one number, `Library::sources()` with its counts in the settings, the counts of
+  groups and tags (through their own tables), and `dropAbandoned()` after the user took
+  something away. They are quick once the index is in memory. A new one of these does not
+  belong into anything that runs at start.
+
+To see what a start costs, copy a large index with `cp --reflink=always` into a data folder
+of its own (see [development.md](development.md)), on a file system that can do that, such
+as Btrfs or XFS: the copy shares the blocks on the disk, but nothing of it is in memory, so
+its first start is a cold one, every time.
+
+## Lists of documents
+
+`DocumentModel::load()` never reads a list itself: the query goes to the search thread,
+whatever it is. A list of the documents alone (a place, a tag, a filter on what is known
+about a document) is a walk through all of them, a quarter of a second for 20,000 rows of
+some hundred thousand documents and a second for the duplicates among them.
+
+- **Most lists are there at once.** After asking, `load()` waits `QuickAnswerMs` for the
+  answer (`SearchHandover`), and a list that arrives in that time is shown before `load()`
+  returns: whoever asked finds the list read, as when the model read it itself. In a
+  database of ordinary size that is every list. Not waited for are searches through the
+  text, and the first list of a database (`opening`).
+- **A list that takes longer** comes with `SearchWorker::found()`. The model says `loading`
+  meanwhile, the list dims what it shows, and after a moment `ActivityIndicator` says
+  *Listing documents…* or *Searching…*.
+- **Code must not count on the list being read** when `load()`, `setScope()` or `reload()`
+  return. `selectId()` of a document that is not listed yet is remembered and done when the
+  list arrives (`m_wantedId`); `PreviewPane.editOnceShown()` does the same for a new
+  document that is to be written in.
+- **Changes to the index do not restart a list that is on its way** (that would put it off
+  for as long as documents come in): the list is read once more when it is there
+  (`m_refreshWanted`). Such a refresh, and every other one after a change, is `quiet`:
+  `loading` stays false, nothing dims and nothing is said.
+
+## Searching within a document
+
+The *Find* tab of the side panel (`FindPane`) searches the document that is shown in the
+preview. The panel only asks and shows: it sets `PreviewPane.findText` and reads
+`findCount`, `findIndex` and `findHit()`. The finding is the viewer's, since only the
+viewer knows what it shows and how to mark it. A viewer that can be searched offers:
+
+| Member | Meaning |
+| --- | --- |
+| `findable` | Whether it can be searched right now. |
+| `findText` | What to find; set by `PreviewPane` with a `Binding`. |
+| `findCount`, `findMore` | How many places were found; whether there are more than were counted. |
+| `findIndex` | The hit the reader was brought to last, -1 for none. A new search sets it back to -1, upon which `PreviewPane` goes to the first hit. |
+| `findHit(i)` | What the list says about hit `i`: `label` (page, line or cell) and `before`, `match`, `after`. Asked for line by line, as the list scrolls. |
+| `showHit(i)` | Brings hit `i` into view. |
+
+| Viewer | How |
+| --- | --- |
+| `TextPreview`, text as it is in the file | The places are found in `sourceText`, the whole text; `CodeView` marks those among the lines it holds (`marks`) and `select()` goes to one, fetching its lines first. |
+| `TextPreview`, rendered text; `EmailPreview`; the text Indeks stored | `TextFind`, a child of the `TextArea`: searches the text as it reads on screen. |
+| `DataTable` | `TableModel::findAll()`; the cells that hold the text are coloured. |
+| `PdfPreview`, also for Office documents | Qt's `PdfSearchModel`, which goes through the pages in the background, so that hits come in as it goes. What it knows of a hit is read with `data()` and the roles of `QPdfSearchModel::Role`. |
+
+`FindMarks` draws the marks over a `TextEdit`, for the stretch that is in view only. The
+search is not case sensitive and is not asked for while a text is being edited. The marks
+go when the *Find* tab is left: `SidePanel.findText` is empty then. Selecting another
+document empties the field (`FindPane`).
+
+## Filters put together by hand
+
+`FilterStack` is the list of filters with its *Add Filter* menu; what they come to is its
+`query`. Three places use it: the filter bar (`AdvancedSearchPanel`, as chips), the
+conditions of a rule (`RuleEditor`) and a saved search (`SearchDialog`), the latter two as
+lines with `MatchCount` below, which says how many documents the filters find.
+
+Rules and saved searches store the filters beside the query, so that they can be changed
+the way they were made. For a query that has none, `FilterStack.filtersOf()` takes it apart
+term by term into the filters the menu would have made, and leaves the rest, or a query with
+`OR` or an exclusion as a whole, as one *Search* filter.
 
 ## Documents or automation
 
@@ -167,7 +267,11 @@ needs the same care, or only new installations get it.
   interface triggers.
 - **Indexing thread:** scanning and storing. It only holds the database for writing in short
   batches, because the main thread writes too.
-- **Search thread:** full text searches of `DocumentModel`.
+- **Search thread:** every list of `DocumentModel` and its full text searches.
+- **Count thread:** the numbers of the sidebar (`CountWorker`).
+- **Pool threads of `Library`:** PDF renditions of Office documents, counting the records
+  of large JSON Lines files, and the look through the index at start. What uses the index
+  there closes its connection when it is done: the thread is the pool's.
 - **Script thread:** `ScriptHost`.
 - **Helper processes:** `indeks-extractor` (several), `tesseract` (several), `soffice`,
   `python3` inside `bwrap`. A helper that crashes or hangs is replaced; the file it was at is

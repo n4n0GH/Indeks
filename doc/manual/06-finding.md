@@ -80,8 +80,21 @@ The filters add to what is typed in the search field. Closing the bar removes al
 *Save Search…* (`Ctrl+Shift+S`) keeps the current search, with its filters, under a name. It
 appears under *Saved Searches* in the sidebar and always shows what matches at the moment.
 
-To change a saved search, right-click it and choose *Edit…*. *Delete…* removes it; the
-documents it found are not affected.
+The dialog lists what the search is made of, one filter to a line, the way the conditions of
+a rule are listed: the place that is selected in the sidebar, what is typed in the search
+field, and each filter of the filter bar.
+
+- **Add Filter** offers the filters of the filter bar, and *Search Words…* for words as you
+  would type them into the search field, search terms included.
+- **The pencil** on a line changes a filter that was typed in; **the cross** takes a line
+  off.
+- **Below the list** stands how many documents the filters find at the moment.
+
+To change a saved search, right-click it and choose *Edit…*, or select it and choose *Edit
+Selected Sidebar Entry…*. The same dialog opens with the filters the search was saved with. A search from an earlier
+version of Indeks is taken apart into filters as far as that goes; what is left over, and a
+search that uses `OR` or excludes something with a minus, stands in one *Search* line and is
+changed as text. *Delete…* removes a saved search; the documents it found are not affected.
 
 ## Smart groups
 
@@ -98,3 +111,24 @@ The smart groups in the sidebar are searches that come with Indeks:
 
 Coming from a search, the preview marks the search words in the document and opens at the
 first hit: in text, on the pages of a PDF and in the cells of a table.
+
+To look for something else in the document that is shown, choose *Find in Document…*
+(`Ctrl+D`), or click the magnifying glass at the top of the side panel. This is the *Find*
+tab of that panel:
+
+![The Find tab: the places a word stands at in a PDF, marked in the document and listed beside it](images/find.png)
+
+- **Type what to find.** It is looked for as you type, whatever its case, and the preview
+  goes to the first place it stands at. All places are marked in the document.
+- **Step through the places** with `Enter` and `Shift+Enter` in the field, with the arrows
+  beside the number of places, or with `F3` and `Shift+F3` from anywhere in the window. After
+  the last place comes the first again.
+- **The list below** names the places with the words around them, and the page, line or
+  cell each is at. A click goes there. It lists the first 300; the arrows reach all.
+- **Another document** you select starts with an empty field: the search is for the
+  document it was typed for.
+
+Text, Markdown and HTML, tables, PDF documents, Office documents and e-mails can be
+searched this way; in an e-mail, the text of the message is. Pictures, canvases and websites
+have no text in the preview to search. A text cannot be searched while you are editing it.
+The marks go away when you leave the *Find* tab.

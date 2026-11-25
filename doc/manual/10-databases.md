@@ -43,7 +43,8 @@ are.
 
 One database is open at a time. The button at the bottom of the sidebar says which.
 
-- **Switching:** Click the button and choose another database.
+- **Switching:** Click the button and choose another database. While its documents and the
+  numbers in the sidebar are being read, the activity display says *Opening database…*.
 - **Adding:** *Add → Add Database…* opens a database that exists. See *Adding a database*
   below.
 - **Starting a new one:** *Add → New Database…*. See *Starting a new database* below.

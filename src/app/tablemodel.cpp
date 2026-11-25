@@ -213,4 +213,19 @@ QPoint TableModel::find(const QStringList &terms) const
     return row < 0 ? QPoint(-1, -1) : QPoint(column, row - first);
 }
 
+QVariantList TableModel::findAll(const QString &text, int limit) const
+{
+    QVariantList cells;
+    if (!m_table) {
+        return cells;
+    }
+    const int first = m_headerRow ? 1 : 0;
+    const auto found = m_table->findAll(text, first, limit);
+    cells.reserve(found.size());
+    for (const auto &[row, column] : found) {
+        cells.append(QPoint(column, row - first));
+    }
+    return cells;
+}
+
 #include "moc_tablemodel.cpp"

@@ -61,11 +61,11 @@ step, in one transaction. A database from a newer Indeks is refused.
 | `tags`, `document_tags` | Tags and which documents have them. |
 | `folders`, `document_folders` | Groups (called folders here for historical reasons), nested through `parent_id`, and which documents are in them. |
 | `document_links` | Links between documents. A link has no direction: each pair is one row, with the lower id in `a_id` and the higher in `b_id` (a `CHECK` sees to it), so a pair cannot be there twice. Asking for the links of a document means looking at both columns. |
-| `searches` | Saved searches: name and query. |
+| `searches` | Saved searches: name and query. The filters a search was put together from are in `meta`. |
 | `rules` | Rules: name, the compiled query, the filters and actions as JSON, whether active and whether run on import. |
 | `annotations` | Notes (`kind = 'note'`) and drawings (`kind = 'ink'`), per document and page. `x`, `y`: where a sticky note stands, as shares of the page; -1 for none. |
 | `todos` | The to-do list: text, linked document (0 for none), deadline as `2026-11-30` or empty, done. |
-| `meta` | Single values of the database itself: its folder, counters for maintenance, and the columns chosen for each view (`columns:<view key>`). |
+| `meta` | Single values of the database itself: its folder, counters for maintenance, the columns chosen for each view (`columns:<view key>`), and the filters of each saved search (`search-filters:<id>`: JSON with the `filters` of the editor and the `query` they come to). They are kept here so that the table of searches stays the one older versions know; filters whose `query` is no longer the search's are not used (`Library::savedSearchFilters()`). |
 
 ### documents
 

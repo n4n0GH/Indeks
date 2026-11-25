@@ -105,6 +105,8 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Ctrl+0` | Reset the zoom |
 | `Ctrl` + mouse wheel | Zoom |
 | `Ctrl+U` | Show unformatted, or view raw |
+| `Ctrl+D` | Find in the document |
+| `F3`, `Shift+F3` | To the next and the previous place found in the document |
 | `Ctrl+Enter` | Put away a sticky note or add a note that is being written |
 
 ## Commands
@@ -163,6 +165,10 @@ Every command is in the command bar. This list says what each one does.
 - **Preview Beside the List:** Puts the preview to the right of the list instead of below
   it, or back.
 - **Show Document Information**, **Show To-Do List:** Switch the tab of the side panel.
+- **Find in Document…:** Opens the *Find* tab of the side panel, for searching within the
+  document that is shown. See *Finding → Finding inside a document*.
+- **Find Next in Document**, **Find Previous in Document:** Go to the next or the previous
+  place the text was found at.
 - **Choose List Columns and Row Height…:** Opens the column menu.
 - **Zoom In**, **Zoom Out**, **Reset Zoom:** Change the size of the preview.
 - **Show Unformatted:** Shows the document as it is in the file.

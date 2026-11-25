@@ -106,6 +106,9 @@ Item {
     }
     readonly property Kirigami.Action showInfo: Wrapped { name: "view_info" }
     readonly property Kirigami.Action showTodos: Wrapped { name: "view_todos" }
+    readonly property Kirigami.Action find: Wrapped { name: "doc_find" }
+    readonly property Kirigami.Action findNext: Wrapped { name: "find_next" }
+    readonly property Kirigami.Action findPrevious: Wrapped { name: "find_previous" }
     readonly property Kirigami.Action activity: Wrapped { name: "view_activity" }
     readonly property Kirigami.Action listColumns: Wrapped { name: "view_columns" }
     readonly property Kirigami.Action zoomIn: Wrapped { name: "view_zoom_in" }

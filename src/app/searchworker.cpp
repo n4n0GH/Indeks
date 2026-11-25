@@ -21,8 +21,9 @@ namespace
 constexpr int ExcerptPortionMs = 60;
 }
 
-SearchWorker::SearchWorker(const SearchTickets *tickets)
+SearchWorker::SearchWorker(const SearchTickets *tickets, SearchHandover *handover)
     : m_tickets(tickets)
+    , m_handover(handover)
 {
 }
 
@@ -81,6 +82,17 @@ void SearchWorker::search(quint64 ticket, const QString &sql, const QVariantList
     }
     bool truncated = false;
     const QList<DocumentRow> rows = fetch(sql, binds, maxRows, &truncated);
+    {
+        // If the model is still waiting for this very list, it takes it from here.
+        QMutexLocker locker(&m_handover->mutex);
+        if (m_handover->awaited == ticket) {
+            m_handover->rows = rows;
+            m_handover->truncated = truncated;
+            m_handover->there = true;
+            m_handover->arrived.wakeAll();
+            return;
+        }
+    }
     Q_EMIT found(ticket, rows, truncated);
 }
 

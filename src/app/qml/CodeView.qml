@@ -75,6 +75,13 @@ Item {
     // Texts up to this length go into the TextEdit whole; they are quick enough that way.
     readonly property int wholeLimit: 50000
 
+    /**
+     * Places to mark in the text, as a search within the document found them: where each
+     * begins, counted in the whole text and in ascending order, and how long they are.
+     */
+    property var marks: []
+    property int markLength: 0
+
     signal saveRequested()
     signal escapePressed()
     /** The wheel was turned with Ctrl held: a step larger or smaller is asked for. */
@@ -707,6 +714,23 @@ Item {
                         return;
                     }
                     event.accepted = true;
+                }
+
+                FindMarks {
+                    edit: editor
+                    positions: root.marks
+                    length: root.markLength
+                    // Of what is in view only, counted in the whole text as the marks are.
+                    firstPosition: codeLayout.revision > 0 && root.marks.length > 0 ? codeLayout.sourcePosition(Math.max(0, codeLayout.lineAtY(root.viewTop))) : 0
+                    lastPosition: {
+                        if (codeLayout.revision <= 0 || root.marks.length === 0) {
+                            return 0;
+                        }
+                        const line = codeLayout.lineAtY(root.viewTop + root.viewHeight);
+                        return line < 0 ? 2147483647 : codeLayout.sourcePosition(line) + codeLayout.lineLength(line) + 1;
+                    }
+                    toEdit: position => codeLayout.documentPosition(position)
+                    revision: codeLayout.revision
                 }
 
                 // The line the caret is in, with all its wrapped rows.

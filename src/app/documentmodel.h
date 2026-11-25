@@ -49,6 +49,8 @@ class DocumentModel : public QAbstractListModel
      * was found before. Such searches run in the background; see SearchWorker.
      */
     Q_PROPERTY(bool loading READ isLoading NOTIFY loadingChanged)
+    /** The first list of the database that was just opened is not there yet. */
+    Q_PROPERTY(bool opening READ isOpening NOTIFY openingChanged)
     /**
      * Whether the list has rows that open like folders: mailboxes, whose messages are listed
      * below them when they are opened. Rows then keep room for the arrow that opens them.
@@ -141,9 +143,18 @@ public:
     {
         return m_terms;
     }
+    /**
+     * A list the user asked for is on its way. Not while the list is only read anew because
+     * the index changed: that happens behind what is shown, many times over while documents
+     * come in.
+     */
     bool isLoading() const
     {
-        return m_loading;
+        return m_loading && !m_quiet;
+    }
+    bool isOpening() const
+    {
+        return m_opening;
     }
     bool isTree() const
     {
@@ -206,6 +217,7 @@ Q_SIGNALS:
     void selectionChanged();
     void currentChanged();
     void loadingChanged();
+    void openingChanged();
     void treeChanged();
     void activeChanged();
 
@@ -216,11 +228,17 @@ private:
         Refreshed, ///< the same list, read anew because something in the index changed
         Lingering, ///< the same list once more, with the documents that are kept in it
     };
-    void load(Load load);
+    /** @p quiet for a list nobody asked for: it is read behind what is shown. */
+    void load(Load load, bool quiet = false);
     void apply(const QList<Row> &rows, bool truncated, const QStringList &excerptTerms);
     /** The documents that have just dropped out of the list and are to be kept in it. */
     QSet<qint64> leavers(const QList<Row> &found) const;
     void setLoading(bool loading);
+    void setOpening(bool opening);
+    /** The list that was asked for last is there. */
+    void loaded();
+    /** Nothing is listed any more, and nothing selected. */
+    void clear();
     /** The list's query for the documents that @p where finds, in the order the list is in. */
     QString rowsSql(const QString &where) const;
     QList<Row> partsOf(qint64 id, bool *truncated) const;
@@ -248,11 +266,20 @@ private:
     bool m_active = true;
     QStringList m_terms;
     bool m_loading = false;
+    bool m_quiet = false;
+    // The first list of a database is read in the background whatever it is, see load():
+    // nothing of an index that was just opened is in memory yet.
+    bool m_opening = true;
+    /** The index changed while a list was on its way. */
+    bool m_refreshWanted = false;
+    /** The document to select as soon as the list that is on its way has it. */
+    qint64 m_wantedId = 0;
 
     // Searching in the background
     QThread m_thread;
     SearchWorker *m_worker = nullptr;
     SearchTickets m_tickets;
+    SearchHandover m_handover;
     /** What the passages under the names are looked up with, for the search under way. */
     QStringList m_pendingExcerptTerms;
 

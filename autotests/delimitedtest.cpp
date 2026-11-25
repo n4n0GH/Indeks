@@ -41,6 +41,19 @@ private Q_SLOTS:
         QCOMPARE(table.find({u"helsinki"_s}), std::make_pair(3, 1));
         QCOMPARE(table.find({u"nowhere"_s}), std::make_pair(-1, -1));
         QCOMPARE(table.find({u"London"_s}, 2), std::make_pair(-1, -1));
+
+        // Every cell that holds a text, in the order of the rows: "in" is in Arlington, in
+        // "First line", in Linus and in Helsinki.
+        const QList<std::pair<int, int>> all = table.findAll(u"IN"_s, 1, 100);
+        QCOMPARE(all.size(), 4);
+        QCOMPARE(all.at(0), std::make_pair(2, 1));
+        QCOMPARE(all.at(1), std::make_pair(2, 3));
+        QCOMPARE(all.at(2), std::make_pair(3, 0));
+        QCOMPARE(all.at(3), std::make_pair(3, 1));
+        QCOMPARE(table.findAll(u"in"_s, 1, 3).size(), 3); // no more than asked for
+        QCOMPARE(table.findAll(u"in"_s, 3, 100).size(), 2); // from a row on
+        QVERIFY(table.findAll(QString(), 0, 100).isEmpty());
+        QVERIFY(table.findAll(u"nowhere"_s, 0, 100).isEmpty());
     }
 
     void tellsTheSeparator_data()

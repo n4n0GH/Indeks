@@ -176,9 +176,11 @@ int main(int argc, char *argv[])
     leaving.start();
     indeks.documents()->stopSearching(0); // asked to end now, waited for below
     indeks.linkCandidates()->stopSearching(0);
+    indeks.sidebar()->stopCounting(0);
     const bool indexerStopped = indeks.library()->shutdown(ShutdownGraceMs);
     const bool searchStopped = indeks.documents()->stopSearching(qMax(0, ShutdownGraceMs - int(leaving.elapsed())))
-        && indeks.linkCandidates()->stopSearching(qMax(0, ShutdownGraceMs - int(leaving.elapsed())));
+        && indeks.linkCandidates()->stopSearching(qMax(0, ShutdownGraceMs - int(leaving.elapsed())))
+        && indeks.sidebar()->stopCounting(qMax(0, ShutdownGraceMs - int(leaving.elapsed())));
     if (!indexerStopped || !searchStopped) {
         qWarning("The indexer or a search did not come back in time; leaving without it");
         Config::self()->save();

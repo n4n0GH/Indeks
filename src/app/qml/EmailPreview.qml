@@ -58,6 +58,20 @@ ColumnLayout {
     readonly property bool hasText: (mail.text ?? "").length > 0
     readonly property bool hasHtml: (mail.html ?? "").length > 0
 
+    // Searching within the message: its text, as it is shown. See PreviewPane for what the
+    // preview asks of a view that can be searched, and TextFind for how it is done.
+    property alias findText: bodyFind.text
+    readonly property bool findable: mail.valid ?? false
+    readonly property int findCount: bodyFind.count
+    readonly property bool findMore: bodyFind.more
+    readonly property int findIndex: bodyFind.index
+    function findHit(at: int): var {
+        return bodyFind.hit(at);
+    }
+    function showHit(at: int): void {
+        bodyFind.show(at);
+    }
+
     spacing: 0
 
     Component.onCompleted: {
@@ -231,6 +245,8 @@ ColumnLayout {
             }
 
             QQC2.TextArea {
+                id: body
+
                 Layout.fillWidth: true
                 // At least what is left of the view, so that a click below a short text lands in it.
                 Layout.minimumHeight: Math.max(0, scroll.availableHeight - y)
@@ -247,6 +263,13 @@ ColumnLayout {
                 Kirigami.Theme.colorSet: Kirigami.Theme.View
                 Kirigami.Theme.inherit: false
                 onLinkActivated: link => linkDialog.ask(link)
+
+                TextFind {
+                    id: bodyFind
+
+                    edit: body
+                    flickable: scroll.contentItem as Flickable
+                }
             }
         }
 

@@ -44,6 +44,9 @@ Kirigami.Dialog {
             Layout.leftMargin: Kirigami.Units.largeSpacing
             Layout.rightMargin: Kirigami.Units.largeSpacing
             text: {
+                if (App.opening) {
+                    return i18nc("@info:status", "Opening database…");
+                }
                 if (!App.library.busy) {
                     return i18nc("@info:status", "Nothing is being indexed at the moment.");
                 }

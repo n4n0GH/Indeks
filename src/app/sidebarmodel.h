@@ -3,8 +3,15 @@
 
 #pragma once
 
+#include "countworker.h"
+
 #include <QAbstractListModel>
+#include <QElapsedTimer>
+#include <QThread>
+#include <QTimer>
 #include <QtQml/qqmlregistration.h>
+
+#include <atomic>
 
 namespace Indeks
 {
@@ -29,6 +36,8 @@ class SidebarModel : public QAbstractListModel
     Q_PROPERTY(QString currentKind READ currentKind NOTIFY currentChanged)
     Q_PROPERTY(qint64 currentId READ currentId NOTIFY currentChanged)
     Q_PROPERTY(QStringList collapsedSections READ collapsedSections WRITE setCollapsedSections NOTIFY collapsedSectionsChanged)
+    /** The numbers of the database that was just opened are not there yet. */
+    Q_PROPERTY(bool opening READ isOpening NOTIFY openingChanged)
 public:
     enum Roles {
         KeyRole = Qt::UserRole + 1,
@@ -46,6 +55,7 @@ public:
     };
 
     explicit SidebarModel(Indeks::Library *library, QObject *parent = nullptr);
+    ~SidebarModel() override;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -74,11 +84,31 @@ public:
     /** Moves the selection up or down by one entry, skipping headers. Returns the new row or -1. */
     Q_INVOKABLE int step(int delta);
 
+    /**
+     * Lists the entries anew, at once, and asks for the numbers that take a query each.
+     * Those are worked out in the background (CountWorker); until they are there, an entry
+     * shows the number it had, and none if it never had one.
+     */
     void reload();
+
+    bool isOpening() const
+    {
+        return m_opening;
+    }
+    /** The number last worked out for the entry @p key; -1 while there is none. */
+    int countOf(const QString &key) const;
+    /**
+     * Ends the counting for good, before Indeks leaves. A count that is under way is waited
+     * for, @p timeoutMs at most (for ever if negative). Returns whether the thread has ended.
+     */
+    bool stopCounting(int timeoutMs = -1);
 
 Q_SIGNALS:
     void currentChanged();
     void collapsedSectionsChanged();
+    void openingChanged();
+    /** Numbers came in from the background. */
+    void countsChanged();
 
 private:
     struct Item {
@@ -97,9 +127,32 @@ private:
     const Item *current() const;
     void rememberCurrent();
     void addHeader(QList<Item> &items, const QString &section, const QString &label) const;
+    /** Lists the entries with the numbers that are known. */
+    void rebuild();
+    void requestCounts();
+    void startCounting();
+    void applyCounts(const QHash<QString, int> &counts, qint64 elapsed);
 
     Indeks::Library *const m_library;
     QList<Item> m_items;
+
+    // Counting in the background
+    QThread m_thread;
+    CountWorker *m_worker = nullptr;
+    /** Goes up when what is being counted is no longer wanted: another database, or the end. */
+    std::atomic<quint64> m_ticket = 0;
+    /** The entries that are listed and take a query for their number. */
+    QList<CountRequest> m_wanted;
+    QHash<QString, int> m_counts;
+    bool m_counting = false;
+    /** The index changed while it was being counted. */
+    bool m_countAgain = false;
+    bool m_opening = true;
+    // Counting takes its time in a large index, and the index may change many times a
+    // second while documents come in. After a round, as long a pause as the round took.
+    QTimer m_countTimer;
+    QElapsedTimer m_sinceCounted;
+    qint64 m_countDuration = 0;
     QString m_currentKey = QStringLiteral("place:all");
     QStringList m_collapsed;
     // Query and label of the current entry, kept for when its section is collapsed.

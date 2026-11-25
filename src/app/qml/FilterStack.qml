@@ -196,6 +196,86 @@ GridLayout {
         };
     }
 
+    // What a piece of the query language is as filters, for a search that was not put
+    // together here: taken apart term by term. A term the menus offer becomes that choice,
+    // one that can be typed in here (name:, content:, note:, path:, ext:, a size, a date)
+    // becomes that filter, and whatever is left stays words, which is the text as it stands
+    // and can be changed as such. A search that joins terms with OR, or excludes some, is
+    // not a list of things that all have to match: it is kept whole.
+    function filtersOf(query: string): var {
+        const text = query.trim();
+        if (text.length === 0) {
+            return [];
+        }
+        const terms = text.match(/(?:[^\s"]+:)?"[^"]*"|\S+/g) ?? [];
+        if (terms.some(term => term === "OR" || term.startsWith("-") || term.includes("(") || term.includes(")"))) {
+            return [wordsFilter(text)];
+        }
+        const choices = [
+            ["kind", kinds], ["state", states], ["size", sizePresets], ["modified", datePresets("modified")], ["added", datePresets("added")]
+        ];
+        // A value that is several words is handed on in quotes, to stay one.
+        const whole = value => /\s/.test(value) ? "\"" + value + "\"" : value;
+        const found = [];
+        const contained = [];
+        const left = [];
+        for (const term of terms) {
+            let choice;
+            for (const [type, options] of choices) {
+                const option = options.find(option => option.query === term);
+                if (option) {
+                    choice = { type: type, label: option.chip ?? option.label, query: option.query };
+                    break;
+                }
+            }
+            if (choice) {
+                found.push(choice);
+                continue;
+            }
+            const colon = term.indexOf(":");
+            const key = colon > 0 ? term.slice(0, colon).toLowerCase() : "";
+            const value = colon > 0 ? term.slice(colon + 1).replace(/"/g, "").trim() : "";
+            const size = /^(>=|<=)(\d+)([KMG])$/.exec(value);
+            const date = /^(>=|<)(\d{4}-\d{2}-\d{2})$/.exec(value);
+            if (value.length === 0) {
+                left.push(term);
+            } else if (key === "content" && /\s/.test(value)) {
+                found.push(contentFilter(value, "phrase"));
+            } else if (key === "content") {
+                contained.push(value);
+            } else if (key === "name") {
+                found.push(nameFilter(whole(value)));
+            } else if (key === "note") {
+                found.push(notesFilter(value));
+            } else if (key === "path") {
+                found.push(folderFilter(value));
+            } else if (key === "ext") {
+                found.push(extensionFilter(value));
+            } else if (key === "tag") {
+                found.push({ type: "tag", label: i18nc("@item filter", "Tag: %1", value), query: "tag:" + quoted(value) });
+            } else if (key === "groupid" && App.library.groups().some(group => group.id == value)) {
+                const group = App.library.groups().find(group => group.id == value);
+                found.push({ type: "group", label: i18nc("@item filter", "Group: %1", group.name), query: "groupid:" + group.id });
+            } else if (key === "sourceid" && App.library.sources(false).some(source => source.id == value)) {
+                const source = App.library.sources(false).find(source => source.id == value);
+                found.push({ type: "source", label: i18nc("@item filter", "Location: %1", source.name), query: "sourceid:" + source.id });
+            } else if (key === "size" && size && !found.some(filter => filter.type === "size")) {
+                found.push(sizeFilter(size[1], parseInt(size[2]), size[3]));
+            } else if ((key === "modified" || key === "added") && date && !found.some(filter => filter.type === key)) {
+                found.push(dateFilter(key, date[1] === "<" ? "before" : "after", date[2], ""));
+            } else {
+                left.push(term);
+            }
+        }
+        if (contained.length > 0) {
+            found.unshift(contentFilter(contained.join(" "), "all"));
+        }
+        if (left.length > 0) {
+            found.unshift(wordsFilter(left.join(" ")));
+        }
+        return found;
+    }
+
     function folderFilter(text: string): var {
         return {
             type: "folder",
@@ -512,7 +592,7 @@ GridLayout {
         ChoiceMenu {
             title: i18nc("@title:menu filter", "Location")
             type: "source"
-            options: () => App.library.sources().map(source => ({ query: "sourceid:" + source.id, label: source.name, chip: i18nc("@item filter", "Location: %1", source.name) }))
+            options: () => App.library.sources(false).map(source => ({ query: "sourceid:" + source.id, label: source.name, chip: i18nc("@item filter", "Location: %1", source.name) }))
         }
         ChoiceMenu {
             title: i18nc("@title:menu filter", "State")
