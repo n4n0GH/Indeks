@@ -9,7 +9,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
 // Picks the script to run on the selected documents. Writing and changing scripts is done in
-// the list of scripts, under the Automation tab of the sidebar.
+// the list of scripts, under the Automation tab.
 Kirigami.Dialog {
     id: root
 
@@ -135,7 +135,7 @@ Kirigami.Dialog {
             visible: list.count === 0
             icon.name: "text-x-python"
             text: i18nc("@info:placeholder", "No scripts yet")
-            explanation: i18nc("@info:placeholder", "Scripts are written in the list of scripts, under the Automation tab of the sidebar.")
+            explanation: i18nc("@info:placeholder", "Scripts are written in the list of scripts, under the Automation tab.")
         }
     }
 }

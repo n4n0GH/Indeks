@@ -11,10 +11,12 @@ import org.kde.kirigami as Kirigami
 import org.kde.kirigamiaddons.settings as KirigamiSettings
 import org.kde.kirigamiaddons.statefulapp as StatefulApp
 
-// The main window: toolbar on top, the sidebar with places on the left, file browser and
-// preview in the middle, information about the selected document on the right. While the
-// sidebar shows its Automation tab, the middle lists rules or scripts instead of documents,
-// and the one that is selected is changed where the preview is otherwise.
+// The main window: toolbar on top, a panel on either side, file browser and preview in the
+// middle. The panels hold the views the user put into them (SidePanel, PanelLayout): at
+// first the places of the database on the left, and what is known about the selected
+// document and the to-do list on the right. While the window is about automation, the
+// middle lists rules or scripts instead of documents, and the one that is selected is
+// changed where the preview is otherwise.
 StatefulApp.StatefulWindow {
     id: root
 
@@ -79,11 +81,13 @@ StatefulApp.StatefulWindow {
             orientation: Qt.Horizontal
             handle: PanelBorder {}
 
-            Sidebar {
+            SidePanel {
                 id: sidebar
 
-                visible: Config.leftSidebarVisible
+                side: "left"
+                visible: Config.leftSidebarVisible && hasViews
                 actions: appActions
+                viewDrag: viewDrag
                 QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 14
                 QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 9
                 QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 28
@@ -168,7 +172,7 @@ StatefulApp.StatefulWindow {
                             id: previewPane
 
                             actions: appActions
-                            findText: sidePanel.findText
+                            findText: findView.wanted
                         }
                         AutomationPane {
                             id: automationPane
@@ -182,15 +186,117 @@ StatefulApp.StatefulWindow {
             SidePanel {
                 id: sidePanel
 
-                visible: Config.rightSidebarVisible
+                side: "right"
+                visible: Config.rightSidebarVisible && hasViews
                 actions: appActions
-                preview: previewPane
-                onNoteActivated: note => previewPane.showNote(note)
-                onTodoEditRequested: id => todoDialog.edit(id)
+                viewDrag: viewDrag
                 QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 16
                 QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 11
                 QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 30
             }
+        }
+
+        // The views of the two panels. Each is made once, here, and stands in the area of
+        // the panel the user put it into (PanelLayout): it goes there by itself whenever
+        // that changes, and shows while it is the one its area's tabs have chosen.
+        function viewHome(view: string): Item {
+            const side = App.panels.revision >= 0 ? App.panels.sideOf(view) : "";
+            return (side === "right" ? sidePanel : sidebar).container(App.panels.partOf(view));
+        }
+        function viewShown(view: string): bool {
+            return App.panels.revision >= 0 && App.panels.isCurrent(view);
+        }
+
+        DatabaseView {
+            parent: mainPage.viewHome("database")
+            anchors.fill: parent
+            visible: mainPage.viewShown("database")
+            actions: appActions
+        }
+        AutomationView {
+            parent: mainPage.viewHome("automation")
+            anchors.fill: parent
+            visible: mainPage.viewShown("automation")
+            actions: appActions
+        }
+        InfoPane {
+            parent: mainPage.viewHome("info")
+            anchors.fill: parent
+            visible: mainPage.viewShown("info")
+            actions: appActions
+            onNoteActivated: note => previewPane.showNote(note)
+        }
+        TodoPane {
+            parent: mainPage.viewHome("todo")
+            anchors.fill: parent
+            visible: mainPage.viewShown("todo")
+            actions: appActions
+            onEditRequested: id => todoDialog.edit(id)
+        }
+        FindPane {
+            id: findView
+
+            // What it asks the preview to find: what is typed there, while it is in view.
+            // Marks nobody asked for any longer are not left in the document.
+            readonly property string wanted: visible ? text : ""
+
+            parent: mainPage.viewHome("find")
+            anchors.fill: parent
+            visible: mainPage.viewShown("find")
+            actions: appActions
+            preview: previewPane
+        }
+
+        // The tab of a view while it is dragged to where the view is to be.
+        PanelDrag {
+            id: viewDrag
+        }
+        // A panel that is not shown, hidden or without views, cannot be dropped on. While
+        // a tab is dragged, the edge of the window where the panel would be takes it.
+        component EdgeDrop: DropArea {
+            id: edge
+
+            required property string side
+            required property bool wanted
+
+            y: mainSplit.y
+            width: Kirigami.Units.gridUnit * 5
+            height: mainSplit.height
+            z: 20
+            visible: viewDrag.dragging && wanted
+            keys: [viewDrag.key]
+            onDropped: drop => {
+                const view = viewDrag.view;
+                drop.accept();
+                Qt.callLater(() => {
+                    App.panels.place(view, edge.side, "top", -1);
+                    App.showSidePanel(view);
+                });
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.alpha(Kirigami.Theme.highlightColor, edge.containsDrag ? 0.35 : 0.12)
+                border.color: Kirigami.Theme.highlightColor
+                border.width: edge.containsDrag ? 2 : 1
+
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    width: Kirigami.Units.iconSizes.medium
+                    height: width
+                    source: edge.side === "left" ? "sidebar-expand-left" : "sidebar-expand-right"
+                }
+            }
+        }
+        EdgeDrop {
+            side: "left"
+            wanted: !sidebar.visible
+            x: mainSplit.x
+        }
+        EdgeDrop {
+            side: "right"
+            wanted: !sidePanel.visible
+            x: mainSplit.x + mainSplit.width - width
         }
 
         // Zones to grab the borders between the panels by; see ResizeGrip.
@@ -318,7 +424,7 @@ StatefulApp.StatefulWindow {
                 break;
             case "doc_find":
                 // The panel was just brought up: its field takes the keys once it is there.
-                Qt.callLater(sidePanel.focusFind);
+                Qt.callLater(findView.focusField);
                 break;
             case "find_next":
                 root.findStep(true);
@@ -458,7 +564,7 @@ StatefulApp.StatefulWindow {
     // To the next or the previous place the search within the document found. Without that
     // search in view there is nothing to step through: it is brought up instead.
     function findStep(forward: bool): void {
-        if (sidePanel.findText.length === 0) {
+        if (findView.wanted.length === 0) {
             App.action("doc_find").trigger();
         } else if (forward) {
             previewPane.findNext();

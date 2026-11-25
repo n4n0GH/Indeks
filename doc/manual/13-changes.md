@@ -10,6 +10,15 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **The panels can be arranged:** The tabs of the sidebar and the side panel can be moved
+  to the other panel, and each panel can show two of them at once, one above the other:
+  drag a tab to where its view is to be, which is also how tabs are put in order, or
+  right-click it and choose *Move to Right Panel*, *Move to Left Panel*, *Split Below* or
+  *Merge to Top*. The line between the two areas can be dragged. The to-do list now has the
+  lower area of the side panel to itself, so that it stays in view. See *The Window →
+  Arranging the panels*.
+- **Keys for the panels:** `Ctrl+B` shows and hides the sidebar and `Ctrl+Shift+B` the side
+  panel. `F9` and `F11` do so as before.
 - **Text files that are Markdown or tables:** A plain text file (`.txt`) that is written in
   Markdown is shown formatted, and one that holds values in rows and columns is shown as a
   table. That goes for lists with ` | ` between the values too, also where each row has a

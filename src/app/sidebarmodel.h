@@ -19,7 +19,7 @@ class Library;
 }
 
 /**
- * Content of the left sidebar: the inbox and other fixed places, smart groups, saved searches,
+ * Content of the database view of the panels: the inbox and other fixed places, smart groups, saved searches,
  * groups, tags and indexed locations. Every entry stands for a search query; selecting
  * one shows the matching documents in the file browser.
  */

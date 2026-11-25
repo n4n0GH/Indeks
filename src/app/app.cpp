@@ -100,6 +100,7 @@ App::App(QObject *parent)
     , m_linkCandidates(new DocumentModel(m_library, this))
     , m_sidebar(new SidebarModel(m_library, this))
     , m_activity(new ActivityModel(m_library, this))
+    , m_panels(new PanelLayout(this))
 {
     s_instance = this;
 
@@ -490,19 +491,53 @@ void App::setupActions()
     });
 
     // View
-    addToggle(u"view_left_sidebar"_s, i18nc("@action", "Show Sidebar"), u"sidebar-expand-left"_s, Qt::Key_F9, config->leftSidebarVisible(), [config](bool checked) {
-        config->setLeftSidebarVisible(checked);
-        config->save();
+    // Each of the two panels by the keys other programs have for theirs, and by the
+    // function key it has had here from the start.
+    QAction *leftPanel =
+        addToggle(u"view_left_sidebar"_s, i18nc("@action", "Show Sidebar"), u"sidebar-expand-left"_s, Qt::CTRL | Qt::Key_B, config->leftSidebarVisible(), [config](bool checked) {
+            config->setLeftSidebarVisible(checked);
+            config->save();
+        });
+    mainCollection()->setDefaultShortcuts(leftPanel, {Qt::CTRL | Qt::Key_B, Qt::Key_F9});
+    QAction *rightPanel = addToggle(u"view_right_sidebar"_s,
+                                    i18nc("@action", "Show Side Panel"),
+                                    u"sidebar-expand-right"_s,
+                                    Qt::CTRL | Qt::SHIFT | Qt::Key_B,
+                                    config->rightSidebarVisible(),
+                                    [config](bool checked) {
+                                        config->setRightSidebarVisible(checked);
+                                        config->save();
+                                    });
+    mainCollection()->setDefaultShortcuts(rightPanel, {Qt::CTRL | Qt::SHIFT | Qt::Key_B, Qt::Key_F11});
+
+    // Where the views of the two panels are. What these are called follows where the view
+    // is at the moment; see updatePanelActions().
+    const QStringList views = PanelLayout::allViews();
+    for (const QString &view : views) {
+        addAction(u"panel_move_"_s + view, QString(), u"view-split-left-right"_s, {}, [this, view] {
+            m_panels->moveAcross(view);
+            showSidePanel(view);
+        });
+        addAction(u"panel_split_"_s + view, QString(), u"view-split-top-bottom"_s, {}, [this, view] {
+            if (m_panels->partOf(view) == "bottom"_L1) {
+                m_panels->merge(view);
+            } else {
+                m_panels->split(view);
+            }
+        });
+        // Among the tabs it is with; what dragging a tab along its bar does.
+        addAction(u"panel_earlier_"_s + view, QString(), u"go-previous"_s, {}, [this, view] {
+            m_panels->shift(view, -1);
+        });
+        addAction(u"panel_later_"_s + view, QString(), u"go-next"_s, {}, [this, view] {
+            m_panels->shift(view, 1);
+        });
+    }
+    addAction(u"panel_reset"_s, i18nc("@action", "Reset Sidebar and Side Panel"), u"edit-reset"_s, {}, [this] {
+        m_panels->reset();
     });
-    addToggle(u"view_right_sidebar"_s,
-              i18nc("@action", "Show Side Panel"),
-              u"sidebar-expand-right"_s,
-              Qt::Key_F11,
-              config->rightSidebarVisible(),
-              [config](bool checked) {
-                  config->setRightSidebarVisible(checked);
-                  config->save();
-              });
+    connect(m_panels, &PanelLayout::changed, this, &App::updatePanelActions);
+    updatePanelActions();
     addToggle(u"view_preview"_s, i18nc("@action", "Show Preview"), u"view-preview"_s, Qt::Key_F10, config->previewVisible(), [config](bool checked) {
         config->setPreviewVisible(checked);
         config->save();
@@ -940,8 +975,44 @@ void App::setSidebarTab(const QString &tab)
         return;
     }
     m_sidebarTab = wanted;
+    // The view that goes with it comes up: the one for automation wherever it is, the one
+    // for the database where the two share an area and the other was up. A database view
+    // that stands behind something else stays there: whoever put it there is looking at
+    // that, and a search must not take it away.
+    if (wanted == "automation"_L1) {
+        m_panels->setCurrent(wanted);
+    } else if (m_panels->isCurrent(u"automation"_s) && m_panels->sideOf(u"automation"_s) == m_panels->sideOf(u"database"_s)
+               && m_panels->partOf(u"automation"_s) == m_panels->partOf(u"database"_s)) {
+        m_panels->setCurrent(wanted);
+    }
     Q_EMIT automationChanged();
     updateActions();
+}
+
+void App::updatePanelActions()
+{
+    const QStringList views = PanelLayout::allViews();
+    for (const QString &view : views) {
+        const QString title = m_panels->title(view);
+        if (QAction *move = action(u"panel_move_"_s + view)) {
+            move->setText(m_panels->sideOf(view) == "left"_L1 ? i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Move %1 to the Right Panel", title)
+                                                              : i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Move %1 to the Left Panel", title));
+        }
+        if (QAction *split = action(u"panel_split_"_s + view)) {
+            const bool below = m_panels->partOf(view) == "bottom"_L1;
+            split->setText(below ? i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Merge %1 to the Top of Its Panel", title)
+                                 : i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Split %1 Below in Its Panel", title));
+            split->setEnabled(below || m_panels->canSplit(view));
+        }
+        if (QAction *earlier = action(u"panel_earlier_"_s + view)) {
+            earlier->setText(i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Move the %1 Tab One Place to the Left", title));
+            earlier->setEnabled(m_panels->canShift(view, -1));
+        }
+        if (QAction *later = action(u"panel_later_"_s + view)) {
+            later->setText(i18nc("@action %1 is what a view of a panel is called, e.g. To-Do", "Move the %1 Tab One Place to the Right", title));
+            later->setEnabled(m_panels->canShift(view, 1));
+        }
+    }
 }
 
 void App::setAutomationPage(const QString &page)
@@ -975,12 +1046,14 @@ void App::setCurrentScript(const QString &file)
     updateActions();
 }
 
-void App::showSidePanel(const QString &tab)
+void App::showSidePanel(const QString &view)
 {
-    Config *config = Config::self();
-    config->setRightPanelTab(tab == "todo"_L1 || tab == "find"_L1 ? tab : u"info"_s);
-    config->save();
-    if (QAction *panel = action(u"view_right_sidebar"_s); panel && !panel->isChecked()) {
+    const QString side = m_panels->sideOf(view);
+    if (side.isEmpty()) {
+        return;
+    }
+    m_panels->setCurrent(view);
+    if (QAction *panel = action(side == "left"_L1 ? u"view_left_sidebar"_s : u"view_right_sidebar"_s); panel && !panel->isChecked()) {
         panel->setChecked(true);
     }
 }
@@ -1517,8 +1590,10 @@ QVariantList App::toolbarCandidates()
         static const QStringList fixed = {u"view_left_sidebar"_s, u"view_right_sidebar"_s, u"focus_search"_s};
         const QString name = candidate->objectName();
         // The actions for single scripts come and go with the scripts; the toolbar takes
-        // the lasting ones.
-        if (name.isEmpty() || fixed.contains(name) || previewBarActions.contains(name) || candidate->text().isEmpty() || name.startsWith(scriptActionPrefix)) {
+        // the lasting ones. Where a view of the panels is, is said at the view itself and
+        // changes what the command is called, which is nothing for a button either.
+        if (name.isEmpty() || fixed.contains(name) || previewBarActions.contains(name) || candidate->text().isEmpty() || name.startsWith(scriptActionPrefix)
+            || name.startsWith("panel_move_"_L1) || name.startsWith("panel_split_"_L1) || name.startsWith("panel_earlier_"_L1) || name.startsWith("panel_later_"_L1)) {
             continue;
         }
         actions.append(toolbarItem(name));

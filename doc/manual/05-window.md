@@ -14,14 +14,14 @@ the list of documents with the preview in the middle, and the side panel on the 
 
 From left to right, the toolbar holds at first:
 
-- **The sidebar button** (`F9`), which shows and hides the sidebar.
+- **The sidebar button** (`Ctrl+B` or `F9`), which shows and hides the sidebar.
 - **Buttons for commands:** *Add*, *New*, *Add Tag…*, *Add to Group…*, *Pin*, *Open File* and
   *Move to Trash*.
 - **The search field** (`Ctrl+F`). See *Finding*.
 - **The filter button** (`Ctrl+Alt+F`), which opens the filter bar, and *Save Search…*.
 - **The preview button** (`F10`), and beside it the button that puts the preview beside the
   list or below it; see *Preview*.
-- **The side panel button** (`F11`).
+- **The side panel button** (`Ctrl+Shift+B` or `F11`).
 - **The menu**, which holds every command, sorted into *Go*, *Document*, *Preview*, *Sidebar*
   and *Scripts*.
 
@@ -39,7 +39,9 @@ Clipboard…*; *New Group…*, *New Tag…*, *New Rule…* and *New Script…*; 
 
 ## Sidebar
 
-The sidebar has two tabs at its top, shown by their icons: *Database* and *Automation*.
+The sidebar is the panel on the left. It has tabs at its top, shown by their icons: at
+first *Database* and *Automation*. `Ctrl+B` or `F9` shows and hides it. Which tabs it has is
+yours to say; see *Arranging the panels* below.
 
 ### The Database tab
 
@@ -69,20 +71,22 @@ or the trash.
 
 ### The Automation tab
 
-This tab has two entries, *Rules* and *Scripts*, with the number of each. While it is shown,
-the middle of the window is about them instead of about documents:
+This tab has two entries, *Rules* and *Scripts*, with the number of each. A click on the
+tab or on one of the two makes the middle of the window about them instead of about
+documents:
 
 - **The list** shows the rules or the scripts of the open database, where the documents are
   listed otherwise.
 - **Where the preview is**, the rule or script that is selected in the list is shown and can
   be changed. *Save* in the bar above it stores the changes.
 
-`Ctrl+5` goes to the rules and `Ctrl+6` to the scripts. The *Database* tab, a search, or
-any of the commands that go to documents, such as *Go to Inbox*, brings the documents back.
-What you were changing stays as it was until you return. See *Automation*.
+`Ctrl+5` goes to the rules and `Ctrl+6` to the scripts. The *Database* tab, an entry of
+it, a search, or any of the commands that go to documents, such as *Go to Inbox*, brings
+the documents back. What you were changing stays as it was until you return. See
+*Automation*.
 
-Commands and keys for documents rest while this tab is shown: `Del` removes the selected
-rule or script here, not a document.
+Commands and keys for documents rest while the middle of the window is about rules or
+scripts: `Del` removes the selected rule or script then, not a document.
 
 **The database button.** The bottom of the sidebar names the open database. A click lists
 the others; a right-click offers *Rename Database…*, *Databases…*, *Add Database…* and *New Database…*.
@@ -90,6 +94,9 @@ the others; a right-click offers *Rename Database…*, *Databases…*, *Add Data
 **The activity display.** While Indeks opens a database, reads files, recognises text,
 fetches remote files or runs scripts, a line above the database button says what it is
 doing. A click on it lists the file being worked on and everything that waits.
+
+The database button and the activity display stand at the bottom of the panel that has the
+*Database* tab, should you move that tab to the other side.
 
 *Opening database…* stands there, with the name of the database, from the moment the window
 comes up or another database is switched to until its list of documents and the numbers in
@@ -184,12 +191,14 @@ Buttons that do not fit move into a menu at the end of the bar.
 
 ## Side panel
 
-The panel on the right has three tabs at its top, shown by their icons: *Information*,
-*To-Do* and *Find*. `F11` shows and hides the panel.
+The side panel is the panel on the right. At first it has two areas, one above the other,
+each with its tabs at the top: *Information* and *Find* above, and *To-Do* below.
+`Ctrl+Shift+B` or `F11` shows and hides the panel. Which tabs it has, and in which area, is
+yours to say; see *Arranging the panels* below.
 
 ### Information
 
-The first tab shows what Indeks knows about the selected document.
+This tab shows what Indeks knows about the selected document.
 
 - **Facts:** Name, type, size, when it was modified and added, where it is, which location it
   belongs to, and metadata found in the file, such as the author or the number of pages.
@@ -208,15 +217,57 @@ to link them with one another.
 
 ### To-Do
 
-The second tab is the list of things to do. See *Organising → To-dos*.
+This tab is the list of things to do. It has the lower area of the side panel to itself at
+first, so that the list stays in view while the tabs above it change. See
+*Organising → To-dos*.
 
-![The to-do list](images/todo.png)
+![The to-do list, in the lower area of the side panel](images/todo.png)
 
 ### Find
 
-The third tab, with the magnifying glass, searches within the document that is shown in the
+This tab, with the magnifying glass, searches within the document that is shown in the
 preview: a field for what to find, the number of places it stands at with arrows to step
 through them, and those places as a list. See *Finding → Finding inside a document*.
+
+## Arranging the panels
+
+The tabs of the sidebar and the side panel are not tied to their panel. Each of the five,
+*Database*, *Automation*, *Information*, *To-Do* and *Find*, can be put into either panel,
+and each panel can show two of them at once, one above the other.
+
+**Drag a tab** to where its view is to be. While you drag, the place the view would take
+is marked:
+
+![A tab being dragged to the lower part of the sidebar](images/panel-drag.png)
+
+- **Along its row of tabs:** A line shows between which tabs it goes. This is how the tabs
+  are put in order.
+- **Onto another row of tabs, or the view below it:** The tab joins the tabs of that area,
+  in the other panel or the other area of its own.
+- **Onto the lower part of a panel** that has only one area: The tab gets an area of its
+  own there, below the others.
+- **To the edge of the window** where a panel is hidden or has no tabs: A strip appears
+  there while you drag; the tab goes into that panel, and the panel is shown.
+
+**Or right-click a tab:**
+
+![The menu of a tab](images/panel-menu.png)
+
+- **Move to Right Panel**, **Move to Left Panel:** Puts the tab into the other panel, as
+  the last tab of its upper area.
+- **Split Below:** Gives the tab the lower area of its panel: a second row of tabs with its
+  own view below it. Further tabs that you split below join it there. The last tab of the
+  upper area stays where it is.
+- **Merge to Top:** Puts a tab of the lower area back among those of the upper one. When
+  the last one has gone, so has the lower area.
+
+Drag the line between the two areas to say how much of the panel each gets. A panel without
+tabs is not shown.
+
+The same commands are in the command bar, with the name of the tab in them, such as *Move
+To-Do to the Left Panel*, *Split Find Below in Its Panel* or *Move the Find Tab One Place to
+the Left*. *Reset Sidebar and Side Panel* puts everything back where it was at first. Indeks remembers the arrangement, and which tab
+each area shows.
 
 ## Command bar
 

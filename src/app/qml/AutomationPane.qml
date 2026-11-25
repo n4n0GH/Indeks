@@ -8,7 +8,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// Where the preview is otherwise, while the sidebar shows its Automation tab: the rule or
+// Where the preview is otherwise, while the window is about automation: the rule or
 // the script that is selected in AutomationList, to be changed here.
 //
 // Rules and scripts each have an editor of their own, and each keeps what it holds while the

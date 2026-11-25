@@ -26,6 +26,8 @@ target_sources(indeks PRIVATE
     inkcanvas.cpp
     inkcanvas.h
     main.cpp
+    panellayout.cpp
+    panellayout.h
     pdftext.cpp
     pdftext.h
     searchworker.cpp

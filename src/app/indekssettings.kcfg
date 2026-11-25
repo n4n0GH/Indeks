@@ -91,9 +91,37 @@
             <min>0</min>
             <max>365</max>
         </entry>
-        <entry name="rightPanelTab" type="String">
-            <label>What the panel on the right shows: "info" about the selected document, the "todo" list, or "find" for searching within the document.</label>
-            <default>info</default>
+        <entry name="panelLeftTop" type="StringList">
+            <label>The views in the upper area of the sidebar on the left, in the order of their tabs. See PanelLayout.</label>
+            <default>database,automation</default>
+        </entry>
+        <entry name="panelLeftBottom" type="StringList">
+            <label>The views in the lower area of the sidebar on the left.</label>
+            <default></default>
+        </entry>
+        <entry name="panelRightTop" type="StringList">
+            <label>The views in the upper area of the side panel on the right.</label>
+            <default>info,find</default>
+        </entry>
+        <entry name="panelRightBottom" type="StringList">
+            <label>The views in the lower area of the side panel on the right.</label>
+            <default>todo</default>
+        </entry>
+        <entry name="panelCurrent" type="StringList">
+            <label>The view each area shows: left above, left below, right above, right below.</label>
+            <default>database,,info,todo</default>
+        </entry>
+        <entry name="leftPanelLower" type="Double">
+            <label>How much of the height of the sidebar on the left its lower area takes.</label>
+            <default>0.4</default>
+            <min>0.1</min>
+            <max>0.9</max>
+        </entry>
+        <entry name="rightPanelLower" type="Double">
+            <label>How much of the height of the side panel on the right its lower area takes.</label>
+            <default>0.4</default>
+            <min>0.1</min>
+            <max>0.9</max>
         </entry>
         <entry name="previewVisible" type="Bool">
             <default>true</default>

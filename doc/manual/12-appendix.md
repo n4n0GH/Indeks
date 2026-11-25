@@ -29,7 +29,8 @@ language, and what scripts can do.
 - **Rule:** A set of filters and actions that files documents automatically.
 - **Saved search:** A search kept in the sidebar under a name.
 - **Script:** A small Python program that says what should happen to documents.
-- **Side panel:** The panel on the right, with the *Information* and *To-Do* tabs.
+- **Side panel:** The panel on the right, at first with the *Information*, *Find* and
+  *To-Do* tabs.
 - **Smart group:** One of the searches that come with Indeks, such as *Added Today*.
 - **Sticky note:** A note stuck to a place on a page or picture.
 - **Tag:** A word attached to documents.
@@ -56,9 +57,9 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Ctrl+4` | Go to Trash |
 | `Ctrl+5` | Go to Rules |
 | `Ctrl+6` | Go to Scripts |
-| `F9` | Show or hide the sidebar |
+| `Ctrl+B`, `F9` | Show or hide the sidebar |
 | `F10` | Show or hide the preview |
-| `F11` | Show or hide the side panel |
+| `Ctrl+Shift+B`, `F11` | Show or hide the side panel |
 | `F5` | Update the index |
 
 ### Adding and creating
@@ -164,7 +165,16 @@ Every command is in the command bar. This list says what each one does.
 - **Show Sidebar**, **Show Preview**, **Show Side Panel:** Show or hide that part.
 - **Preview Beside the List:** Puts the preview to the right of the list instead of below
   it, or back.
-- **Show Document Information**, **Show To-Do List:** Switch the tab of the side panel.
+- **Show Document Information**, **Show To-Do List:** Bring that tab up, in whichever
+  panel it is, and show the panel if it was hidden.
+- **Move … to the Left Panel**, **Move … to the Right Panel:** Puts a tab of the sidebar or
+  the side panel into the other one. There is one such command for each of *Database*,
+  *Automation*, *Information*, *To-Do* and *Find*. See *The Window → Arranging the panels*.
+- **Split … Below in Its Panel**, **Merge … to the Top of Its Panel:** Gives a tab the lower
+  area of its panel, or puts it back among the tabs of the upper one.
+- **Move the … Tab One Place to the Left**, **… to the Right:** Changes the order of the
+  tabs of an area.
+- **Reset Sidebar and Side Panel:** Puts every tab back where it was at first.
 - **Find in Document…:** Opens the *Find* tab of the side panel, for searching within the
   document that is shown. See *Finding → Finding inside a document*.
 - **Find Next in Document**, **Find Previous in Document:** Go to the next or the previous

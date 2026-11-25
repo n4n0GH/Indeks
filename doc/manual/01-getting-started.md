@@ -129,8 +129,8 @@ under *Locations* in the sidebar.
   a tag, a saved search, a location.
 - The **list** in the middle shows the documents of that place. Click a column title to sort.
 - The **preview** below the list shows the selected document.
-- The **side panel** on the right has two tabs: information about the selected document, and
-  the to-do list.
+- The **side panel** on the right shows information about the selected document and, below
+  it, the to-do list. A third tab searches within the document.
 
 ### Finding something
 

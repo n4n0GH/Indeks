@@ -319,6 +319,10 @@ QQC2.ToolBar {
                     title: i18nc("@title:menu", "Sidebar")
                     QQC2.MenuItem { action: root.actions.editSidebarItem }
                     QQC2.MenuItem { action: root.actions.deleteSidebarItem }
+                    QQC2.MenuSeparator {}
+                    QQC2.MenuItem { action: root.actions.leftSidebar }
+                    QQC2.MenuItem { action: root.actions.rightSidebar }
+                    QQC2.MenuItem { action: root.actions.resetPanels }
                 }
                 QQC2.Menu {
                     title: i18nc("@title:menu rules and scripts", "Automation")

@@ -8,7 +8,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// What the middle of the window lists while the sidebar shows its Automation tab: the rules
+// What the middle of the window lists while it is about automation (App.automation): the rules
 // or the scripts of the open database, where the documents are listed otherwise. One of
 // them is selected at a time; AutomationPane, where the preview is otherwise, changes it.
 //

@@ -8,118 +8,146 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-// The panel on the right, which serves more than one purpose: tabs at its top lead to what
-// Indeks knows about the selected document, to the list of things to do, and to searching
-// within the document that is shown in the preview.
+// One of the two panels beside the middle of the window: the sidebar on the left, the side
+// panel on the right. Both are made the same way: an upper area and, if the user gave it
+// any views, a lower one, each with its tabs and the view of the tab that is chosen
+// (PanelArea). The border between the two is the user's to move.
+//
+// Which view is in which area of which panel is kept by PanelLayout. Below the areas of the
+// panel that has the database stand the name of the open database and what Indeks is doing.
 QQC2.Pane {
     id: root
 
     required property Actions actions
-    /** The preview, whose document the search tab searches. */
-    required property PreviewPane preview
+    /** "left" or "right". */
+    required property string side
+    /** The tab that is being dragged; see PanelDrag. */
+    required property PanelDrag viewDrag
 
-    /**
-     * What the search tab asks the preview to find: what is typed there, while that tab is
-     * in view. Marks nobody asked for any longer are not left in the document.
-     */
-    readonly property string findText: visible && tabs[tabIndex] === "find" ? findPane.text : ""
+    /** A panel without views has nothing to show. */
+    readonly property bool hasViews: upper.views.length > 0
+    // The database and what is being done to it belong together, wherever the user put
+    // the view of the database.
+    readonly property bool hasDatabase: App.panels.revision >= 0 && App.panels.sideOf("database") === side
 
-    function focusFind(): void {
-        findPane.focusField();
+    // How much of the height the lower area takes; kept from one start to the next.
+    property real lowerShare: side === "left" ? Config.leftPanelLower : Config.rightPanelLower
+
+    /** Where the views of an area of this panel put themselves; @p part is "top" or "bottom". */
+    function container(part: string): Item {
+        return part === "bottom" ? lower.container : upper.container;
     }
 
-    /** A note that is stuck to a page was clicked: the page is wanted in view. */
-    signal noteActivated(var note)
-    /** A to-do is to be changed. */
-    signal todoEditRequested(real id)
-
-    // In the order of the tabs.
-    readonly property list<string> tabs: ["info", "todo", "find"]
-    readonly property int tabIndex: Math.max(0, tabs.indexOf(Config.rightPanelTab))
+    function keepShare(): void {
+        if (side === "left") {
+            Config.leftPanelLower = lowerShare;
+        } else {
+            Config.rightPanelLower = lowerShare;
+        }
+        Config.save();
+    }
 
     padding: 0
-    Kirigami.Theme.colorSet: Kirigami.Theme.Window
+    Kirigami.Theme.colorSet: Kirigami.Theme.View
     Kirigami.Theme.inherit: false
 
     contentItem: ColumnLayout {
         spacing: 0
 
-        Kirigami.NavigationTabBar {
-            id: tabBar
-
-            Layout.fillWidth: true
-            position: QQC2.ToolBar.Header
-            actions: [
-                Kirigami.Action {
-                    text: i18nc("@title:tab what is known about the selected document", "Information")
-                    tooltip: i18nc("@info:tooltip", "Information on the selected document")
-                    icon.name: "documentinfo"
-                },
-                Kirigami.Action {
-                    text: i18nc("@title:tab the list of things to do", "To-Do")
-                    tooltip: i18nc("@info:tooltip", "To-do list")
-                    icon.name: "view-task"
-                },
-                Kirigami.Action {
-                    text: i18nc("@title:tab searching within the selected document", "Find")
-                    tooltip: i18nc("@info:tooltip", "Find in the selected document")
-                    icon.name: "search"
-                }
-            ]
-            // The tabs show their icons alone, which leaves the bar lower; what each is for
-            // says its tooltip, and its name is still there for screen readers.
-            delegate: Kirigami.NavigationTabButton {
-                required property QQC2.Action modelData
-
-                parent: tabBar.contentItem
-                action: modelData
-                // As the bar's own tabs do: an action is not checkable unless told to be.
-                onActionChanged: action.checkable = true
-                display: QQC2.AbstractButton.IconOnly
-                implicitHeight: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing
-
-                Layout.minimumWidth: tabBar.buttonWidth
-                Layout.maximumWidth: tabBar.buttonWidth
-                Layout.fillHeight: true
-
-                Accessible.name: modelData.text
-            }
-
-            // The tab that is shown is a setting; the bar follows it and changes it.
-            Component.onCompleted: currentIndex = root.tabIndex
-            onCurrentIndexChanged: {
-                if (currentIndex >= 0 && currentIndex !== root.tabIndex) {
-                    App.showSidePanel(root.tabs[currentIndex]);
-                }
-            }
-
-            Connections {
-                target: root
-                function onTabIndexChanged(): void {
-                    tabBar.currentIndex = root.tabIndex;
-                }
-            }
-        }
-
-        StackLayout {
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: root.tabIndex
 
-            InfoPane {
-                actions: root.actions
-                onNoteActivated: note => root.noteActivated(note)
-            }
-            TodoPane {
-                actions: root.actions
-                onEditRequested: id => root.todoEditRequested(id)
-            }
-            FindPane {
-                id: findPane
+            QQC2.SplitView {
+                id: split
 
-                actions: root.actions
-                preview: root.preview
+                anchors.fill: parent
+                orientation: Qt.Vertical
+                handle: PanelBorder {}
+
+                PanelArea {
+                    id: upper
+
+                    side: root.side
+                    part: "top"
+                    viewDrag: root.viewDrag
+                    splittable: lower.views.length === 0
+                    QQC2.SplitView.fillHeight: true
+                    QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 6
+                }
+                PanelArea {
+                    id: lower
+
+                    side: root.side
+                    part: "bottom"
+                    viewDrag: root.viewDrag
+                    visible: views.length > 0
+                    QQC2.SplitView.preferredHeight: split.height * root.lowerShare
+                    QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 6
+                }
+            }
+
+            // The border between the two areas, to be taken hold of; see ResizeGrip.
+            ResizeGrip {
+                readonly property real least: lower.QQC2.SplitView.minimumHeight
+
+                visible: lower.visible
+                horizontalBorder: true
+                border: lower.y
+                onMoved: position => {
+                    const height = Math.max(least, Math.min(split.height - least, split.height - position));
+                    root.lowerShare = split.height > 0 ? height / split.height : root.lowerShare;
+                }
+                onDraggingChanged: {
+                    if (!dragging) {
+                        root.keepShare();
+                    }
+                }
             }
         }
+
+        // Which database all of this belongs to; a click lists the others. It keeps its
+        // place at the bottom whatever is above it, and moves up when the display of what
+        // Indeks is doing slides in below it.
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            visible: root.hasDatabase
+        }
+        QQC2.ItemDelegate {
+            Layout.fillWidth: true
+            visible: root.hasDatabase
+            icon.name: "server-database"
+            text: App.databaseName
+            font.weight: Font.DemiBold
+            // As much room below the name as above it; the style leaves less below.
+            topPadding: Kirigami.Units.largeSpacing
+            bottomPadding: Kirigami.Units.largeSpacing
+            onClicked: root.actions.databases.trigger()
+
+            TapHandler {
+                acceptedButtons: Qt.RightButton
+                onTapped: databaseMenu.popup()
+            }
+
+            Accessible.description: i18nc("@info", "The open database. Activate to switch to another one.")
+            QQC2.ToolTip.text: i18nc("@info:tooltip", "Switch to another database or add one")
+            QQC2.ToolTip.visible: hovered
+            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+        }
+        ActivityIndicator {
+            Layout.fillWidth: true
+            // Not laid out at all in the other panel: it would be told to slide in there too.
+            visible: root.hasDatabase && reveal > 0
+            onClicked: root.actions.activity.trigger()
+        }
+    }
+
+    QQC2.Menu {
+        id: databaseMenu
+
+        QQC2.MenuItem { action: root.actions.renameDatabase }
+        QQC2.MenuItem { action: root.actions.databases }
+        QQC2.MenuItem { action: root.actions.addDatabase }
+        QQC2.MenuItem { action: root.actions.newDatabase }
     }
 }

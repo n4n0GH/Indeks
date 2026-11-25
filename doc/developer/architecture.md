@@ -66,6 +66,7 @@ does the work. It is built as three programs and one library.
 | `App` | `app.*` | The application object (`AbstractKirigamiApplication`). Defines every action, keeps the settings in step, and is what QML reaches as `App`. |
 | `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. There are two: `App.documents` is the list in the window, and `App.linkCandidates` is what the dialog for linked documents finds for what is typed there. The second is switched off (`active`) while that dialog is closed, so that it reads nothing. A dialog that lets the user pick documents by searching can use it the same way, one dialog at a time. |
 | `SearchWorker` | `searchworker.*` | Reads every list of `DocumentModel`, and runs full text searches, in a thread of its own, so that neither a click in the sidebar nor typing is held up. |
+| `PanelLayout` | `panellayout.*` | Which view is in which area of the sidebar and the side panel, and which view each area shows; see *The two panels and their views*. |
 | `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. The entries are listed at once; the numbers come from `CountWorker`. |
 | `CountWorker` | `countworker.*` | Counts the documents behind sidebar entries in a thread of its own. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
@@ -212,12 +213,59 @@ the way they were made. For a query that has none, `FilterStack.filtersOf()` tak
 term by term into the filters the menu would have made, and leaves the rest, or a query with
 `OR` or an exclusion as a whole, as one *Search* filter.
 
+## The two panels and their views
+
+The sidebar on the left and the side panel on the right are made the same way
+(`SidePanel.qml`, with `side` "left" or "right"): an upper and a lower area
+(`PanelArea.qml`), each a bar of tabs with the view of the chosen tab below it, and a
+border between them that the user moves (`leftPanelLower`, `rightPanelLower`).
+
+A **view** is what a tab leads to. There are five: `database` (`DatabaseView`),
+`automation` (`AutomationView`), `info` (`InfoPane`), `todo` (`TodoPane`) and `find`
+(`FindPane`). Which view is in which area of which panel is the user's to say, and
+`PanelLayout` (`App.panels`) keeps it, in the settings (`panelLeftTop` and the like,
+`panelCurrent`).
+
+- **The views are made once**, in `Main.qml`, and each puts itself into the container of
+  the area it is in (`parent: mainPage.viewHome(…)`) and shows while its area has chosen it.
+  So a view keeps what it holds, the text of a search for one, when it is moved.
+- **Bindings follow `App.panels.revision`**, which goes up with every change; the layout is
+  asked through functions (`views()`, `current()`, `sideOf()`, `isCurrent()`).
+- **The upper area is the one that is always there.** `PanelLayout::normalise()` moves the
+  views of a lower area up when the upper one is empty, puts a view the settings do not
+  know of (one a later version brings) where it is at home, and drops what is no view. A
+  panel without views is hidden (`SidePanel.hasViews`).
+- **Moving is a command**, so that the command bar has it: `panel_move_<view>`,
+  `panel_split_<view>` (which merges a view that is below), `panel_earlier_<view>` and
+  `panel_later_<view>` for the order of the tabs, and `panel_reset`. What they are called
+  follows where the view is (`App::updatePanelActions()`). The menu of a tab triggers the
+  same actions.
+- **Tabs are dragged** with `PanelDrag`, of which the window has one: a tab's `DragHandler`
+  tells it where the pointer is, and it is what the `DropArea`s see coming: the bar of
+  tabs of every area (which shows where among the tabs), the view below it (the whole
+  area, or its lower part for an area of its own there), and a strip at the edge of the
+  window for a panel that is not shown (`EdgeDrop` in `Main.qml`). All of them end in
+  `PanelLayout::place()`, a moment after the drop, since the tabs are made anew by it.
+- **A new view** needs a name in `PanelLayout` (its home, title, icon and tooltip), an
+  instance in `Main.qml`, and nothing else: tabs, menus and commands follow.
+- **Below the areas** of the panel that has the database view stand the database button and
+  `ActivityIndicator`.
+- **`App::showSidePanel(view)`** brings a view up wherever it is and shows its panel.
+
 ## Documents or automation
 
-The sidebar has two tabs, and the tab decides what the middle of the window is about
-(`App.sidebarTab`, `App.automation`). It is not kept from one start to the next.
+What the middle of the window is about is a state of its own (`App.sidebarTab`,
+`App.automation`); it is not kept from one start to the next. Two views set it: a click on
+the tab or an entry of the database view makes it `database`, one on the tab or an entry of
+the automation view `automation`. Since the two may be in view at the same time, in
+different areas, each marks its entry only while the window is about it.
 
-| Tab | List (first half of `centreSplit`) | Pane (second half) |
+Going the other way, `App::setSidebarTab()` brings the automation view up in its area, and
+the database view where the two share an area and the other one was up. A database view
+that stands behind another tab is left there: a search must not take away what the user
+is looking at.
+
+| `App.sidebarTab` | List (first half of `centreSplit`) | Pane (second half) |
 | --- | --- | --- |
 | `database` | `DocumentList` | `PreviewPane` |
 | `automation` | `AutomationList`: the rules or the scripts (`App.automationPage`) | `AutomationPane`: `RuleEditor` or `ScriptEditor` |
@@ -228,7 +276,7 @@ beside and the hiding of the preview hold for both.
 - **What is selected** in the automation list is the application's to know
   (`App.currentRule`, `App.currentScript`), because actions go by it: *Apply Selected Rule*,
   and `automation_delete`, whose text follows the page.
-- **Document actions rest** while the automation tab is shown: `App::updateActions()` then
+- **Document actions rest** while the window is about automation: `App::updateActions()` then
   takes the selection of documents for empty, so that a key like `Del` does nothing to
   documents that are out of sight. The selection itself stays; trying and running a script
   work on it.

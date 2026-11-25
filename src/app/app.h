@@ -5,6 +5,7 @@
 
 #include "activitymodel.h"
 #include "documentmodel.h"
+#include "panellayout.h"
 #include "library.h"
 #include "sidebarmodel.h"
 
@@ -41,6 +42,8 @@ class App : public AbstractKirigamiApplication
     Q_PROPERTY(DocumentModel *linkCandidates READ linkCandidates CONSTANT)
     Q_PROPERTY(SidebarModel *sidebar READ sidebar CONSTANT)
     Q_PROPERTY(ActivityModel *activity READ activity CONSTANT)
+    /** Which view is in which area of which panel. */
+    Q_PROPERTY(PanelLayout *panels READ panels CONSTANT)
     /** Name of the database that is open. */
     Q_PROPERTY(QString databaseName READ databaseName NOTIFY databasesChanged)
     /**
@@ -63,9 +66,10 @@ class App : public AbstractKirigamiApplication
     Q_PROPERTY(bool rawViewAvailable READ isRawViewAvailable WRITE setRawViewAvailable NOTIFY previewChanged)
     Q_PROPERTY(bool rawView READ isRawView WRITE setRawView NOTIFY previewChanged)
     /**
-     * Which tab the sidebar shows, and with it what the middle of the window is about:
-     * "database" for the documents, "automation" for the rules and scripts. Not kept from
-     * one start to the next: Indeks begins with the documents.
+     * What the middle of the window is about: "database" for the documents, "automation"
+     * for the rules and scripts. Set by the two views of the panels that go by these names,
+     * which may both be in view; see PanelLayout. Not kept from one start to the next:
+     * Indeks begins with the documents.
      */
     Q_PROPERTY(QString sidebarTab READ sidebarTab WRITE setSidebarTab NOTIFY automationChanged)
     Q_PROPERTY(bool automation READ isAutomation NOTIFY automationChanged)
@@ -102,6 +106,10 @@ public:
     SidebarModel *sidebar() const
     {
         return m_sidebar;
+    }
+    PanelLayout *panels() const
+    {
+        return m_panels;
     }
     ActivityModel *activity() const
     {
@@ -251,7 +259,11 @@ public:
     /** Opens the manual in the application for PDF documents. */
     Q_INVOKABLE void openManual();
     /** Opens the panel on the right at "info" about the document or at the "todo" list. */
-    Q_INVOKABLE void showSidePanel(const QString &tab);
+    /**
+     * Brings a view of the panels up, wherever it is: "info", "todo", "find", "database" or
+     * "automation". Its panel is shown if it was hidden.
+     */
+    Q_INVOKABLE void showSidePanel(const QString &view);
     /** Selects an entry of the sidebar, e.g. "place:inbox". */
     Q_INVOKABLE void goTo(const QString &sidebarKey);
     /** Runs one of the scripts of the database on the selected documents. */
@@ -282,6 +294,8 @@ private:
     QAction *addRequest(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut = QKeySequence());
     QAction *addToggle(const QString &name, const QString &text, const QString &icon, const QKeySequence &shortcut, bool checked, const std::function<void(bool)> &handler);
     void updateActions();
+    /** Names the commands that move views between the panels after where each view is. */
+    void updatePanelActions();
     QVariantList selection() const;
     QString localDatabaseName() const;
     /** Opens the database in @p path, starting it if @p create, and puts it on the list. */
@@ -300,6 +314,7 @@ private:
     DocumentModel *m_linkCandidates = nullptr;
     SidebarModel *m_sidebar = nullptr;
     ActivityModel *m_activity = nullptr;
+    PanelLayout *m_panels = nullptr;
     /** What the Edit action does with the selected document. */
     enum class EditMode {
         None,
