@@ -9,12 +9,15 @@
 // writes nothing but renditions of Office documents into the cache.
 
 #include "extractorpool.h"
+#include "fingerprint.h"
 #include "indexing.h"
 #include "paths.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFile>
+#include <QMimeDatabase>
+#include <QTextStream>
 #include <QThread>
 
 #include <cerrno>
@@ -42,7 +45,24 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     parser.addOption({u"database-dir"_s, u"Folder of the database Indeks has open."_s, u"dir"_s});
     parser.addOption({u"slot"_s, u"Number of this helper among its siblings."_s, u"n"_s, u"0"_s});
+    parser.addOption({u"look"_s, u"Print what the files given look like (their fingerprints) and exit; for trying things out."_s});
     parser.process(app);
+    if (parser.isSet(u"look"_s)) {
+        // One line per file: shape, ink and the bits, as Indeks would note them.
+        QTextStream out(stderr);
+        static const QMimeDatabase mimeDatabase;
+        const QStringList files = parser.positionalArguments();
+        for (const QString &file : files) {
+            const Kind kind = kindForFile(file, mimeDatabase.mimeTypeForFile(file).name());
+            const Fingerprint print = Fingerprint::ofFile(file, kind);
+            out << int(print.shape) << ' ' << print.ink;
+            for (const quint32 word : print.bits) {
+                out << ' ' << word;
+            }
+            out << '\t' << file << '\n';
+        }
+        return 0;
+    }
     // The cache, where renditions of Office documents go, belongs to the database.
     Paths::setDatabaseDir(parser.value(u"database-dir"_s));
     const QString slot = parser.value(u"slot"_s);

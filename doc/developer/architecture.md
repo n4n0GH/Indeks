@@ -52,6 +52,7 @@ does the work. It is built as three programs and one library.
 | `WebLink` | `weblink.*` | Websites as documents (`Kind::Website`): reads the address out of an internet shortcut (`.url`) or a `.webloc` file, writes the `.url` files Indeks makes, and says whether a text is the address of a website. Only `http` and `https` count; `App::openExternally()` hands such an address to the desktop's browser and opens everything else as a file. |
 | `Ocr` | `ocr.*` | Runs Tesseract on pictures and on pages of PDFs. |
 | `Office` | `office.*` | Has LibreOffice make PDF renditions of Office documents. |
+| `Fingerprint` | `fingerprint.*` | What a picture or the first page of a PDF looks like, in 256 bits, and the comparison of two of them, in the program and as SQL. See *Documents that look alike* below. |
 | `Rules` | `rules.*` | Which documents a rule matches, and carrying out its actions. Used from the main thread and the script thread. |
 | `Scripts` | `scripts.*` | The script files of a database, and which of them may run on this computer. |
 | `ScriptHost` | `scripthost.*` | Runs scripts: a thread that talks to `python3` in a sandbox, in lines of JSON. `scriptbridge.py` is the other end, compiled into the library. |
@@ -128,6 +129,7 @@ thread, or the window comes up late and stands still after every change.
 | The numbers of the sidebar | `CountWorker`, the count thread | `SidebarModel::reload()` lists the entries at once (`rebuild()`) and asks for the numbers (`requestCounts()`); an entry shows the number it had until the new one is there. One round runs at a time, and after a round the next waits as long as the round took (five seconds at most), so that indexing does not keep a processor counting. The locations are counted in one statement (`Store::sourceCounts()`). |
 | Every list of documents | `SearchWorker`, the search thread | See *Lists of documents* below. |
 | Thumbnails of the grid | `ThumbnailProvider`, a pool of three threads | Reads the files themselves, never the index. |
+| What documents look like | the indexing thread and its helper processes | `IndexWorker::lookAtDocuments()`; the walk through the table that finds what is still to be looked at runs there too. |
 | Documents kept only for the user's work | the pool thread of `Library` | `Library::start()` calls `dropAbandonedLater()`: whether there is anything to look at (`Store::hasAbandonedCandidates()`) is found out in the background, and only then `dropAbandoned()` runs in the main thread, with the table in memory by then. |
 
 - **`App.opening`** is true from the start, and again from `Library::databaseAboutToChange`,
@@ -214,6 +216,43 @@ Rules and saved searches store the filters beside the query, so that they can be
 the way they were made. For a query that has none, `FilterStack.filtersOf()` takes it apart
 term by term into the filters the menu would have made, and leaves the rest, or a query with
 `OR` or an exclusion as a whole, as one *Search* filter.
+
+## Documents that look alike
+
+`similar:<id>` in the query language finds the documents that look like one of them
+(`SearchQuery`, `Fingerprint`). It is there for files whose names say nothing: the invoices
+of one sender among a scanner's output.
+
+- **What is compared.** `Fingerprint::ofImage()` decides between two shapes. A *page* (60 %
+  of it light, and something in at least 8 of the fields of its head) is known by its upper
+  quarter: 32 by 8 fields, a bit for each that is darker than the average. A *picture*,
+  which is everything else, is known as a whole: 16 by 16 fields, a bit for each that is
+  lighter than its left neighbour. Only fingerprints of one shape are compared, by the
+  number of bits they differ in; how many may differ (`allowance()`) depends on the shape,
+  on *roughly*, and on how many bits the two have set at all.
+- **The numbers** in `fingerprint.cpp` come from looking at some hundred real invoices and
+  pictures side by side with their nearest neighbours, not from theory. `indeks-extractor
+  --look <files>` prints the fingerprints of files, for doing that again.
+- **Where it is made.** `Indexing::readFile()` takes it when it reads a picture or a PDF,
+  in the helper process like the rest of the reading, and `storeFile()` notes it
+  (`Prepared::look`). Documents from before are looked at by
+  `IndexWorker::lookAtDocuments()`, which `Library::start()` asks for: it collects the
+  pictures and PDFs without a fingerprint of their present content and sends them through
+  the pool with `Reading::lookOnly`, 200 at a time, with the event loop in between like
+  text recognition. `Library::canFindSimilar()` looks at one document on the spot, the one
+  the user asks about.
+- **Where it is kept.** The table `fingerprints`, which is no part of the versioned schema;
+  see [database.md](database.md). A row without a shape says that the document was looked
+  at and gave nothing, so that it is not looked at with every start.
+- **How it is compared.** In SQL, in the query of the list like every other condition, so
+  that it combines with the rest of the language, in saved searches and in rules. SQLite
+  has neither XOR nor a count of bits; `Fingerprint::sqlSimilar()` spells both out with
+  `|`, `&`, shifts and sums, for eight numbers of 32 bits. `fingerprinttest` holds it
+  against the count the program makes. For 80,000 fingerprints that takes a quarter of a
+  second; it runs in the search thread.
+- **In the interface** it is a filter of `FilterStack` (`similarFilter()`): the actions
+  `doc_similar` and `doc_similar_roughly` put it on the filter bar, and the *Add Filter*
+  menu offers it, and its opposite, for the document that is selected.
 
 ## The documents as list and as grid
 

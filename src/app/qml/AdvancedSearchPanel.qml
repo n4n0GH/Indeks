@@ -24,6 +24,11 @@ QQC2.Pane {
 
     signal closeRequested()
 
+    /** Narrows the list down to what looks like a document; see FilterStack.similarFilter(). */
+    function addSimilar(id: real, roughly: bool): void {
+        stack.add(stack.similarFilter(id, roughly));
+    }
+
     padding: Kirigami.Units.smallSpacing
     Kirigami.Theme.colorSet: Kirigami.Theme.Window
     Kirigami.Theme.inherit: false

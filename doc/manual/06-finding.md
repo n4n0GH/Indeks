@@ -63,15 +63,16 @@ The filter button beside the search field (`Ctrl+Alt+F`) opens the filter bar ab
 There you put a search together by picking, without typing terms.
 
 - *Add Filter* offers: name, text in the document, text in notes and comments, folder,
-  extension, file type, date modified, date added, size, tag, group, location and state.
+  extension, file type, date modified, date added, size, tag, group, location, state, and
+  what looks like the selected document; see *Documents that look alike*.
 - Each filter you add shows as a chip and narrows the list at once. Click the cross on a chip
   to remove it; click a typed chip to change it.
 - Lists of choices show how many documents each choice would leave.
 - *Modified Between Dates…*, *Added Between Dates…* and *Other Size…* take values that are
   not in the lists.
 
-Several tags or states can be on at once, and all must apply. Of file type, size, each date
-and location there is one at a time; picking another replaces it.
+Several tags or states can be on at once, and all must apply. Of file type, size, each date,
+location and looks there is one at a time; picking another replaces it.
 
 The filters add to what is typed in the search field. Closing the bar removes all filters.
 
@@ -95,6 +96,59 @@ Selected Sidebar Entry…*. The same dialog opens with the filters the search wa
 version of Indeks is taken apart into filters as far as that goes; what is left over, and a
 search that uses `OR` or excludes something with a minus, stands in one *Search* line and is
 changed as text. *Delete…* removes a saved search; the documents it found are not affected.
+
+## Documents that look alike
+
+Scanners and web shops name files as they please, and a folder of `scan_0412.pdf` and
+`document(7).pdf` cannot be sorted by name. But the invoices of one sender look alike: the
+same letterhead, the same logo at the same place. Indeks can go by that.
+
+Select a PDF or a picture and choose *Find Similar-Looking Documents* from its context menu
+or the command bar. The filter bar opens with the filter *Looks like: name*, and the list
+shows the documents that look like the selected one, itself among them:
+
+![The invoices of one sender, found by what they look like](images/similar.png)
+
+- **Pages are compared by their head.** A page is anything light with something on it: a
+  letter, an invoice, a form, a scan of one, as a PDF or as a picture. What counts is its
+  upper quarter, where letterhead and logo are. What stands below, and how much of it, does
+  not matter: an invoice of three lines is like one of thirty from the same sender. Of a
+  PDF the first page is looked at.
+- **Pictures are compared as a whole.** A photograph is like the same photograph in another
+  size, lighter or darker, or saved in another format. So is a page with next to nothing in
+  its upper quarter.
+- **A page is never like a picture.**
+- **Find Roughly Similar-Looking Documents** takes it less strictly. Use it when too little
+  is found: for scans that sit askew, or a letterhead that changed a little over the years.
+  It also finds more that does not belong.
+- **Does Not Look Like …**, in the *Add Filter* menu, turns it around: everything in the
+  list that does not even roughly look like the selected document. That finds the odd ones
+  in a folder of documents that should all be of one kind.
+
+The filter is one like any other. It narrows the list you are looking at, so select *All
+Documents* in the sidebar to search everywhere. Further filters go with it, *File Type: PDF*
+or a date for instance, and *Save Search…* keeps it: a saved search *Invoices of the
+plumber* then lists every such invoice that comes in. In a rule the filter stands among the
+conditions like the others, added from the selected document with *Add Filter*; see
+*Automation*.
+
+What then? Select all that was found (`Ctrl+A`) and give it a tag or a group.
+
+The filter goes by the document it was made from, not by a description of it. If that
+document leaves the index, a saved search or a rule that uses it finds nothing any more;
+make the filter anew from another document of the kind.
+
+> **Note:** Indeks goes by where there is something on the page, not by what it says. Two
+> letters set the same way by different people look alike to it, and one sender's invoice
+> looks different after a new design. Look through what was found before you act on all of
+> it.
+
+What a document looks like is noted when it is read for the index. For the pictures and
+PDFs that were in the index before Indeks did this, it is made up for in the background
+after the start; the activity display says *Looking at documents* meanwhile, and a search
+for similar documents finds more as that goes on. Only pictures and PDFs take part, and of
+those only the ones whose file can be read on this computer: files on a server take part
+once Indeks has fetched them for indexing.
 
 ## Smart groups
 

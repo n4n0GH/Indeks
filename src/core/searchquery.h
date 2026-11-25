@@ -22,6 +22,7 @@ namespace Indeks
  *   is:inbox  is:annotated  is:pinned  is:linked  is:unfiled  is:untagged  is:duplicate
  *   is:missing  is:local  is:trashed  is:ocr
  *   added:today  added:7d  added:12h  modified:>2026-01-31  size:>5M
+ *   similar:1234  similar:~1234   (looks like, or roughly like, the document with that number)
  *
  * A leading minus negates a word or filter, `OR` between two of them matches either.
  */

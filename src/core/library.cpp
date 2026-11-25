@@ -547,6 +547,9 @@ void Library::start(bool rescan)
         rescanAll();
     }
     m_indexer->processOcrQueue();
+    // Pictures and PDFs that came in before Indeks noted what they look like. It asks after
+    // the scans, which look at what they read themselves.
+    m_indexer->lookAtDocuments();
     // Documents that are only here for work of the user's which has since gone, and the space
     // that removed documents left behind. After the scans, which may remove more.
     dropAbandonedLater();
@@ -658,6 +661,27 @@ QVariantList Library::sources(bool counted) const
         });
     }
     return result;
+}
+
+bool Library::canFindSimilar(qint64 id)
+{
+    const Document doc = Store::document(id);
+    if (!doc.isValid() || doc.isPart() || !Fingerprint::applies(doc.kind)) {
+        return false;
+    }
+    Fingerprint print = Store::fingerprint(id);
+    const bool current = Database::value(u"SELECT hash FROM fingerprints WHERE doc_id = ?"_s, {id}).toString() == doc.hash;
+    if (!print.isValid() || !current) {
+        // Not looked at yet: a document from before, whose turn in the background has not
+        // come. It is being shown at this moment, so reading it here is nothing new.
+        const QString path = Store::contentPath(doc);
+        if (path.isEmpty()) {
+            return print.isValid();
+        }
+        print = Fingerprint::ofFile(path, doc.kind);
+        Store::setFingerprint(id, doc.hash, print);
+    }
+    return print.isValid();
 }
 
 bool Library::isSourceAvailable(qint64 id) const

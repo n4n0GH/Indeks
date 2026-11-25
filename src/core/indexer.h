@@ -30,6 +30,7 @@ public:
         Reading,
         Recognizing,
         Tidying,
+        Looking,
     };
 
 public Q_SLOTS:
@@ -41,6 +42,12 @@ public Q_SLOTS:
     void indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox);
     void reindexDocument(qint64 id);
     void processOcrQueue();
+    /**
+     * Notes what the pictures and PDFs look like that the index has nothing of the kind for
+     * (see Fingerprint): those from before Indeks did that when it read a file, and those an
+     * older Indeks changed since. A portion at a time, with room for other work in between.
+     */
+    void lookAtDocuments();
     /** Gives back the space removed documents left in the index file (see Maintenance). */
     void tidy();
     /** First and last thing the indexer thread does. */
@@ -71,6 +78,7 @@ Q_SIGNALS:
     void documentsAdded(const QList<qint64> &ids);
     void sourceScanned(qint64 sourceId, bool available);
     void ocrActiveChanged(bool active);
+    void lookActiveChanged(bool active);
 
 private:
     void notifyChanged(bool force = false);
@@ -92,6 +100,7 @@ private:
     void indexMailbox(qint64 mailboxId, const QueueItem &item);
     void ocrStep();
     void recoverOcr();
+    void lookStep();
     bool aborted() const
     {
         return m_abort->load();
@@ -110,6 +119,11 @@ private:
      */
     QSet<qint64> m_ocrSuspects;
     bool m_ocrRecovered = false;
+    /** The documents that are still to be looked at, and how many there were. */
+    QList<qint64> m_lookQueue;
+    int m_lookTotal = 0;
+    bool m_lookActive = false;
+    bool m_lookStored = false;
     ExtractorPool m_pool;
 };
 
@@ -130,7 +144,7 @@ public:
 
     bool isBusy() const
     {
-        return !m_jobs.isEmpty() || m_ocrActive;
+        return !m_jobs.isEmpty() || m_ocrActive || m_lookActive;
     }
     QString status() const
     {
@@ -158,6 +172,8 @@ public:
     void indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox);
     void reindexDocument(qint64 id);
     void processOcrQueue();
+    /** Has the pictures and PDFs looked at that were not yet; see IndexWorker::lookAtDocuments(). */
+    void lookAtDocuments();
     /** Queues giving space back to the file system, unless that is waiting already. */
     void tidy();
 
@@ -206,6 +222,7 @@ private:
     QList<QueueItem> m_jobs; ///< what was asked for and is not done yet, oldest first
     bool m_jobRunning = false; ///< whether the worker has begun with m_jobs.first()
     bool m_ocrActive = false;
+    bool m_lookActive = false;
     int m_phase = 0; ///< an IndexWorker::Phase
     QueueItem m_current;
     QList<QueueItem> m_batch;

@@ -49,6 +49,8 @@ QString stateText(QueueItem::State state)
         return i18nc("@info state of a file in the indexing queue", "Fetching");
     case QueueItem::Tidying:
         return i18nc("@info state of the index in the indexing queue", "Giving back the space that removed documents left");
+    case QueueItem::Looking:
+        return i18nc("@info state of a file in the indexing queue", "Noting what it looks like, to find similar documents");
     case QueueItem::RunningScript:
         return i18nc("@info state of a script in the list of activity", "Running on documents");
     }

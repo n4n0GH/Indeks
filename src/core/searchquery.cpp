@@ -3,6 +3,8 @@
 
 #include "searchquery.h"
 
+#include "fingerprint.h"
+
 #include "types.h"
 
 #include <QDate>
@@ -391,6 +393,15 @@ SearchQuery::Clause SearchQuery::compileToken(const QString &key, const QString 
         setNarrow(u"EXISTS (SELECT 1 FROM document_folders df WHERE df.doc_id = d.id AND df.folder_id = ?)"_s, {value.toLongLong()});
     } else if (key == "source"_L1) {
         set(u"d.source_id IN (SELECT s.id FROM sources s WHERE s.name = ? COLLATE NOCASE)"_s, {value});
+    } else if (key == "similar"_L1) {
+        // Documents that look like the one with this number; with a tilde before the number,
+        // roughly like it. Where the document has no fingerprint, none do.
+        const bool roughly = value.startsWith(u'~');
+        bool isNumber = false;
+        const qint64 reference = QStringView(value).mid(roughly ? 1 : 0).toLongLong(&isNumber);
+        if (isNumber) {
+            set(u"EXISTS (SELECT 1 FROM fingerprints f JOIN fingerprints r ON r.doc_id = ? WHERE f.doc_id = d.id AND %1)"_s.arg(Fingerprint::sqlSimilar(roughly)), {reference});
+        }
     } else if (key == "partof"_L1) {
         // What a document holds, e.g. the messages of a mailbox, by the document's number.
         setNarrow(u"d.parent_id = ?"_s, {value.toLongLong()});

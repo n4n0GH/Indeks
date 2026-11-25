@@ -129,6 +129,7 @@ struct QueueItem {
         Recognizing,
         Downloading,
         Tidying, ///< the index itself: giving back space that removed documents left
+        Looking, ///< a document from before: noting what it looks like (see Fingerprint)
         RunningScript, ///< a script of the user's, at one of the documents it is run on
     };
 

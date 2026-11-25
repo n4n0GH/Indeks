@@ -403,6 +403,17 @@ StatefulApp.StatefulWindow {
             case "doc_links":
                 linkDialog.ask(currentId);
                 break;
+            case "doc_similar":
+            case "doc_similar_roughly":
+                if (App.library.canFindSimilar(currentId)) {
+                    // A filter like any other: it narrows the list that is shown, and can
+                    // be saved as a search with what else is set.
+                    App.advancedSearch = true;
+                    filterBar.addSimilar(currentId, what === "doc_similar_roughly");
+                } else {
+                    root.showPassiveNotification(i18nc("@info", "Indeks has nothing to go by for this document: its file cannot be read at the moment, or cannot be shown as a picture."));
+                }
+                break;
             case "new_todo":
                 todoDialog.ask(0);
                 break;

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "fingerprint.h"
 #include "types.h"
 
 #include <QHash>
@@ -63,6 +64,14 @@ bool hasUserData(qint64 id);
  * with it the parts it has. The original file is never touched.
  */
 void removeDocument(qint64 id);
+
+/** What a document looks like, as the index has it; one without a shape where it has none. */
+Fingerprint fingerprint(qint64 id);
+/**
+ * Notes what a document looks like, as found in the content with @p hash. One without a
+ * shape is noted too: the document was looked at, and there is nothing to go by.
+ */
+void setFingerprint(qint64 id, const QString &hash, const Fingerprint &print);
 
 /**
  * What becomes of a document whose file is no longer where it was: it goes into the trash,

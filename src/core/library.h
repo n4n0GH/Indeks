@@ -140,6 +140,12 @@ public:
     bool shutdown(int timeoutMs);
 
     Q_INVOKABLE void rescanAll();
+    /**
+     * Whether Indeks can look for documents that look like this one: it is a picture or a
+     * PDF, and there is something to go by in what it looks like. Looks at the document on
+     * the spot if that was not done yet.
+     */
+    Q_INVOKABLE bool canFindSimilar(qint64 id);
     bool isSourceAvailable(qint64 id) const;
 
     // Adding documents

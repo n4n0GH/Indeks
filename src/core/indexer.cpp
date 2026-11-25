@@ -45,6 +45,9 @@ constexpr qint64 MaxWriteHoldMs = 600;
 // Pictures taken on per round for every process that reads them: enough to keep all of them
 // busy, few enough for a round to be over in a few seconds.
 constexpr int PicturesPerProcess = 4;
+// How many documents are looked at for what they look like before other work gets its turn.
+constexpr int LookPortion = 200;
+constexpr int LookReportMs = 200;
 
 struct Known {
     qint64 id = 0;
@@ -683,6 +686,111 @@ void IndexWorker::ocrStep()
     QMetaObject::invokeMethod(this, &IndexWorker::ocrStep, Qt::QueuedConnection);
 }
 
+void IndexWorker::lookAtDocuments()
+{
+    if (m_lookActive) {
+        return; // the round that is under way finds them
+    }
+    // Pictures and PDFs the index has no fingerprint for, or one of other content: an older
+    // Indeks may have read the file anew since. Those that were looked at in vain have one
+    // too, without a shape, and are left alone.
+    m_lookQueue.clear();
+    QSqlQuery query = Database::exec(u"SELECT d.id FROM documents d LEFT JOIN fingerprints f ON f.doc_id = d.id "
+                                     "WHERE d.kind IN (?, ?) AND d.parent_id = 0 AND d.missing = 0 AND d.trashed = 0 AND (f.doc_id IS NULL OR f.hash <> d.hash) "
+                                     "ORDER BY d.added DESC"_s,
+                                     {int(Kind::Pdf), int(Kind::Image)});
+    while (query.next()) {
+        m_lookQueue.append(query.value(0).toLongLong());
+    }
+    if (m_lookQueue.isEmpty()) {
+        return;
+    }
+    m_lookTotal = int(m_lookQueue.size());
+    m_lookActive = true;
+    m_lookStored = false;
+    Q_EMIT lookActiveChanged(true);
+    lookStep();
+}
+
+void IndexWorker::lookStep()
+{
+    // A portion per round, continued through the event loop, like text recognition: scans
+    // and whatever else is asked for do not wait behind some ten thousand documents.
+    struct Subject {
+        qint64 id = 0;
+        QString hash;
+        QueueItem item;
+    };
+    QList<Subject> subjects;
+    QList<ExtractorPool::Request> requests;
+    while (!aborted() && !m_lookQueue.isEmpty() && requests.size() < LookPortion) {
+        const Document doc = Store::document(m_lookQueue.takeFirst());
+        // What is not at hand now, a file on a drive that is away or on a server, waits for
+        // another start.
+        const QString path = doc.isValid() && !doc.isPart() ? Store::contentPath(doc) : QString();
+        if (path.isEmpty()) {
+            continue;
+        }
+        Subject subject;
+        subject.id = doc.id;
+        subject.hash = doc.hash;
+        subject.item = queueItemForUrl(doc.url, doc.size);
+        subject.item.name = doc.name;
+        ExtractorPool::Request request;
+        request.id = int(subjects.size());
+        request.reading.contentFile = path;
+        request.reading.name = doc.name;
+        request.reading.lookOnly = true;
+        request.size = doc.size;
+        subjects.append(subject);
+        requests.append(request);
+    }
+    if (!requests.isEmpty()) {
+        const int left = int(m_lookQueue.size() + requests.size());
+        QList<std::pair<int, Fingerprint>> seen;
+        // Hundreds of pictures are looked at in a second. Saying so for each would keep the
+        // window busier with the telling than the helpers are with the looking.
+        QElapsedTimer told;
+        const auto started = [&](int id) {
+            if (!told.isValid() || told.elapsed() >= LookReportMs) {
+                told.start();
+                Q_EMIT progress(Looking, subjects.at(id).item, m_lookTotal - left + int(seen.size()), m_lookTotal);
+            }
+        };
+        const auto finished = [&](const ExtractorPool::Outcome &outcome) {
+            // A file the helper died on has nothing to go by, and is not tried again.
+            seen.append({outcome.id, outcome.ok ? outcome.prepared.look : Fingerprint()});
+        };
+        const int processes = m_options.indexJobs > 0 ? m_options.indexJobs : ExtractorPool::defaultProcesses();
+        const bool complete = m_pool.run(requests, m_options, processes, started, finished);
+        if (!seen.isEmpty()) {
+            Transaction transaction;
+            for (const auto &[id, look] : std::as_const(seen)) {
+                // Only for a document that is still there and still holds what was looked at.
+                Database::exec(u"INSERT OR REPLACE INTO fingerprints (doc_id, hash, shape, ink, b0, b1, b2, b3, b4, b5, b6, b7) "
+                               "SELECT id, hash, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM documents WHERE id = ? AND hash = ?"_s,
+                               {int(look.shape), look.ink, qint64(look.bits[0]), qint64(look.bits[1]), qint64(look.bits[2]), qint64(look.bits[3]), qint64(look.bits[4]),
+                                qint64(look.bits[5]), qint64(look.bits[6]), qint64(look.bits[7]), subjects.at(id).id, subjects.at(id).hash});
+            }
+            transaction.commit();
+            m_lookStored = true;
+        }
+        Q_UNUSED(complete)
+    }
+    if (!aborted() && !m_lookQueue.isEmpty()) {
+        QMetaObject::invokeMethod(this, &IndexWorker::lookStep, Qt::QueuedConnection);
+        return;
+    }
+    m_lookQueue.clear();
+    m_lookActive = false;
+    Q_EMIT progress(Idle, {}, 0, 0);
+    Q_EMIT lookActiveChanged(false);
+    if (m_lookStored) {
+        // A list of similar documents that is open gets those that were found since.
+        notifyChanged(true);
+    }
+}
+
 void IndexWorker::tidy()
 {
     Q_EMIT jobStarted();
@@ -702,6 +810,8 @@ void IndexWorker::setup()
     m_ocrUnreachable.clear();
     m_ocrSuspects.clear();
     m_ocrRecovered = false;
+    m_lookQueue.clear();
+    m_lookActive = false;
     m_lastChangeSignal = 0;
     Task::setAbortFlag(m_abort);
     Task::setProgressHandler([this](double share) {
@@ -763,6 +873,12 @@ Indexer::Indexer(QObject *parent)
             text = i18nc("@info:status", "Tidying up the index…");
             m_current.name = i18nc("@item what is being worked on: the index of all documents", "The index");
             break;
+        case IndexWorker::Looking:
+            text = i18ncp("@info:status noting what documents look like, for finding similar ones", "Looking at documents (%1 left)…", "Looking at documents (%1 left)…", qMax(1, total - done));
+            if (total > 1) {
+                share = double(done) / total;
+            }
+            break;
         case IndexWorker::Recognizing:
             text = total > 1 ? i18ncp("@info:status", "Recognizing text (%1 document left)…", "Recognizing text (%1 documents left)…", total)
                              : i18nc("@info:status", "Recognizing text…");
@@ -810,6 +926,13 @@ Indexer::Indexer(QObject *parent)
             Q_EMIT busyChanged();
         }
     });
+    connect(m_worker, &IndexWorker::lookActiveChanged, this, [this](bool active) {
+        const bool wasBusy = isBusy();
+        m_lookActive = active;
+        if (wasBusy != isBusy()) {
+            Q_EMIT busyChanged();
+        }
+    });
     m_thread.start(QThread::LowPriority);
 }
 
@@ -844,6 +967,7 @@ void Indexer::restart()
     m_jobs.clear();
     m_jobRunning = false;
     m_ocrActive = false;
+    m_lookActive = false;
     m_phase = IndexWorker::Idle;
     m_current = {};
     m_batch.clear();
@@ -880,6 +1004,7 @@ QList<QueueItem> Indexer::queue() const
         current.state = m_phase == IndexWorker::Scanning      ? QueueItem::Scanning
             : m_phase == IndexWorker::Recognizing ? QueueItem::Recognizing
             : m_phase == IndexWorker::Tidying     ? QueueItem::Tidying
+            : m_phase == IndexWorker::Looking     ? QueueItem::Looking
                                                   : QueueItem::Reading;
         current.progress = m_fileProgress;
         list.append(current);
@@ -988,6 +1113,11 @@ void Indexer::tidy()
 void Indexer::processOcrQueue()
 {
     QMetaObject::invokeMethod(m_worker, &IndexWorker::processOcrQueue, Qt::QueuedConnection);
+}
+
+void Indexer::lookAtDocuments()
+{
+    QMetaObject::invokeMethod(m_worker, &IndexWorker::lookAtDocuments, Qt::QueuedConnection);
 }
 
 void Indexer::waitUntilIdle(int timeoutMs)

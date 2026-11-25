@@ -263,6 +263,34 @@ QVariant Database::value(const QString &sql, const QVariantList &binds)
     return query.next() ? query.value(0) : QVariant();
 }
 
+namespace
+{
+// What Indeks works out from the documents and can work out again is kept in tables that are
+// no part of the schema's version: they are made where they are missing, in an index of any
+// age, and an older Indeks that opens the index afterwards neither knows nor minds them. A
+// new version number would shut such an Indeks out for the sake of something it can do
+// without.
+//
+// fingerprints: what a document looks like (see Fingerprint), with the hash of the content
+// it was made of, by which one that is out of date is told.
+void ensureDerivedTables(QSqlDatabase &db)
+{
+    QSqlQuery there(db);
+    if (there.exec(u"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'fingerprints'"_s) && there.next()) {
+        return;
+    }
+    there.finish();
+    run(db,
+        u"CREATE TABLE IF NOT EXISTS fingerprints ("
+        "doc_id INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE, "
+        "hash TEXT NOT NULL DEFAULT '', "
+        "shape INTEGER NOT NULL DEFAULT 0, "
+        "ink INTEGER NOT NULL DEFAULT 0, "
+        "b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0, "
+        "b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0)"_s);
+}
+}
+
 bool Database::migrate(QSqlDatabase &db)
 {
     QSqlQuery versionQuery(db);
@@ -278,6 +306,9 @@ bool Database::migrate(QSqlDatabase &db)
         if (marked.exec(u"PRAGMA application_id"_s) && marked.next() && marked.value(0).toInt() != ApplicationId) {
             marked.finish();
             run(db, u"PRAGMA application_id = %1"_s.arg(ApplicationId));
+        }
+        if (version == SchemaVersion) {
+            ensureDerivedTables(db);
         }
         return true;
     }
@@ -480,7 +511,11 @@ bool Database::migrate(QSqlDatabase &db)
     }
     run(db, u"PRAGMA user_version = %1"_s.arg(SchemaVersion));
     run(db, u"PRAGMA application_id = %1"_s.arg(ApplicationId));
-    return db.commit();
+    if (!db.commit()) {
+        return false;
+    }
+    ensureDerivedTables(db);
+    return true;
 }
 
 namespace

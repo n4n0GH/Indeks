@@ -80,10 +80,20 @@ Prepared readFile(const Reading &reading, const IndexOptions &options)
         prepared.mimeType = u"application/json"_s;
     }
     prepared.kind = kindForFile(reading.name, prepared.mimeType);
+    if (reading.lookOnly) {
+        prepared.look = Fingerprint::ofFile(reading.contentFile, prepared.kind);
+        prepared.looked = true;
+        return prepared;
+    }
     prepared.hash = hashFile(reading.contentFile);
     prepared.textKept = !prepared.hash.isEmpty() && prepared.hash == reading.keepTextIfHash;
     if (!prepared.textKept) {
         prepared.extracted = extractContent(reading.contentFile, prepared.mimeType, prepared.kind, options);
+        // What it looks like goes with its content: unchanged content looks as it did.
+        if (Fingerprint::applies(prepared.kind)) {
+            prepared.look = Fingerprint::ofFile(reading.contentFile, prepared.kind);
+            prepared.looked = true;
+        }
     }
     return prepared;
 }
@@ -154,6 +164,12 @@ Result storeFile(const FileJob &job, const Document &existing, const Prepared &p
     if (prepared.unreadable) {
         // Shown with the document's details, so that it is no riddle why its text is not found.
         Database::exec(u"INSERT OR REPLACE INTO metadata (doc_id, key, value) VALUES (?, 'unreadable', '1')"_s, {result.id});
+    }
+    if (prepared.looked) {
+        Store::setFingerprint(result.id, hash, prepared.look);
+    } else if (existing.isValid() && !Fingerprint::applies(prepared.kind)) {
+        // It was a picture or a PDF once, under this name, and is something else now.
+        Database::exec(u"DELETE FROM fingerprints WHERE doc_id = ?"_s, {result.id});
     }
     result.wantsOcr = ocr == OcrState::Pending;
     return result;

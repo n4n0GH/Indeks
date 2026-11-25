@@ -8,6 +8,7 @@
 #include "indekssettings.h"
 #include "office.h"
 #include "paths.h"
+#include "fingerprint.h"
 #include "store.h"
 #include "weblink.h"
 #include "welcome.h"
@@ -377,6 +378,10 @@ void App::setupActions()
     addRequest(u"doc_group"_s, i18nc("@action", "Add to Group…"), u"folder-new"_s, Qt::CTRL | Qt::Key_G);
     addRequest(u"doc_note"_s, i18nc("@action", "Add Note…"), u"note"_s, Qt::CTRL | Qt::SHIFT | Qt::Key_M);
     addRequest(u"doc_links"_s, i18nc("@action", "Manage Linked Documents…"), u"link"_s, Qt::CTRL | Qt::Key_L);
+    // Documents that look like the selected one, whatever they are called: the invoices of
+    // one sender among files named by a scanner.
+    addRequest(u"doc_similar"_s, i18nc("@action", "Find Similar-Looking Documents"), u"document-duplicate"_s);
+    addRequest(u"doc_similar_roughly"_s, i18nc("@action", "Find Roughly Similar-Looking Documents"), u"document-duplicate"_s);
     addAction(u"doc_link_selected"_s, i18nc("@action", "Link Selected Documents"), u"insert-link"_s, {}, [this] {
         const QVariantList ids = selection();
         const int made = m_library->linkDocuments(ids);
@@ -830,6 +835,9 @@ void App::updateActions()
     enable(u"doc_group"_s, any);
     enable(u"doc_note"_s, single);
     enable(u"doc_links"_s, single && !inTrash);
+    const bool comparable = single && !inTrash && !current.isPart() && Fingerprint::applies(current.kind);
+    enable(u"doc_similar"_s, comparable);
+    enable(u"doc_similar_roughly"_s, comparable);
     enable(u"doc_link_selected"_s, ids.size() >= 2 && !inTrash);
     enable(u"doc_todo"_s, single);
     enable(u"todos_clear_done"_s, m_library->todoCounts().value(u"done"_s).toInt() > 0);

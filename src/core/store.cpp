@@ -147,6 +147,29 @@ QString ensureContent(const Document &document)
     return !mailbox.isEmpty() && Mailbox::writeMessage(mailbox, document.partOffset, document.partLength, target) ? target : QString();
 }
 
+Fingerprint fingerprint(qint64 id)
+{
+    Fingerprint print;
+    QSqlQuery query = Database::exec(u"SELECT shape, ink, b0, b1, b2, b3, b4, b5, b6, b7 FROM fingerprints WHERE doc_id = ?"_s, {id});
+    if (query.next()) {
+        print.shape = Fingerprint::Shape(query.value(0).toInt());
+        print.ink = query.value(1).toInt();
+        for (int i = 0; i < Fingerprint::Words; ++i) {
+            print.bits[i] = quint32(query.value(2 + i).toLongLong());
+        }
+    }
+    return print;
+}
+
+void setFingerprint(qint64 id, const QString &hash, const Fingerprint &print)
+{
+    QVariantList values = {id, hash, int(print.shape), print.ink};
+    for (const quint32 word : print.bits) {
+        values.append(qint64(word));
+    }
+    Database::exec(u"INSERT OR REPLACE INTO fingerprints (doc_id, hash, shape, ink, b0, b1, b2, b3, b4, b5, b6, b7) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"_s, values);
+}
+
 QString contentPath(const Document &document)
 {
     if (!document.localCopy.isEmpty() && QFileInfo::exists(document.localCopy)) {

@@ -67,6 +67,21 @@ step, in one transaction. A database from a newer Indeks is refused.
 | `todos` | The to-do list: text, linked document (0 for none), deadline as `2026-11-30` or empty, done. |
 | `meta` | Single values of the database itself: its folder, counters for maintenance, the columns chosen for each view (`columns:<view key>`), and the filters of each saved search (`search-filters:<id>`: JSON with the `filters` of the editor and the `query` they come to). They are kept here so that the table of searches stays the one older versions know; filters whose `query` is no longer the search's are not used (`Library::savedSearchFilters()`). |
 
+### Derived tables
+
+What Indeks works out from the documents, and can work out again, is kept in tables that
+are no part of the schema's version. `Database::migrate()` makes them where they are
+missing (`ensureDerivedTables()`), in an index of any age, and an older Indeks that opens
+the index afterwards neither knows nor minds them. Raising the version for such a table
+would shut older versions out for something they can do without.
+
+| Table | Holds |
+| --- | --- |
+| `fingerprints` | What a picture or a PDF looks like (`Fingerprint`): `shape` (0 nothing to go by, 1 page, 2 picture), `ink` (how many bits are set) and the 256 bits in `b0` to `b7`, 32 to a number. `hash` is the hash of the content it was made of; where it is not the document's any more, an older Indeks has read the file anew, and the document is looked at again (`IndexWorker::lookAtDocuments()`). Rows go with their document (`ON DELETE CASCADE`). |
+
+A table belongs here only if nothing is lost when it is: no table of things the user
+attached.
+
 ### documents
 
 | Column | Meaning |
@@ -86,6 +101,9 @@ step, in one transaction. A database from a newer Indeks is refused.
 | `parent_id`, `part_offset`, `part_length` | For a message of a mailbox: the mailbox document and where the message stands in the file. |
 
 ## Changing the schema
+
+For what the user or the index itself needs to keep (a table of derived data is added
+without this; see *Derived tables*):
 
 1. Raise `SchemaVersion` in `database.h`.
 2. For a new table or index: add it to a step `if (current < N)` in `Database::migrate()`.

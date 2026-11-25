@@ -4,6 +4,7 @@
 #pragma once
 
 #include "extractor.h"
+#include "fingerprint.h"
 #include "types.h"
 
 namespace Indeks::Indexing
@@ -54,6 +55,11 @@ struct Reading {
      */
     qint64 partOffset = 0;
     qint64 partLength = 0;
+    /**
+     * Nothing is wanted of the file but what it looks like (see Fingerprint): for documents
+     * that came into the index before Indeks took note of that.
+     */
+    bool lookOnly = false;
 };
 
 /** What reading a file gave. */
@@ -66,6 +72,9 @@ struct Prepared {
     bool textKept = false;
     /** The file could not be read, so it is known by name only. */
     bool unreadable = false;
+    /** What the document looks like, if it was looked at for that (`looked`). */
+    Fingerprint look;
+    bool looked = false;
 };
 
 /** Plans the reading of @p job. @p existing is the document the index has for it, if any. */

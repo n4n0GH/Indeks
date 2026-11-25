@@ -1510,6 +1510,12 @@ QQC2.Pane {
         }
         QQC2.MenuItem { action: root.actions.links }
         QQC2.MenuItem {
+            // For a picture or a PDF only.
+            action: root.actions.similar
+            visible: enabled
+            height: visible ? implicitHeight : 0
+        }
+        QQC2.MenuItem {
             // For several documents at once; one alone has nothing to be linked with here.
             action: root.actions.linkSelected
             visible: enabled

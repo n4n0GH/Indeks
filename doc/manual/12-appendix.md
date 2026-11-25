@@ -140,6 +140,9 @@ Every command is in the command bar. This list says what each one does.
 - **Manage Linked Documents…:** Shows the documents the selected one is linked to, removes
   links and finds documents to link.
 - **Link Selected Documents:** Links every one of the selected documents with every other.
+- **Find Similar-Looking Documents**, **Find Roughly Similar-Looking Documents:** For a
+  picture or a PDF: narrows the list to the documents that look like it, by their
+  letterhead or as a picture. See *Finding → Documents that look alike*.
 - **Edit:** Edits the text of the document, or draws on it.
 - **Remove All Drawings:** Removes the drawings from the document.
 - **Remove from Inbox**, **Move to Inbox:** Take a document out of the inbox, or put it back.
@@ -260,6 +263,7 @@ phrase in quotes. A minus in front excludes a word or term. `OR` between two mat
 | `is:ocr` | Its text was recognised |
 | `is:trashed` | Is in the trash |
 | `partof:number` | The messages of the mailbox with that number |
+| `similar:number` | Looks like the document with that number; `similar:~number`: roughly like it. The filter bar writes these; see *Finding → Documents that look alike*. |
 
 ## Script reference
 

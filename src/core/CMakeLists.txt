@@ -22,6 +22,8 @@ target_sources(indekscore PRIVATE
     excerpt.h
     extractor.cpp
     extractor.h
+    fingerprint.cpp
+    fingerprint.h
     extractorpool.cpp
     extractorpool.h
     indexer.cpp

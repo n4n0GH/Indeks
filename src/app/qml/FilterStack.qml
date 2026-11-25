@@ -52,7 +52,7 @@ GridLayout {
 
     // Of some kinds there can only be one: a document has one size and one type.
     function isSingle(type: string): bool {
-        return ["kind", "size", "modified", "added", "source"].includes(type);
+        return ["kind", "size", "modified", "added", "source", "similar"].includes(type);
     }
 
     function add(filter: var): void {
@@ -110,6 +110,8 @@ GridLayout {
             return "folder-saved-search";
         case "state":
             return "pin";
+        case "similar":
+            return "document-duplicate";
         }
         return "view-filter";
     }
@@ -202,13 +204,34 @@ GridLayout {
     // becomes that filter, and whatever is left stays words, which is the text as it stands
     // and can be changed as such. A search that joins terms with OR, or excludes some, is
     // not a list of things that all have to match: it is kept whole.
+    // A file name at a length that fits a chip and a menu: names that say nothing are long.
+    function shortName(name: string): string {
+        return name.length > 40 ? name.slice(0, 24) + "…" + name.slice(-12) : name;
+    }
+
+    // Documents that look like one of them: its letterhead, or the picture it is. The filter
+    // goes by the number of the document; the name is for reading.
+    // With `unlike`, the other way round: what does not look like it, roughly even.
+    function similarFilter(id: real, roughly: bool, unlike = false): var {
+        const name = shortName(App.library.documentInfo(id).name ?? "");
+        return {
+            type: "similar",
+            label: unlike ? i18nc("@item filter, %1 is the name of a document", "Does not look like: %1", name)
+                : roughly ? i18nc("@item filter, %1 is the name of a document", "Looks roughly like: %1", name)
+                          : i18nc("@item filter, %1 is the name of a document", "Looks like: %1", name),
+            query: (unlike ? "-" : "") + "similar:" + (roughly ? "~" : "") + id
+        };
+    }
+
     function filtersOf(query: string): var {
         const text = query.trim();
         if (text.length === 0) {
             return [];
         }
         const terms = text.match(/(?:[^\s"]+:)?"[^"]*"|\S+/g) ?? [];
-        if (terms.some(term => term === "OR" || term.startsWith("-") || term.includes("(") || term.includes(")"))) {
+        // What does not look like a document is a filter of its own, though it excludes.
+        const unlike = /^-similar:~?\d+$/;
+        if (terms.some(term => term === "OR" || (term.startsWith("-") && !unlike.test(term)) || term.includes("(") || term.includes(")"))) {
             return [wordsFilter(text)];
         }
         const choices = [
@@ -232,6 +255,10 @@ GridLayout {
                 found.push(choice);
                 continue;
             }
+            if (unlike.test(term)) {
+                found.push(similarFilter(parseInt(term.replace(/\D/g, "")), term.includes("~"), true));
+                continue;
+            }
             const colon = term.indexOf(":");
             const key = colon > 0 ? term.slice(0, colon).toLowerCase() : "";
             const value = colon > 0 ? term.slice(colon + 1).replace(/"/g, "").trim() : "";
@@ -251,6 +278,8 @@ GridLayout {
                 found.push(folderFilter(value));
             } else if (key === "ext") {
                 found.push(extensionFilter(value));
+            } else if (key === "similar" && /^~?\d+$/.test(value) && !found.some(filter => filter.type === "similar")) {
+                found.push(similarFilter(parseInt(value.replace("~", "")), value.startsWith("~")));
             } else if (key === "tag") {
                 found.push({ type: "tag", label: i18nc("@item filter", "Tag: %1", value), query: "tag:" + quoted(value) });
             } else if (key === "groupid" && App.library.groups().some(group => group.id == value)) {
@@ -525,6 +554,16 @@ GridLayout {
     QQC2.Menu {
         id: addMenu
 
+        // The document selected in the list, if Indeks can look for what looks like it.
+        property real similarId: 0
+        property string similarName
+
+        onAboutToShow: {
+            const id = App.documents.selectionCount === 1 ? App.documents.currentId : 0;
+            similarId = id > 0 && App.library.canFindSimilar(id) ? id : 0;
+            similarName = similarId > 0 ? root.shortName(App.library.documentInfo(similarId).name ?? "") : "";
+        }
+
         QQC2.MenuItem {
             text: i18nc("@action:inmenu filter", "Search Words…")
             icon.name: "search"
@@ -598,6 +637,30 @@ GridLayout {
             title: i18nc("@title:menu filter", "State")
             type: "state"
             options: () => root.states
+        }
+        QQC2.MenuSeparator {}
+        // What looks like the document that is selected in the list: offered where that
+        // is a picture or a PDF Indeks could look at.
+        QQC2.MenuItem {
+            text: addMenu.similarName.length > 0 ? i18nc("@action:inmenu filter, %1 is the name of the selected document", "Looks Like “%1”", addMenu.similarName)
+                                                 : i18nc("@action:inmenu filter", "Looks Like the Selected Document")
+            icon.name: "document-duplicate"
+            enabled: addMenu.similarId > 0
+            onTriggered: root.add(root.similarFilter(addMenu.similarId, false))
+        }
+        QQC2.MenuItem {
+            text: addMenu.similarName.length > 0 ? i18nc("@action:inmenu filter, %1 is the name of the selected document", "Looks Roughly Like “%1”", addMenu.similarName)
+                                                 : i18nc("@action:inmenu filter", "Looks Roughly Like the Selected Document")
+            icon.name: "document-duplicate"
+            enabled: addMenu.similarId > 0
+            onTriggered: root.add(root.similarFilter(addMenu.similarId, true))
+        }
+        QQC2.MenuItem {
+            text: addMenu.similarName.length > 0 ? i18nc("@action:inmenu filter, %1 is the name of the selected document", "Does Not Look Like “%1”", addMenu.similarName)
+                                                 : i18nc("@action:inmenu filter", "Does Not Look Like the Selected Document")
+            icon.name: "document-duplicate"
+            enabled: addMenu.similarId > 0
+            onTriggered: root.add(root.similarFilter(addMenu.similarId, true, true))
         }
         QQC2.MenuSeparator {}
         QQC2.MenuItem {

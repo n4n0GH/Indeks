@@ -40,6 +40,8 @@ Item {
     readonly property Kirigami.Action group: Wrapped { name: "doc_group" }
     readonly property Kirigami.Action note: Wrapped { name: "doc_note" }
     readonly property Kirigami.Action links: Wrapped { name: "doc_links" }
+    readonly property Kirigami.Action similar: Wrapped { name: "doc_similar" }
+    readonly property Kirigami.Action similarRoughly: Wrapped { name: "doc_similar_roughly" }
     readonly property Kirigami.Action linkSelected: Wrapped { name: "doc_link_selected" }
     readonly property Kirigami.Action edit: Wrapped { name: "doc_edit" }
     readonly property Kirigami.Action clearDrawing: Wrapped { name: "doc_clear_drawing" }

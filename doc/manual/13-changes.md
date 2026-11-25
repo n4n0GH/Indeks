@@ -10,6 +10,13 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **Documents that look alike:** *Find Similar-Looking Documents* lists the PDFs and
+  pictures that look like the selected one: pages with the same letterhead or logo at the
+  same place, whatever the files are called and whatever is written below, and pictures
+  that are the same picture in another size. It is a filter of the filter bar, so it can be
+  combined, turned around (*Does Not Look Like …*), saved as a search and used in a rule.
+  After the update, Indeks looks at the pictures and PDFs it already has, in the
+  background. See *Finding → Documents that look alike*.
 - **Documents as thumbnails:** The documents can be shown as small pictures in a grid
   instead of as a list: pictures as themselves, PDFs as their first page, text files as
   the beginning of their text. The size is set with a slider or with `Ctrl` and the mouse

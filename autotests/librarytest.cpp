@@ -17,6 +17,7 @@
 #include "rules.h"
 #include "scripthost.h"
 #include "scripts.h"
+#include "searchquery.h"
 #include "store.h"
 #include "weblink.h"
 
@@ -28,6 +29,7 @@
 #include <QPdfWriter>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QSqlQuery>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -2466,6 +2468,110 @@ def process(document):
     }
 
     // Keep this one last: it replaces the library.
+    void findsDocumentsThatLookAlike()
+    {
+        // Invoices of two senders and a photograph, under names that say nothing.
+        QTemporaryDir scans;
+        QVERIFY(scans.isValid());
+        const auto invoice = [&scans](const QString &name, bool firstSender, int lines) {
+            QImage image(420, 594, QImage::Format_RGB32);
+            image.fill(Qt::white);
+            QPainter painter(&image);
+            if (firstSender) {
+                painter.fillRect(30, 30, 120, 50, QColor(0x1d, 0x4e, 0x89));
+                painter.fillRect(290, 34, 100, 6, Qt::darkGray);
+                painter.fillRect(290, 48, 80, 6, Qt::darkGray);
+                painter.fillRect(30, 100, 360, 2, Qt::black);
+            } else {
+                painter.setBrush(QColor(0xc0, 0x39, 0x2b));
+                painter.drawEllipse(180, 20, 60, 60);
+                painter.fillRect(110, 95, 200, 5, Qt::darkGray);
+            }
+            for (int i = 0; i < lines; ++i) {
+                painter.fillRect(30, 170 + i * 14, 300 + (i * 37) % 60, 5, Qt::darkGray);
+            }
+            painter.end();
+            QVERIFY(image.save(scans.filePath(name)));
+        };
+        invoice(u"scan0001.png"_s, true, 3);
+        invoice(u"scan0002.png"_s, false, 9);
+        invoice(u"scan0003.png"_s, true, 25);
+        invoice(u"scan0004.png"_s, true, 11);
+        invoice(u"scan0005.png"_s, false, 2);
+        {
+            QImage photo(320, 240, QImage::Format_RGB32);
+            QPainter painter(&photo);
+            QLinearGradient sky(0, 0, 320, 240);
+            sky.setColorAt(0, QColor(20, 40, 90));
+            sky.setColorAt(1, QColor(160, 120, 60));
+            painter.fillRect(photo.rect(), sky);
+            painter.fillRect(0, 180, 320, 60, QColor(15, 15, 15));
+            painter.end();
+            QVERIFY(photo.save(scans.filePath(u"scan0006.png"_s)));
+            QVERIFY(photo.scaled(160, 120, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).save(scans.filePath(u"scan0007.jpg"_s)));
+        }
+        const qint64 source = m_library->addSource(QUrl::fromLocalFile(scans.path()));
+        settle();
+        const auto id = [&scans](const QString &name) {
+            return Store::documentByUrl(QUrl::fromLocalFile(scans.filePath(name))).id;
+        };
+        const auto alike = [&](const QString &query) {
+            QStringList names;
+            QSqlQuery found = Database::exec(u"SELECT d.name FROM documents d WHERE d.trashed = 0 AND "_s + SearchQuery(query).where() + u" ORDER BY d.name"_s, SearchQuery(query).binds());
+            while (found.next()) {
+                names.append(found.value(0).toString());
+            }
+            return names;
+        };
+        const QString first = QString::number(id(u"scan0001.png"_s));
+
+        // What a file looks like is noted as it is read.
+        QCOMPARE(Store::fingerprint(id(u"scan0001.png"_s)).shape, Fingerprint::Page);
+        QCOMPARE(Store::fingerprint(id(u"scan0006.png"_s)).shape, Fingerprint::Picture);
+        QCOMPARE(alike(u"similar:"_s + first), QStringList({u"scan0001.png"_s, u"scan0003.png"_s, u"scan0004.png"_s}));
+        QCOMPARE(alike(u"similar:~"_s + first), QStringList({u"scan0001.png"_s, u"scan0003.png"_s, u"scan0004.png"_s}));
+        QCOMPARE(alike(u"similar:%1"_s.arg(id(u"scan0002.png"_s))), QStringList({u"scan0002.png"_s, u"scan0005.png"_s}));
+        QCOMPARE(alike(u"similar:%1"_s.arg(id(u"scan0007.jpg"_s))), QStringList({u"scan0006.png"_s, u"scan0007.jpg"_s}));
+        // With other filters, and turned around.
+        QCOMPARE(alike(u"similar:%1 name:0003"_s.arg(first)), QStringList({u"scan0003.png"_s}));
+        QCOMPARE(alike(u"-similar:%1 sourceid:%2"_s.arg(first).arg(source)),
+                 QStringList({u"scan0002.png"_s, u"scan0005.png"_s, u"scan0006.png"_s, u"scan0007.jpg"_s}));
+        QCOMPARE(m_library->count(u"similar:"_s + first), 3);
+        // A document that has no fingerprint is like nothing, and nothing is like no document.
+        QCOMPARE(alike(u"similar:%1"_s.arg(idOf(u"notes.md"_s))), QStringList());
+        QCOMPARE(alike(u"similar:99999999"_s), QStringList());
+        QVERIFY(m_library->canFindSimilar(id(u"scan0001.png"_s)));
+        QVERIFY(!m_library->canFindSimilar(idOf(u"notes.md"_s)));
+
+        // Documents from before Indeks noted this are looked at in the background, and so
+        // is one whose fingerprint is of other content than it has now.
+        Database::exec(u"DELETE FROM fingerprints WHERE doc_id IN (?, ?)"_s, {id(u"scan0003.png"_s), id(u"scan0006.png"_s)});
+        Database::exec(u"UPDATE fingerprints SET hash = 'stale', shape = 2, b0 = 1 WHERE doc_id = ?"_s, {id(u"scan0004.png"_s)});
+        QCOMPARE(alike(u"similar:"_s + first), QStringList({u"scan0001.png"_s}));
+        m_library->indexer()->lookAtDocuments();
+        QVERIFY(QTest::qWaitFor([&] { return Store::fingerprint(id(u"scan0006.png"_s)).isValid(); }, 20000));
+        settle();
+        QCOMPARE(alike(u"similar:"_s + first), QStringList({u"scan0001.png"_s, u"scan0003.png"_s, u"scan0004.png"_s}));
+        QVERIFY(m_library->activity().isEmpty());
+        // The one that is asked about is looked at on the spot.
+        Database::exec(u"DELETE FROM fingerprints WHERE doc_id = ?"_s, {id(u"scan0001.png"_s)});
+        QVERIFY(m_library->canFindSimilar(id(u"scan0001.png"_s)));
+        QCOMPARE(alike(u"similar:"_s + first).size(), 3);
+
+        // A file that changes looks like what it is now.
+        invoice(u"scan0004.png"_s, false, 4);
+        m_library->rescanAll();
+        settle();
+        QCOMPARE(alike(u"similar:"_s + first), QStringList({u"scan0001.png"_s, u"scan0003.png"_s}));
+        QCOMPARE(alike(u"similar:%1"_s.arg(id(u"scan0002.png"_s))), QStringList({u"scan0002.png"_s, u"scan0004.png"_s, u"scan0005.png"_s}));
+
+        // The PDF of the other tests has one too; and what goes, goes with its fingerprint.
+        QVERIFY(Database::value(u"SELECT COUNT(*) FROM fingerprints f JOIN documents d ON d.id = f.doc_id WHERE d.kind = 3"_s).toInt() > 0);
+        m_library->removeSource(source);
+        settle();
+        QCOMPARE(Database::value(u"SELECT COUNT(*) FROM fingerprints WHERE doc_id NOT IN (SELECT id FROM documents)"_s).toInt(), 0);
+    }
+
     void stopsInTheMiddleOfIndexing()
     {
         QTemporaryDir many;

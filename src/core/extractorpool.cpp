@@ -86,7 +86,7 @@ QByteArray batchMessage(const IndexOptions &options, const QList<ExtractorPool::
     for (const int position : positions) {
         const ExtractorPool::Request &task = tasks.at(position);
         stream << qint32(position) << task.reading.contentFile << task.reading.name << task.reading.keepTextIfHash << qint64(task.reading.partOffset)
-               << qint64(task.reading.partLength);
+               << qint64(task.reading.partLength) << task.reading.lookOnly;
     }
     return frame(payload);
 }
@@ -108,7 +108,7 @@ bool readBatch(const QByteArray &payload, IndexOptions &options, QList<Extractor
         qint32 id = 0;
         qint64 partOffset = 0;
         qint64 partLength = 0;
-        stream >> id >> task.reading.contentFile >> task.reading.name >> task.reading.keepTextIfHash >> partOffset >> partLength;
+        stream >> id >> task.reading.contentFile >> task.reading.name >> task.reading.keepTextIfHash >> partOffset >> partLength >> task.reading.lookOnly;
         task.reading.partOffset = partOffset;
         task.reading.partLength = partLength;
         task.id = id;
@@ -132,7 +132,11 @@ QByteArray resultMessage(int id, const Indexing::Prepared &prepared)
     QDataStream stream(&payload, QIODevice::WriteOnly);
     stream.setVersion(StreamVersion);
     stream << quint8(Result) << qint32(id) << prepared.mimeType << qint32(prepared.kind) << prepared.hash << prepared.textKept << prepared.extracted.text
-           << prepared.extracted.metadata << qint32(prepared.extracted.pages) << prepared.extracted.wantsOcr;
+           << prepared.extracted.metadata << qint32(prepared.extracted.pages) << prepared.extracted.wantsOcr << prepared.looked << qint32(prepared.look.shape)
+           << qint32(prepared.look.ink);
+    for (const quint32 word : prepared.look.bits) {
+        stream << word;
+    }
     return frame(payload);
 }
 
@@ -161,6 +165,14 @@ Message readReply(const QByteArray &payload, int &id, Indexing::Prepared &prepar
         qint32 pages = 0;
         stream >> prepared.mimeType >> documentKind >> prepared.hash >> prepared.textKept >> prepared.extracted.text >> prepared.extracted.metadata >> pages
             >> prepared.extracted.wantsOcr;
+        qint32 shape = 0;
+        qint32 ink = 0;
+        stream >> prepared.looked >> shape >> ink;
+        for (quint32 &word : prepared.look.bits) {
+            stream >> word;
+        }
+        prepared.look.shape = Fingerprint::Shape(shape);
+        prepared.look.ink = ink;
         prepared.kind = Kind(documentKind);
         prepared.extracted.pages = pages;
     }
