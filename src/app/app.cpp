@@ -573,6 +573,70 @@ void App::setupActions()
     });
     connect(m_panels, &PanelLayout::changed, this, &App::updatePanelActions);
     updatePanelActions();
+    addToggle(u"panel_hide_single_tabs"_s,
+              i18nc("@action", "Hide the Tab Bar Where There Is Only One View"),
+              u"tab-detach"_s,
+              {},
+              config->hideSingleTabBar(),
+              [config](bool checked) {
+                  config->setHideSingleTabBar(checked);
+                  config->save();
+              });
+    connect(config, &Config::hideSingleTabBarChanged, this, [this, config] {
+        if (QAction *hide = action(u"panel_hide_single_tabs"_s)) {
+            hide->setChecked(config->hideSingleTabBar());
+        }
+    });
+
+    // The documents as a list or as thumbnails in a grid, and what they are sorted by: the
+    // bar above them offers these.
+    const auto showAsGrid = [this, config](bool grid) {
+        config->setDocumentsAsGrid(grid);
+        config->save();
+        syncDocumentView();
+    };
+    addAction(u"view_as_list"_s, i18nc("@action", "Show Documents as List"), u"view-list-details"_s, {}, [showAsGrid] {
+        showAsGrid(false);
+    })->setCheckable(true);
+    addAction(u"view_as_grid"_s, i18nc("@action", "Show Documents as Thumbnails"), u"view-list-icons"_s, {}, [showAsGrid] {
+        showAsGrid(true);
+    })->setCheckable(true);
+    const auto resizeThumbnails = [config](int by) {
+        config->setGridIconSize(by == 0 ? 96 : qBound(48, config->gridIconSize() + by, 256));
+        config->save();
+    };
+    addAction(u"grid_larger"_s, i18nc("@action", "Larger Thumbnails"), u"zoom-in"_s, {}, [resizeThumbnails] {
+        resizeThumbnails(16);
+    });
+    addAction(u"grid_smaller"_s, i18nc("@action", "Smaller Thumbnails"), u"zoom-out"_s, {}, [resizeThumbnails] {
+        resizeThumbnails(-16);
+    });
+    connect(config, &Config::documentsAsGridChanged, this, &App::syncDocumentView);
+    connect(config, &Config::gridIconSizeChanged, this, &App::syncDocumentView);
+    const std::pair<QLatin1StringView, QString> orders[] = {
+        {"name"_L1, i18nc("@action", "Sort Documents by Name")},
+        {"kind"_L1, i18nc("@action", "Sort Documents by Type")},
+        {"modified"_L1, i18nc("@action", "Sort Documents by Date Modified")},
+        {"added"_L1, i18nc("@action", "Sort Documents by Date Added")},
+        {"size"_L1, i18nc("@action", "Sort Documents by Size")},
+        {"sender"_L1, i18nc("@action", "Sort Documents by Sender")},
+        {"location"_L1, i18nc("@action", "Sort Documents by Location")},
+        {"pages"_L1, i18nc("@action", "Sort Documents by Number of Pages")},
+        {"comment"_L1, i18nc("@action", "Sort Documents by Comment")},
+    };
+    for (const auto &[column, text] : orders) {
+        const QString name = column;
+        addAction(u"sort_by_"_s + name, text, u"view-sort"_s, {}, [this, name] {
+            m_documents->setSortColumn(name);
+            syncDocumentView(); // also when it was sorted by this already: the mark stays
+        })->setCheckable(true);
+    }
+    addToggle(u"sort_descending"_s, i18nc("@action", "Sort Documents in Descending Order"), u"view-sort-descending"_s, {}, m_documents->sortDescending(), [this](bool checked) {
+        m_documents->setSortDescending(checked);
+    });
+    connect(m_documents, &DocumentModel::sortChanged, this, &App::syncDocumentView);
+    syncDocumentView();
+
     addToggle(u"view_preview"_s, i18nc("@action", "Show Preview"), u"view-preview"_s, Qt::Key_F10, config->previewVisible(), [config](bool checked) {
         config->setPreviewVisible(checked);
         config->save();
@@ -1082,6 +1146,30 @@ void App::syncPreviewChoice()
         if (QAction *choice = action(name)) {
             choice->setChecked(chosen);
         }
+    }
+}
+
+void App::syncDocumentView()
+{
+    const Config *config = Config::self();
+    const bool grid = config->documentsAsGrid();
+    const auto mark = [this](const QString &name, bool chosen) {
+        if (QAction *choice = action(name)) {
+            choice->setChecked(chosen);
+        }
+    };
+    mark(u"view_as_list"_s, !grid);
+    mark(u"view_as_grid"_s, grid);
+    for (const QLatin1StringView column : {"name"_L1, "kind"_L1, "modified"_L1, "added"_L1, "size"_L1, "sender"_L1, "location"_L1, "pages"_L1, "comment"_L1}) {
+        mark(u"sort_by_"_s + column, m_documents->sortColumn() == column);
+    }
+    mark(u"sort_descending"_s, m_documents->sortDescending());
+    // Only where there are thumbnails, and not beyond the ends.
+    if (QAction *larger = action(u"grid_larger"_s)) {
+        larger->setEnabled(grid && config->gridIconSize() < 256);
+    }
+    if (QAction *smaller = action(u"grid_smaller"_s)) {
+        smaller->setEnabled(grid && config->gridIconSize() > 48);
     }
 }
 

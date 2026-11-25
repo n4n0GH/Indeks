@@ -13,6 +13,40 @@ QQC2.Pane {
 
     required property Actions actions
 
+    // ------------------------------------------------------------------------ list or grid
+
+    /** Whether the documents are shown as thumbnails in a grid rather than as rows of a list. */
+    readonly property bool grid: Config.documentsAsGrid
+    /**
+     * How high the bar above the documents is to be, so that it is as high as the bars beside
+     * it; what the bar would take by itself is naturalBarHeight.
+     */
+    property real barHeight: 0
+    readonly property real naturalBarHeight: viewBar.implicitHeight
+
+    // The thumbnails are asked for in few sizes, so that sliding the size does not have
+    // every one of them made again; see ThumbnailProvider.
+    readonly property int thumbnailPixels: {
+        const wanted = Config.gridIconSize * Screen.devicePixelRatio;
+        return wanted <= 128 ? 128 : wanted <= 256 ? 256 : 512;
+    }
+
+    // One of the application's commands as an entry of a menu of the bar, under a shorter
+    // name: there it is plain what is sorted.
+    component Choice: Kirigami.Action {
+        required property string name
+        readonly property var command: App.action(name)
+
+        checkable: true
+        checked: command?.checked ?? false
+        enabled: command?.enabled ?? false
+        onTriggered: {
+            command.trigger();
+            // Which is chosen is the command's to say, not the entry's.
+            checked = Qt.binding(() => command?.checked ?? false);
+        }
+    }
+
     // ------------------------------------------------------------------------ columns
 
     // What the list can show of a document beside its name. `width` is what a column starts
@@ -338,9 +372,149 @@ QQC2.Pane {
             anchors.fill: parent
             spacing: 0
 
+            // Across the top, like the bar of the preview: how many documents there are, what
+            // they are sorted by, how large they are shown, and whether as a list or a grid.
+            QQC2.ToolBar {
+                id: viewBar
+
+                Layout.fillWidth: true
+                Layout.preferredHeight: root.barHeight > 0 ? root.barHeight : implicitHeight
+                position: QQC2.ToolBar.Header
+
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.mediumSpacing
+
+                    QQC2.Label {
+                        Layout.leftMargin: Kirigami.Units.smallSpacing
+                        Layout.maximumWidth: Math.max(0, Math.round(viewBar.width * 0.4))
+                        Layout.minimumHeight: Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2
+                        verticalAlignment: Text.AlignVCenter
+                        text: App.documents.selectionCount > 1
+                            ? i18ncp("@info:status how many of the listed documents are selected", "%2 of %1 selected", "%2 of %1 selected", App.documents.count, App.documents.selectionCount)
+                            : i18ncp("@info:status", "%1 document", "%1 documents", App.documents.count)
+                        textFormat: Text.PlainText
+                        elide: Text.ElideRight
+                        color: Kirigami.Theme.disabledTextColor
+                    }
+
+                    Kirigami.ActionToolBar {
+                        Layout.fillWidth: true
+                        alignment: Qt.AlignRight
+                        actions: [sortMenu, asList, asGrid]
+
+                        Kirigami.Action {
+                            id: sortMenu
+
+                            text: i18nc("@action:intoolbar", "Sort By")
+                            icon.name: "view-sort"
+                            tooltip: i18nc("@info:tooltip", "What the documents are sorted by")
+
+                            Choice {
+                                name: "sort_by_name"
+                                text: i18nc("@item:inmenu sort by", "Name")
+                            }
+                            Choice {
+                                name: "sort_by_kind"
+                                text: i18nc("@item:inmenu sort by", "Type")
+                            }
+                            Choice {
+                                name: "sort_by_modified"
+                                text: i18nc("@item:inmenu sort by", "Date Modified")
+                            }
+                            Choice {
+                                name: "sort_by_added"
+                                text: i18nc("@item:inmenu sort by", "Date Added")
+                            }
+                            Choice {
+                                name: "sort_by_size"
+                                text: i18nc("@item:inmenu sort by", "Size")
+                            }
+                            Choice {
+                                name: "sort_by_sender"
+                                text: i18nc("@item:inmenu sort by who an e-mail is from", "From")
+                            }
+                            Choice {
+                                name: "sort_by_location"
+                                text: i18nc("@item:inmenu sort by", "Location")
+                            }
+                            Choice {
+                                name: "sort_by_pages"
+                                text: i18nc("@item:inmenu sort by", "Pages")
+                            }
+                            Choice {
+                                name: "sort_by_comment"
+                                text: i18nc("@item:inmenu sort by", "Comment")
+                            }
+                            Kirigami.Action {
+                                separator: true
+                            }
+                            Choice {
+                                name: "sort_descending"
+                                text: i18nc("@item:inmenu sort order", "Descending")
+                            }
+                        }
+                        Choice {
+                            id: asList
+
+                            name: "view_as_list"
+                            text: i18nc("@action:intoolbar show the documents as a list", "List")
+                            icon.name: "view-list-details"
+                            tooltip: i18nc("@info:tooltip", "Show the documents as a list with columns")
+                            displayHint: Kirigami.DisplayHint.IconOnly
+                        }
+                        Choice {
+                            id: asGrid
+
+                            name: "view_as_grid"
+                            text: i18nc("@action:intoolbar show the documents as thumbnails in a grid", "Thumbnails")
+                            icon.name: "view-list-icons"
+                            tooltip: i18nc("@info:tooltip", "Show the documents as thumbnails in a grid")
+                            displayHint: Kirigami.DisplayHint.IconOnly
+                        }
+                    }
+
+                    // How large: the thumbnails of the grid, the rows of the list. Left out
+                    // where the bar is too narrow for it; the commands and Ctrl with the
+                    // wheel do the same.
+                    QQC2.Slider {
+                        id: sizeSlider
+
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 6
+                        Layout.rightMargin: Kirigami.Units.smallSpacing
+                        visible: viewBar.width > Kirigami.Units.gridUnit * 26
+                        from: root.grid ? 48 : 0
+                        to: root.grid ? 256 : 2
+                        // The three heights of a row are steps, with a mark each; the
+                        // thumbnails go by steps too small to mark.
+                        stepSize: root.grid ? 0 : 1
+                        snapMode: root.grid ? QQC2.Slider.NoSnap : QQC2.Slider.SnapAlways
+                        value: root.grid ? Config.gridIconSize : Config.listRowSize
+                        onMoved: {
+                            if (root.grid) {
+                                Config.gridIconSize = Math.round(value / 16) * 16;
+                            } else {
+                                Config.listRowSize = Math.round(value);
+                            }
+                        }
+                        onPressedChanged: {
+                            if (!pressed) {
+                                Config.save();
+                            }
+                        }
+
+                        Accessible.name: root.grid ? i18nc("@label:slider", "Size of the thumbnails") : i18nc("@label:slider", "Height of the rows")
+
+                        QQC2.ToolTip.text: Accessible.name
+                        QQC2.ToolTip.visible: hovered && !pressed
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                }
+            }
+
             RowLayout {
                 id: headerRow
 
+                visible: !root.grid
                 Layout.fillWidth: true
                 Layout.leftMargin: Kirigami.Units.largeSpacing - Kirigami.Units.smallSpacing
                 Layout.rightMargin: Kirigami.Units.largeSpacing - Kirigami.Units.smallSpacing + (scrollView.QQC2.ScrollBar.vertical.visible ? scrollView.QQC2.ScrollBar.vertical.width : 0)
@@ -504,6 +678,7 @@ QQC2.Pane {
             }
 
             Kirigami.Separator {
+                visible: !root.grid
                 Layout.fillWidth: true
             }
 
@@ -526,6 +701,7 @@ QQC2.Pane {
             QQC2.ScrollView {
                 id: scrollView
 
+                visible: !root.grid
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
@@ -533,7 +709,8 @@ QQC2.Pane {
                 ListView {
                     id: list
 
-                    model: App.documents
+                    // Rows are only made while they are looked at.
+                    model: root.grid ? null : App.documents
                     clip: true
                     activeFocusOnTab: true
                     keyNavigationEnabled: false
@@ -829,47 +1006,349 @@ QQC2.Pane {
                         property: "opacity"
                         value: root.searching ? 0.5 : 1
                     }
+                }
+            }
 
-                    Kirigami.LoadingPlaceholder {
-                        anchors.centerIn: parent
-                        width: parent.width - Kirigami.Units.gridUnit * 4
-                        visible: list.count === 0 && root.searching
-                        text: App.documents.opening ? i18nc("@info:progress", "Opening database…")
-                            : App.documents.effectiveFilter.length > 0 ? i18nc("@info:progress", "Searching…")
-                            : i18nc("@info:progress", "Listing documents…")
+            QQC2.ScrollView {
+                id: gridScroll
+
+                visible: root.grid
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+
+                // The documents as thumbnails: pictures as themselves, PDFs as their first
+                // page, texts as their beginning; whatever has no thumbnail, and every one
+                // until its thumbnail is made, as the icon of its type. What can be done
+                // with a row of the list can be done with a tile.
+                GridView {
+                    id: tiles
+
+                    readonly property real picture: Config.gridIconSize
+                    // Two lines of a name.
+                    readonly property real nameHeight: Math.ceil(nameMetrics.lineSpacing * 2) + 2
+                    // Small pictures still leave room for a name to be read.
+                    readonly property real leastCell: Math.max(picture, Kirigami.Units.gridUnit * 6) + Kirigami.Units.largeSpacing * 2
+                    readonly property int columns: Math.max(1, Math.floor(width / leastCell))
+
+                    model: root.grid ? App.documents : null
+                    clip: true
+                    activeFocusOnTab: true
+                    keyNavigationEnabled: false
+                    reuseItems: true
+                    currentIndex: App.documents.currentRow
+                    highlightFollowsCurrentItem: false
+                    // The tiles share the width among them.
+                    cellWidth: Math.floor(width / columns)
+                    cellHeight: picture + nameHeight + Kirigami.Units.smallSpacing * 5
+                    topMargin: Kirigami.Units.smallSpacing
+                    bottomMargin: Kirigami.Units.smallSpacing
+
+                    FontMetrics {
+                        id: nameMetrics
                     }
 
-                    Kirigami.PlaceholderMessage {
-                        anchors.centerIn: parent
-                        width: parent.width - Kirigami.Units.gridUnit * 4
-                        visible: list.count === 0 && !root.loading
+                    Keys.onLeftPressed: event => root.moveCurrent(Application.layoutDirection === Qt.RightToLeft ? 1 : -1, event.modifiers)
+                    Keys.onRightPressed: event => root.moveCurrent(Application.layoutDirection === Qt.RightToLeft ? -1 : 1, event.modifiers)
+                    Keys.onUpPressed: event => root.moveCurrent(-columns, event.modifiers)
+                    Keys.onDownPressed: event => root.moveCurrent(columns, event.modifiers)
+                    Keys.onPressed: event => {
+                        const page = Math.max(1, Math.floor(height / cellHeight)) * columns;
+                        if (event.key === Qt.Key_PageUp) {
+                            root.moveCurrent(-page, event.modifiers);
+                        } else if (event.key === Qt.Key_PageDown) {
+                            root.moveCurrent(page, event.modifiers);
+                        } else if (event.key === Qt.Key_Home) {
+                            root.moveCurrent(-App.documents.count, event.modifiers);
+                        } else if (event.key === Qt.Key_End) {
+                            root.moveCurrent(App.documents.count, event.modifiers);
+                        } else if (event.key === Qt.Key_Escape) {
+                            App.documents.clearSelection();
+                        } else {
+                            return;
+                        }
+                        event.accepted = true;
+                    }
+                    Keys.onReturnPressed: root.actions.open.trigger()
+                    Keys.onEnterPressed: root.actions.open.trigger()
 
-                        readonly property bool searching: App.documents.effectiveFilter.length > 0
-                        readonly property bool nothingIndexed: !searching && App.sidebar.currentKey === "place:all"
+                    // Ctrl and the wheel make the thumbnails larger and smaller, as in a
+                    // file manager.
+                    WheelHandler {
+                        acceptedModifiers: Qt.ControlModifier
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: wheel => App.action(wheel.angleDelta.y > 0 ? "grid_larger" : "grid_smaller")?.trigger()
+                    }
 
-                        // What is empty is the place that is selected in the sidebar: its icon says
-                        // which, and it is the very drawing the sidebar has. Asked for at this
-                        // size, the theme would give pictures in colour for some icons and line
-                        // drawings for others; the small one, enlarged and in the colour of the
-                        // text, is of a kind for all of them.
-                        readonly property string iconName: searching ? "search" : App.sidebar.currentIcon
-                        readonly property string lineDrawing: App.lineIcon(iconName).toString()
+                    // Reloads replace the whole grid; stay where the user was.
+                    property real savedContentY: 0
+                    Connections {
+                        target: App.documents
+                        enabled: root.grid
+                        function onModelAboutToBeReset(): void {
+                            tiles.savedContentY = tiles.contentY;
+                        }
+                        function onModelReset(): void {
+                            tiles.contentY = Math.max(-tiles.topMargin, Math.min(tiles.savedContentY, tiles.contentHeight - tiles.height));
+                        }
+                        function onCurrentChanged(): void {
+                            if (App.documents.currentRow >= 0) {
+                                tiles.positionViewAtIndex(App.documents.currentRow, GridView.Contain);
+                            }
+                        }
+                        function onScopeChanged(): void {
+                            tiles.savedContentY = 0;
+                            tiles.positionViewAtBeginning();
+                        }
+                    }
 
-                        icon.name: iconName
-                        icon.source: lineDrawing
-                        icon.color: lineDrawing.length > 0 ? Kirigami.Theme.textColor : "transparent"
-                        text: searching ? i18nc("@info:placeholder", "No documents found")
-                            : nothingIndexed ? i18nc("@info:placeholder", "Nothing indexed yet")
-                            : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "The inbox is empty")
-                            : i18nc("@info:placeholder", "No documents here")
-                        explanation: searching ? i18nc("@info:placeholder", "Nothing in “%1” matches the search.", App.sidebar.currentLabel)
-                            : nothingIndexed ? i18nc("@info:placeholder", "Add a folder, or drop one here, to index its files where they are.")
-                            : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "New files wait here until you work with them: put one into a group, tag it, pin it or write a note on it, and it leaves the inbox.")
-                            : ""
-                        helpfulAction: nothingIndexed ? root.actions.addFolder : null
+                    delegate: Item {
+                        id: tile
+
+                        required property int index
+                        required property real documentId
+                        required property string name
+                        required property string iconName
+                        required property string thumbnail
+                        required property bool selected
+                        required property bool missing
+                        required property bool lingering
+                        required property bool offline
+                        required property bool flagged
+                        required property bool annotated
+                        required property bool expandable
+                        required property bool expanded
+                        required property string parentName
+
+                        readonly property color textColor: selected ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+
+                        width: tiles.cellWidth
+                        height: tiles.cellHeight
+                        // Faded: on its way out of this list.
+                        opacity: lingering ? 0.55 : 1
+
+                        Accessible.name: name
+                        Accessible.role: Accessible.ListItem
+
+                        HoverHandler {
+                            id: tileHover
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: Kirigami.Units.smallSpacing / 2
+                            radius: Kirigami.Units.cornerRadius
+                            color: tile.selected ? Kirigami.Theme.highlightColor
+                                : tileHover.hovered ? Qt.alpha(Kirigami.Theme.highlightColor, 0.2)
+                                : "transparent"
+                        }
+
+                        Item {
+                            id: face
+
+                            anchors.top: parent.top
+                            anchors.topMargin: Kirigami.Units.smallSpacing * 1.5
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: tiles.picture
+                            height: tiles.picture
+
+                            Kirigami.Icon {
+                                anchors.fill: parent
+                                visible: picture.status !== Image.Ready
+                                source: tile.iconName
+                                opacity: tile.missing || tile.offline ? 0.5 : 1
+                            }
+                            Image {
+                                id: picture
+
+                                // As large as there is room for, less a frame of a point;
+                                // a picture that is smaller than that is not blown up.
+                                readonly property real room: tiles.picture - 2
+                                readonly property real fit: implicitWidth > 0 && implicitHeight > 0 ? Math.min(1, room / implicitWidth, room / implicitHeight) : 1
+
+                                anchors.centerIn: parent
+                                width: Math.max(1, Math.round(implicitWidth * fit))
+                                height: Math.max(1, Math.round(implicitHeight * fit))
+                                source: tile.thumbnail
+                                sourceSize: Qt.size(root.thumbnailPixels, root.thumbnailPixels)
+                                asynchronous: true
+                                mipmap: true
+                            }
+                            // A fine line around the thumbnail: a white page on a white
+                            // ground has an edge.
+                            Rectangle {
+                                anchors.centerIn: picture
+                                visible: picture.status === Image.Ready
+                                width: picture.width + 2
+                                height: picture.height + 2
+                                color: "transparent"
+                                border.width: 1
+                                border.color: Qt.alpha(Kirigami.Theme.textColor, 0.25)
+                            }
+
+                            // What the list says with small icons after the name.
+                            Row {
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                spacing: 1
+
+                                Repeater {
+                                    model: [
+                                        { shown: tile.flagged, icon: "pin" },
+                                        { shown: tile.annotated, icon: "note" },
+                                        { shown: tile.missing || tile.offline, icon: tile.missing ? "dialog-warning" : "network-disconnect" }
+                                    ].filter(mark => mark.shown)
+
+                                    delegate: Rectangle {
+                                        id: badge
+
+                                        required property var modelData
+
+                                        width: Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing
+                                        height: width
+                                        radius: Kirigami.Units.cornerRadius
+                                        color: Kirigami.Theme.backgroundColor
+                                        border.width: 1
+                                        border.color: Qt.alpha(Kirigami.Theme.textColor, 0.2)
+
+                                        Kirigami.Icon {
+                                            anchors.centerIn: parent
+                                            width: Kirigami.Units.iconSizes.small
+                                            height: width
+                                            source: badge.modelData.icon
+                                        }
+                                    }
+                                }
+                            }
+
+                            // A mailbox opens like a folder: its messages follow it.
+                            QQC2.ToolButton {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                visible: tile.expandable
+                                icon.name: tile.expanded ? "go-down-symbolic" : (Application.layoutDirection === Qt.RightToLeft ? "go-previous-symbolic" : "go-next-symbolic")
+                                text: tile.expanded ? i18nc("@action:button", "Close") : i18nc("@action:button", "Open")
+                                display: QQC2.AbstractButton.IconOnly
+                                onClicked: App.documents.setExpanded(tile.documentId, !tile.expanded)
+
+                                QQC2.ToolTip.text: tile.expanded ? i18nc("@info:tooltip", "Hide the messages of this mailbox") : i18nc("@info:tooltip", "Show the messages of this mailbox")
+                                QQC2.ToolTip.visible: hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            }
+                        }
+
+                        QQC2.Label {
+                            id: nameLabel
+
+                            anchors.top: face.bottom
+                            anchors.topMargin: Kirigami.Units.smallSpacing
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin: Kirigami.Units.smallSpacing * 1.5
+                            anchors.rightMargin: Kirigami.Units.smallSpacing * 1.5
+                            height: tiles.nameHeight
+                            text: tile.name
+                            textFormat: Text.PlainText
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignTop
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                            color: tile.missing && !tile.selected ? Kirigami.Theme.disabledTextColor : tile.textColor
+                            font.strikeout: tile.missing
+                            font.italic: tile.lingering
+                        }
+
+                        // The whole name where it is cut short, and the mailbox of a message
+                        // that is listed away from it.
+                        QQC2.ToolTip.text: tile.parentName.length > 0 ? i18nc("@item a message and the mailbox it is in", "%1 — in %2", tile.name, tile.parentName) : tile.name
+                        QQC2.ToolTip.visible: tileHover.hovered && (nameLabel.truncated || tile.parentName.length > 0) && !contextMenu.visible
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            onTapped: (eventPoint, button) => {
+                                tiles.forceActiveFocus();
+                                root.selectRow(tile.index, point.modifiers);
+                            }
+                            onDoubleTapped: App.openExternally(tile.documentId)
+                        }
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: {
+                                tiles.forceActiveFocus();
+                                if (!tile.selected) {
+                                    App.documents.select(tile.index, DocumentModel.Single);
+                                }
+                                contextMenu.popup();
+                            }
+                        }
+                        DragHandler {
+                            target: null
+                            onActiveChanged: {
+                                if (active) {
+                                    if (!tile.selected) {
+                                        App.documents.select(tile.index, DocumentModel.Single);
+                                    }
+                                    dragProxy.start();
+                                } else {
+                                    dragProxy.Drag.active = false;
+                                }
+                            }
+                        }
+                    }
+
+                    // What is shown while a search runs is what was found before it.
+                    Binding {
+                        target: tiles.contentItem
+                        property: "opacity"
+                        value: root.searching ? 0.5 : 1
                     }
                 }
             }
+        }
+
+        Kirigami.LoadingPlaceholder {
+            // In the middle of the room below the bar.
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: viewBar.height / 2
+            width: parent.width - Kirigami.Units.gridUnit * 4
+            visible: App.documents.count === 0 && root.searching
+            text: App.documents.opening ? i18nc("@info:progress", "Opening database…")
+                : App.documents.effectiveFilter.length > 0 ? i18nc("@info:progress", "Searching…")
+                : i18nc("@info:progress", "Listing documents…")
+        }
+
+        Kirigami.PlaceholderMessage {
+            // In the middle of the room below the bar.
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: viewBar.height / 2
+            width: parent.width - Kirigami.Units.gridUnit * 4
+            visible: App.documents.count === 0 && !root.loading
+
+            readonly property bool searching: App.documents.effectiveFilter.length > 0
+            readonly property bool nothingIndexed: !searching && App.sidebar.currentKey === "place:all"
+
+            // What is empty is the place that is selected in the sidebar: its icon says
+            // which, and it is the very drawing the sidebar has. Asked for at this
+            // size, the theme would give pictures in colour for some icons and line
+            // drawings for others; the small one, enlarged and in the colour of the
+            // text, is of a kind for all of them.
+            readonly property string iconName: searching ? "search" : App.sidebar.currentIcon
+            readonly property string lineDrawing: App.lineIcon(iconName).toString()
+
+            icon.name: iconName
+            icon.source: lineDrawing
+            icon.color: lineDrawing.length > 0 ? Kirigami.Theme.textColor : "transparent"
+            text: searching ? i18nc("@info:placeholder", "No documents found")
+                : nothingIndexed ? i18nc("@info:placeholder", "Nothing indexed yet")
+                : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "The inbox is empty")
+                : i18nc("@info:placeholder", "No documents here")
+            explanation: searching ? i18nc("@info:placeholder", "Nothing in “%1” matches the search.", App.sidebar.currentLabel)
+                : nothingIndexed ? i18nc("@info:placeholder", "Add a folder, or drop one here, to index its files where they are.")
+                : App.sidebar.currentKey === "place:inbox" ? i18nc("@info:placeholder", "New files wait here until you work with them: put one into a group, tag it, pin it or write a note on it, and it leaves the inbox.")
+                : ""
+            helpfulAction: nothingIndexed ? root.actions.addFolder : null
         }
 
         // A single drag source for the whole selection, shared by all rows.
@@ -894,7 +1373,7 @@ QQC2.Pane {
         // the answer yet.
         QQC2.ProgressBar {
             // On the line between the column titles and the rows, covering neither.
-            y: scrollView.y - height / 2
+            y: (root.grid ? gridScroll.y : scrollView.y) - height / 2
             width: parent.width
             z: 1
             visible: root.searching

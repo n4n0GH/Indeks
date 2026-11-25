@@ -97,6 +97,8 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Shift+Up`, `Shift+Down` | Extend the selection |
 | `Page Up`, `Page Down`, `Home`, `End` | Move further |
 | `Right`, `Left` | Open and close a mailbox |
+| `Left`, `Right`, `Up`, `Down` | Among thumbnails: move the selection to the next tile that way |
+| `Ctrl` with the mouse wheel | Among thumbnails: make them larger or smaller |
 
 ### In the preview
 
@@ -165,6 +167,16 @@ Every command is in the command bar. This list says what each one does.
 - **Show Sidebar**, **Show Preview**, **Show Side Panel:** Show or hide that part.
 - **No Preview**, **Preview Below Documents**, **Preview Beside Documents:** The three
   choices of the *Preview* button in the toolbar.
+- **Show Documents as List**, **Show Documents as Thumbnails:** Rows with columns, or small
+  pictures in a grid. See *The Window → Thumbnails*.
+- **Larger Thumbnails**, **Smaller Thumbnails:** The size of the thumbnails, a step at a
+  time.
+- **Sort Documents by Name** (and **by Type**, **Date Modified**, **Date Added**, **Size**,
+  **Sender**, **Location**, **Number of Pages**, **Comment**), **Sort Documents in
+  Descending Order:** What the *Sort By* menu above the documents offers.
+- **Hide the Tab Bar Where There Is Only One View:** Leaves out the row of tabs of an area
+  of the sidebar or the side panel that has a single tab. See *The Window → Arranging the
+  panels*.
 - **Sort Table by Current Column, A to Z** (and **Z to A**, **Smallest Number First**,
   **Largest Number First**), **Show Table in the Order of the File**, **Hide Current Column
   of the Table**, **Show All Columns of the Table:** For a table in the preview, what the

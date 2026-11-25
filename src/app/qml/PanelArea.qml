@@ -32,6 +32,14 @@ ColumnLayout {
     required property PanelDrag viewDrag
     /** Whether a view dropped on the lower part of this area gets an area of its own below it. */
     property bool splittable: false
+    /** How high the bar of tabs is: as high as the bars above the documents and the preview. */
+    property real barHeight: 0
+    /**
+     * An area with one view can do without its bar, if the user says so (the setting
+     * hideSingleTabBar). The view can still be moved: with the commands for that, and
+     * another view can still be dragged into this area.
+     */
+    readonly property bool barShown: !(Config.hideSingleTabBar && views.length === 1)
 
     function show(view: string): void {
         App.panels.setCurrent(view);
@@ -47,6 +55,8 @@ ColumnLayout {
         id: bar
 
         Layout.fillWidth: true
+        Layout.preferredHeight: root.barHeight > 0 ? root.barHeight : implicitHeight
+        visible: root.barShown
         position: QQC2.ToolBar.Header
         padding: 0
 
@@ -91,8 +101,9 @@ ColumnLayout {
             Repeater {
                 model: root.views
 
-                // The tabs show their icons alone, which leaves the bar lower; what each is
-                // for says its tooltip, and its name is still there for screen readers.
+                // The tabs show their icons alone, which leaves the bar as low as the bars
+                // beside it; what each is for says its tooltip, and its name is still there
+                // for screen readers.
                 delegate: Kirigami.NavigationTabButton {
                     id: tab
 
@@ -102,7 +113,8 @@ ColumnLayout {
                     // All of the same width, whatever their names are.
                     Layout.preferredWidth: 1
                     Layout.fillHeight: true
-                    implicitHeight: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing
+                    // The bar says how high; this is for a bar that was not told.
+                    implicitHeight: Kirigami.Units.gridUnit * 2
 
                     text: App.panels.title(modelData)
                     icon.name: App.panels.icon(modelData)

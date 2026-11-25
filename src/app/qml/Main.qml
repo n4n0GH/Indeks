@@ -65,6 +65,10 @@ StatefulApp.StatefulWindow {
     pageStack.initialPage: Kirigami.Page {
         id: mainPage
 
+        // The bars across the top of the parts of the window are of one height: the tabs of
+        // the sidebar and the side panel, the bar above the documents, the bar of the preview.
+        readonly property real barHeight: Math.ceil(Math.max(documentList.naturalBarHeight, previewPane.naturalBarHeight))
+
         padding: 0
         title: root.placeLabel
 
@@ -87,6 +91,7 @@ StatefulApp.StatefulWindow {
                 side: "left"
                 visible: Config.leftSidebarVisible && hasViews
                 actions: appActions
+                barHeight: mainPage.barHeight
                 viewDrag: viewDrag
                 QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 14
                 QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 9
@@ -146,6 +151,7 @@ StatefulApp.StatefulWindow {
                             id: documentList
 
                             actions: appActions
+                            barHeight: mainPage.barHeight
                         }
                         AutomationList {
                             id: automationList
@@ -172,6 +178,7 @@ StatefulApp.StatefulWindow {
                             id: previewPane
 
                             actions: appActions
+                            barHeight: mainPage.barHeight
                             findText: findView.wanted
                         }
                         AutomationPane {
@@ -189,6 +196,7 @@ StatefulApp.StatefulWindow {
                 side: "right"
                 visible: Config.rightSidebarVisible && hasViews
                 actions: appActions
+                barHeight: mainPage.barHeight
                 viewDrag: viewDrag
                 QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 16
                 QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 11
@@ -789,6 +797,12 @@ StatefulApp.StatefulWindow {
                 text: i18nc("@action:button", "To-Do List")
                 icon.name: "view-task"
                 page: () => Qt.createComponent("io.github.n4n0gh.indeks", "TodoSettingsPage")
+            },
+            KirigamiSettings.ConfigurationModule {
+                moduleId: "panels"
+                text: i18nc("@action:button", "Panels")
+                icon.name: "view-sidetree"
+                page: () => Qt.createComponent("io.github.n4n0gh.indeks", "PanelSettingsPage")
             },
             KirigamiSettings.ConfigurationModule {
                 moduleId: "toolbar"

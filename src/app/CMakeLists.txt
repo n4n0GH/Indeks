@@ -36,6 +36,8 @@ target_sources(indeks PRIVATE
     sidebarmodel.h
     tablemodel.cpp
     tablemodel.h
+    thumbnailprovider.cpp
+    thumbnailprovider.h
     welcome.cpp
     welcome.h
 )

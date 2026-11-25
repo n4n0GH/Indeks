@@ -61,7 +61,8 @@ QList<DocumentRow> SearchWorker::fetch(const QString &sql, const QVariantList &b
             row.location = row.parentName;
         } else if (url.isLocalFile()) {
             static const QString home = QDir::homePath();
-            const QString folder = QFileInfo(url.toLocalFile()).path();
+            row.path = url.toLocalFile();
+            const QString folder = QFileInfo(row.path).path();
             row.location = folder == home || folder.startsWith(home + u'/') ? QString(u'~' + folder.mid(home.size())) : folder;
         } else {
             row.location = url.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash).toDisplayString();

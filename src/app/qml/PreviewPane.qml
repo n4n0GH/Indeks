@@ -12,6 +12,12 @@ QQC2.Pane {
     id: root
 
     required property Actions actions
+    /**
+     * How high the bar across the top is to be, so that it is as high as the bars beside it;
+     * what it would take by itself is naturalBarHeight.
+     */
+    property real barHeight: 0
+    readonly property real naturalBarHeight: previewBar.implicitHeight
 
     readonly property real documentId: App.documents.selectionCount === 1 ? App.documents.currentId : 0
 
@@ -558,7 +564,10 @@ QQC2.Pane {
 
         // Always there, whatever is shown and even when nothing is.
         PreviewToolBar {
+            id: previewBar
+
             Layout.fillWidth: true
+            Layout.preferredHeight: root.barHeight > 0 ? root.barHeight : implicitHeight
             actions: root.actions
             view: viewer.status === Loader.Ready ? viewer.item : null
         }

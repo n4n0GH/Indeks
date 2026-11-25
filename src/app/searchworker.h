@@ -42,6 +42,7 @@ struct DocumentRow {
     QStringList groups;
     QString sender; ///< of an e-mail
     QString location; ///< the folder the file is in, or the mailbox a message is in
+    QString path; ///< of a file on this computer; empty for a part of a document and for a file elsewhere
 };
 
 /** Which requests are still wanted; the worker drops the ones that were overtaken. */

@@ -10,6 +10,16 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **Documents as thumbnails:** The documents can be shown as small pictures in a grid
+  instead of as a list: pictures as themselves, PDFs as their first page, text files as
+  the beginning of their text. The size is set with a slider or with `Ctrl` and the mouse
+  wheel. See *The Window → Thumbnails*.
+- **A bar above the documents:** It says how many documents are listed and selected, and
+  has the *Sort By* menu, the switch between list and thumbnails and the slider for the
+  size. The order of the documents can now also be set from the command bar.
+- **Rows of tabs:** The rows of tabs of the sidebar and the side panel are as high as the
+  bars above the documents and the preview. A row with a single tab can be left out:
+  *Settings → Panels*.
 - **Tables can be sorted, and columns hidden:** Right-click the name of a column or a cell of
   a table in the preview to sort the rows by that column, by its text or by its numbers,
   and to hide the column. A click on the name of a column sorts too. See *Documents →

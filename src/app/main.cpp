@@ -4,6 +4,7 @@
 #include "app.h"
 #include "indeks-version.h"
 #include "indekssettings.h"
+#include "thumbnailprovider.h"
 #include "welcome.h"
 
 #include <KAboutData>
@@ -22,6 +23,7 @@
 #include <QIcon>
 #include <QNetworkAccessManager>
 #include <QQmlApplicationEngine>
+#include <QThreadPool>
 #include <QQmlNetworkAccessManagerFactory>
 #include <QQuickStyle>
 #include <QQuickWindow>
@@ -143,6 +145,9 @@ int main(int argc, char *argv[])
     LocalOnlyAccessManagerFactory accessManagerFactory;
     engine.setNetworkAccessManagerFactory(&accessManagerFactory);
     KLocalization::setupLocalizedContext(&engine);
+    // The engine owns it.
+    engine.addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider);
+    QThreadPool::globalInstance()->start(&ThumbnailProvider::prune);
     engine.loadFromModule("io.github.n4n0gh.indeks", "Main");
     if (engine.rootObjects().isEmpty()) {
         return 1;

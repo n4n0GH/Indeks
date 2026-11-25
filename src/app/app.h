@@ -303,6 +303,7 @@ private:
     void updateActions();
     /** Marks which of the three choices for the preview is the one that holds. */
     void syncPreviewChoice();
+    void syncDocumentView();
     /** Names the commands that move views between the panels after where each view is. */
     void updatePanelActions();
     QVariantList selection() const;

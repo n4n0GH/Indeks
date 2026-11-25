@@ -23,6 +23,8 @@ QQC2.Pane {
     required property string side
     /** The tab that is being dragged; see PanelDrag. */
     required property PanelDrag viewDrag
+    /** How high the bars of tabs are: as high as the bars above the documents and the preview. */
+    property real barHeight: 0
 
     /** A panel without views has nothing to show. */
     readonly property bool hasViews: upper.views.length > 0
@@ -71,6 +73,7 @@ QQC2.Pane {
                     side: root.side
                     part: "top"
                     viewDrag: root.viewDrag
+                    barHeight: root.barHeight
                     splittable: lower.views.length === 0
                     QQC2.SplitView.fillHeight: true
                     QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 6
@@ -81,6 +84,7 @@ QQC2.Pane {
                     side: root.side
                     part: "bottom"
                     viewDrag: root.viewDrag
+                    barHeight: root.barHeight
                     visible: views.length > 0
                     QQC2.SplitView.preferredHeight: split.height * root.lowerShare
                     QQC2.SplitView.minimumHeight: Kirigami.Units.gridUnit * 6

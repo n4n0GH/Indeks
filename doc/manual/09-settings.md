@@ -61,6 +61,13 @@ is not installed, this page says so.
   highlighted in orange, from *On the day only* up to 365 days. To-dos past their deadline
   are always highlighted in red.
 
+## Panels
+
+- **Hide the tab bar where there is only one view:** An area of the sidebar or the side
+  panel that holds a single view is shown without its row of tabs. Off at first. See *The
+  Window → Arranging the panels* for how a view is moved when its tab is not there.
+- **Reset Sidebar and Side Panel:** Puts every view back where Indeks starts with it.
+
 ## Toolbar
 
 - **In the toolbar, from left to right:** What stands between the sidebar button and the

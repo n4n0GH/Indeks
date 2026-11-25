@@ -117,13 +117,24 @@ text of all documents that takes that long says *Searching…*.
 ## List of documents
 
 The list shows the documents of the entry selected in the sidebar, narrowed down by the
-search field and the filters.
+search field and the filters. It shows them as rows with columns, or as thumbnails in a
+grid; see *Thumbnails* below.
+
+**The bar above the documents** is always there, as high as the bar above the preview:
+
+- On the left, how many documents are listed, and how many of them are selected.
+- **Sort By:** What the documents are sorted by, *Name*, *Type*, *Date Modified*, *Date
+  Added*, *Size*, *From*, *Location*, *Pages* or *Comment*, and whether *Descending*.
+- **List** and **Thumbnails:** The two ways of showing the documents.
+- **The slider:** How large the documents are shown: the height of the rows of the list,
+  in three steps, or the size of the thumbnails. It is left out where the bar is narrow.
 
 **Selecting.** Click a document to select it. `Ctrl`-click adds or removes one, `Shift`-click
 selects a range, `Ctrl+A` selects all. The arrow keys, `Page Up`, `Page Down`, `Home` and
 `End` move the selection.
 
-**Sorting.** Click a column title to sort by it; click again to turn the order around.
+**Sorting.** Click a column title to sort by it; click again to turn the order around. The
+*Sort By* menu of the bar does the same, and is the way to sort the thumbnails.
 
 **Marks in a row.** A pin marks a pinned document, a note sign one with a comment, notes or
 drawings. A struck-out name with a warning sign means the file is missing. A faded row with
@@ -162,6 +173,33 @@ saved search. The menu names the view it is for.
 - *Reset Columns and Rows in All Views* returns everything to how it was at first.
 
 Column widths and the row height are the same in every view.
+
+### Thumbnails
+
+*Thumbnails* in the bar above the documents, or the command *Show Documents as Thumbnails*,
+shows the documents as small pictures in a grid, with their names below; *List* goes back
+to rows and columns. Indeks remembers which it was.
+
+![Documents as thumbnails](images/grid.png)
+
+- **What a thumbnail shows:** A picture is shown as itself, a PDF as its first page, a text
+  file, Markdown and tables among them, as the beginning of its text on a sheet. Every other
+  document, an e-mail or an Office document for one, is shown as the icon of its type, and
+  so is every document until its thumbnail is made.
+- **Size:** The slider in the bar, `Ctrl` with the mouse wheel over the grid, or the commands
+  *Larger Thumbnails* and *Smaller Thumbnails*. The tiles share the width of the grid.
+- **Sorting:** The *Sort By* menu of the bar.
+- **Everything else is as in the list:** selecting with the mouse and the arrow keys, which
+  move left, right, up and down here, the context menu, dragging, a double click to open.
+  The marks for pinned, annotated and missing documents stand at the upper right corner of
+  a tile. A mailbox has a button at its upper left corner that shows and hides its messages.
+- **A name that is cut short** is shown in full when the pointer rests on the tile.
+
+Thumbnails are made in the background, a few at a time, and only of files that can be read
+on this computer at that moment: not of files on a server, and not of files of a location
+that is not connected. They are kept in the cache folder of Indeks, so that they are there
+at once the next time, and removed when they were not looked at for three months. Where the
+search words were found is not shown in the grid; switch to the list for that.
 
 ## Preview
 
@@ -274,6 +312,15 @@ is marked:
 
 Drag the line between the two areas to say how much of the panel each gets. A panel without
 tabs is not shown.
+
+**Areas with one tab.** A row with a single tab says little. *Settings → Panels → Hide the
+tab bar where there is only one view*, or the command of the same name, leaves it out: the
+view takes the whole area. There is no tab to drag or to right-click then; move such a view
+with the commands named below, or switch the setting off for the moment. Another tab can
+still be dragged into the area, and the row of tabs is back as soon as there are two.
+
+The rows of tabs are as high as the bars above the documents and the preview, so that the
+three stand in one line across the window.
 
 The same commands are in the command bar, with the name of the tab in them, such as *Move
 To-Do to the Left Panel*, *Split Find Below in Its Panel* or *Move the Find Tab One Place to

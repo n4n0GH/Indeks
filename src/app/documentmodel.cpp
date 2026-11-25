@@ -7,6 +7,7 @@
 #include "library.h"
 #include "searchquery.h"
 #include "store.h"
+#include "thumbnailprovider.h"
 
 #include <KFormat>
 #include <KLocalizedString>
@@ -149,6 +150,7 @@ QHash<int, QByteArray> DocumentModel::roleNames() const
         {SelectedRole, "selected"},
         {MissingRole, "missing"},
         {LingeringRole, "lingering"},
+        {ThumbnailRole, "thumbnail"},
         {OfflineRole, "offline"},
         {FlaggedRole, "flagged"},
         {AnnotatedRole, "annotated"},
@@ -214,6 +216,12 @@ QVariant DocumentModel::data(const QModelIndex &index, int role) const
         return m_lingering.contains(row.id);
     case OfflineRole:
         return row.sourceId != 0 && !m_library->isSourceAvailable(row.sourceId);
+    case ThumbnailRole:
+        // Only of what can be read right now.
+        if (row.missing || (row.sourceId != 0 && !m_library->isSourceAvailable(row.sourceId))) {
+            return QString();
+        }
+        return ThumbnailProvider::address(row.id, row.kind, row.path, row.mtime, row.size);
     case FlaggedRole:
         return row.flagged;
     case AnnotatedRole:

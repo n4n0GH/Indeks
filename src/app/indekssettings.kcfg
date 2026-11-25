@@ -171,6 +171,20 @@
             <label>Which form toolbarActions is in. From 2 on it names the search field and the buttons beside it, which had fixed places before. From 3 on one button with a menu (menu_preview) stands for the two buttons of the preview.</label>
             <default>1</default>
         </entry>
+        <entry name="documentsAsGrid" type="Bool">
+            <label>Show the documents as thumbnails in a grid instead of as a list.</label>
+            <default>false</default>
+        </entry>
+        <entry name="gridIconSize" type="Int">
+            <label>How large the thumbnails of the grid are, in pixels.</label>
+            <default>96</default>
+            <min>48</min>
+            <max>256</max>
+        </entry>
+        <entry name="hideSingleTabBar" type="Bool">
+            <label>Leave out the bar of tabs of an area of the sidebar or the side panel that has one view only.</label>
+            <default>false</default>
+        </entry>
         <entry name="toolbarIconsOnly" type="Bool">
             <label>Show the toolbar buttons without their text.</label>
             <default>false</default>

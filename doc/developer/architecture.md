@@ -72,6 +72,7 @@ does the work. It is built as three programs and one library.
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
 | `Welcome` | `welcome.*` | What a new installation is asked before anything is made: start a new database, and where, or open one that exists. Runs in `main()` before there is an `App`, with `WelcomeWindow.qml`, and notes the choice in the settings. |
 | `DatabaseChoice` | `databasechoice.*` | What may be chosen as a database and what is said about a choice, for `App` and `Welcome` alike. |
+| `ThumbnailProvider` | `thumbnailprovider.*` | The small pictures of the grid of documents, `image://thumbnail/…`: made in a pool of its own (three threads), kept as PNG files in the cache folder. See *The documents as list and as grid* below. |
 | `TableModel` | `tablemodel.*` | CSV and TSV files as a table. Rows and columns are counted as the table is shown: without the columns the user hid (`m_shown`), in the order the rows are sorted into (`m_order`, worked out in a pool thread by `sortBy()`). The file and `DelimitedTable` know nothing of either. |
 | `PdfText` | `pdftext.*` | Text selection on PDF pages that snaps to the nearest text. |
 | `InkCanvas` | `inkcanvas.*` | Freehand drawing on pages and pictures. |
@@ -126,6 +127,7 @@ thread, or the window comes up late and stands still after every change.
 | --- | --- | --- |
 | The numbers of the sidebar | `CountWorker`, the count thread | `SidebarModel::reload()` lists the entries at once (`rebuild()`) and asks for the numbers (`requestCounts()`); an entry shows the number it had until the new one is there. One round runs at a time, and after a round the next waits as long as the round took (five seconds at most), so that indexing does not keep a processor counting. The locations are counted in one statement (`Store::sourceCounts()`). |
 | Every list of documents | `SearchWorker`, the search thread | See *Lists of documents* below. |
+| Thumbnails of the grid | `ThumbnailProvider`, a pool of three threads | Reads the files themselves, never the index. |
 | Documents kept only for the user's work | the pool thread of `Library` | `Library::start()` calls `dropAbandonedLater()`: whether there is anything to look at (`Store::hasAbandonedCandidates()`) is found out in the background, and only then `dropAbandoned()` runs in the main thread, with the table in memory by then. |
 
 - **`App.opening`** is true from the start, and again from `Library::databaseAboutToChange`,
@@ -212,6 +214,48 @@ Rules and saved searches store the filters beside the query, so that they can be
 the way they were made. For a query that has none, `FilterStack.filtersOf()` takes it apart
 term by term into the filters the menu would have made, and leaves the rest, or a query with
 `OR` or an exclusion as a whole, as one *Search* filter.
+
+## The documents as list and as grid
+
+`DocumentList.qml` shows the one `DocumentModel` in two ways, a `ListView` with columns and
+a `GridView` of tiles; `Config.documentsAsGrid` says which. Only the view that is looked at
+has the model, so the other makes no delegates. Selection, the context menu, dragging and
+the keys go through the same functions of the component for both (`selectRow()`,
+`moveCurrent()`, `dragProxy`), and what is said while there is nothing to show stands over
+whichever is shown.
+
+- **The bar above them** (`viewBar`) has the *Sort By* menu, the switch and the slider. Its
+  entries are the application's actions (`sort_by_<column>`, `sort_descending`,
+  `view_as_list`, `view_as_grid`) under shorter names (the component `Choice`), and
+  `App::syncDocumentView()` keeps the marks of those actions with the model and the
+  settings, whoever changed them.
+- **A thumbnail's address** is the role `thumbnail` of the model
+  (`ThumbnailProvider::address()`): number, kind, time of change and size of the document
+  and the path of its file. It is empty for kinds that have none (anything but pictures,
+  PDFs and plain text), for parts of other documents, for files that are not on this
+  computer (`DocumentRow::path` is only set for local files) and for missing or
+  unavailable ones; the tile shows the icon of the type then, as it does until the
+  picture is there.
+- **The provider** asks nothing of the index: all it needs is in the address. It answers
+  from the cache folder (`thumbnails/<hash of path, time and size>-<edge>.png`) or makes
+  the picture: `QImageReader` with a scaled size, the first page with `QPdfDocument`, the
+  first 6 KiB of a text drawn on a sheet. Pictures are made at 128, 256 or 512 points and
+  scaled by the tile, so that sliding the size does not make all of them anew. A request
+  whose tile scrolled away is cancelled before it starts. Files not looked at for 90 days
+  are removed at start (`prune()`).
+- **A file that changes** gets a new address with the next list, since time and size are
+  part of it; the old picture stays in the cache until it is pruned.
+
+## The bars across the top
+
+The rows of tabs of the two panels, the bar above the documents and the bar of the preview
+are of one height: `mainPage.barHeight` in `Main.qml`, the larger of what the latter two
+would take by themselves (`naturalBarHeight`), handed to all of them as `barHeight`. A bar
+that is told nothing takes its own height.
+
+A `PanelArea` with one view leaves its row of tabs out when `Config.hideSingleTabBar` is
+set (`barShown`). Its drop areas stay, so another view can be dragged in; the view itself
+is then moved with the actions `panel_move_<view>` and the like.
 
 ## The two panels and their views
 

@@ -90,6 +90,7 @@ public:
         LocationRole,
         PagesTextRole,
         CommentRole,
+        ThumbnailRole, ///< the address of a small picture of the document, empty if there is none; see ThumbnailProvider
     };
     enum SelectionMode {
         Single,
