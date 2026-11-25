@@ -10,6 +10,11 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.4.0
 
+- **A rule or script is always selected:** Under *Rules* and *Scripts* the first entry is
+  selected when the list comes up, and after one was deleted the next one is. Before, a
+  list with a single entry in it offered nothing to delete until that entry was clicked.
+  `Del` now deletes the selected rule or script wherever in the window the keys go, except
+  while you type in a text.
 - **The panels can be arranged:** The tabs of the sidebar and the side panel can be moved
   to the other panel, and each panel can show two of them at once, one above the other:
   drag a tab to where its view is to be, which is also how tabs are put in order, or

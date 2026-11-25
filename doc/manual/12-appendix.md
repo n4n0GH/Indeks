@@ -85,7 +85,7 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Ctrl+E` | Edit text, or draw on the document |
 | `F2` | Rename… (documents created in Indeks) |
 | `Ctrl+Alt+C` | Copy Location |
-| `Delete` | Move to Trash |
+| `Delete` | Move to Trash; under *Rules* and *Scripts*, delete the selected rule or script |
 | `Ctrl+A` | Select all documents; in a text or on PDF pages, select the text |
 | `Ctrl+C` | Copy the selected text or table cell |
 

@@ -276,6 +276,13 @@ beside and the hiding of the preview hold for both.
 - **What is selected** in the automation list is the application's to know
   (`App.currentRule`, `App.currentScript`), because actions go by it: *Apply Selected Rule*,
   and `automation_delete`, whose text follows the page.
+- **Something is always selected** while there is anything: `AutomationPane.showOne()`
+  shows the first rule or script when a list comes up with none shown, and after a deletion
+  the one that took its place (`rulePlace`, `scriptPlace`). Without it the actions above are
+  disabled until an entry is clicked, which nobody thinks of in a list of one.
+- **`Del` is the key of two commands**, `doc_trash` and `automation_delete`. They are never
+  enabled together (`App::updateActions()`), so the key means the one that is. A text field
+  that has the keys takes `Del` for itself.
 - **Document actions rest** while the window is about automation: `App::updateActions()` then
   takes the selection of documents for empty, so that a key like `Del` does nothing to
   documents that are out of sight. The selection itself stays; trying and running a script

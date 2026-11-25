@@ -11,6 +11,10 @@ Both are found under the *Automation* tab of the sidebar. Choose *Rules* or *Scr
 and the middle of the window lists them; the one you select is shown where the preview is
 otherwise, to be changed there. `Ctrl+5` goes to the rules, `Ctrl+6` to the scripts.
 
+One of them is always selected while there are any: the first when the list comes up, and
+after one was deleted the one that took its place. So a list with a single rule or script
+in it needs no click before that one can be changed, applied or deleted.
+
 - **Save** in the bar above stores what you changed. Nothing changes before that.
 - **Discard Changes** returns to what is stored.
 - **Leaving:** Going back to the documents, or from rules to scripts, loses nothing: what
@@ -83,7 +87,7 @@ runs by itself (*Automatic*), waits to be applied (*By hand*) or is switched off
 active*).
 
 To delete a rule, select it and press `Del`, or choose *Delete Rule…* in the bar or the
-context menu. What the rule did to documents so far stays.
+context menu. Indeks asks before it deletes. What the rule did to documents so far stays.
 
 ## Scripts
 
@@ -121,8 +125,9 @@ line of the description at the top is shown in the list of scripts.
 - **Run** runs the saved script on the documents that are selected in the list of documents.
 - **Reference** lists everything a script can read and ask for. The *Appendix* has the same
   list.
-- **Move Script to Trash…**, also `Del` in the list, moves the file of the script to the
-  trash of your desktop.
+- **Move Script to Trash…**, also `Del`, moves the file of the script to the trash of your
+  desktop, after asking. While you type in the name or the text of a script, `Del` removes
+  a letter as everywhere.
 
 Above the list, *Open Folder* shows the folder the scripts are kept in, and *Show Script
 Output* what they printed.

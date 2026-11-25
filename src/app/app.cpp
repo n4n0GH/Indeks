@@ -429,8 +429,9 @@ void App::setupActions()
     addRequest(u"new_rule"_s, i18nc("@action", "New Rule…"), u"run-build-configure"_s);
     addRequest(u"go_rules"_s, i18nc("@action", "Go to Rules"), u"run-build-configure"_s, Qt::CTRL | Qt::Key_5);
     // What it is called follows what is selected: a rule is deleted, a script is a file and
-    // goes to the trash.
-    addRequest(u"automation_delete"_s, i18nc("@action", "Delete Selected Rule or Script…"), u"edit-delete"_s);
+    // goes to the trash. By the key that moves documents to the trash: the two commands
+    // are never both there, see updateActions(), and this one asks before it does anything.
+    addRequest(u"automation_delete"_s, i18nc("@action", "Delete Selected Rule or Script…"), u"edit-delete"_s, QKeySequence::Delete);
     // Things to do
     addRequest(u"new_todo"_s, i18nc("@action", "New To-Do…"), u"task-new"_s);
     addRequest(u"doc_todo"_s, i18nc("@action", "Create To-Do for Document…"), u"task-new"_s);

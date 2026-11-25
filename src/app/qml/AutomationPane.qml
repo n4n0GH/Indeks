@@ -48,6 +48,56 @@ QQC2.Pane {
         });
     }
 
+    // Where the rule and the script that are shown stand in their lists: when one of them
+    // goes, the one that takes its place is shown.
+    property int rulePlace: 0
+    property int scriptPlace: 0
+
+    function remember(): void {
+        if (App.currentRule > 0) {
+            const at = App.library.rules().findIndex(rule => rule.id === App.currentRule);
+            rulePlace = at >= 0 ? at : rulePlace;
+        }
+        if (App.currentScript.length > 0) {
+            const at = App.library.scripts().findIndex(script => script.file === App.currentScript);
+            scriptPlace = at >= 0 ? at : scriptPlace;
+        }
+    }
+
+    /**
+     * Shows a rule or script where none is shown though there are some: the first, or the
+     * one that stands where the last one stood. A list in which nothing is chosen offers
+     * nothing to change, apply or delete, and with a single entry in it nobody thinks of
+     * choosing that first.
+     */
+    function showOne(): void {
+        if (!App.automation) {
+            return;
+        }
+        if (showsRules && !ruleEditor.loaded) {
+            const rules = App.library.rules();
+            if (rules.length > 0) {
+                editRule(rules[Math.min(rulePlace, rules.length - 1)].id);
+            }
+        } else if (!showsRules && !scriptEditor.loaded) {
+            const scripts = App.library.scripts();
+            if (scripts.length > 0) {
+                editScript(scripts[Math.min(scriptPlace, scripts.length - 1)].file);
+            }
+        }
+    }
+
+    Component.onCompleted: showOne()
+
+    Connections {
+        target: App
+        // The window turned to the rules or the scripts, or another one of them was chosen.
+        function onAutomationChanged(): void {
+            root.remember();
+            Qt.callLater(root.showOne);
+        }
+    }
+
     /** Calls @p then once nothing unsaved is in the way: at once, or after the user said so. */
     function guarded(editor: Item, then: var): void {
         if (editor.dirty) {
@@ -93,17 +143,23 @@ QQC2.Pane {
                 ruleEditor.clear();
                 App.currentRule = 0;
             }
+            // The next one, or the first one there is at all.
+            Qt.callLater(root.showOne);
         }
         function onScriptsChanged(): void {
             if (scriptEditor.loaded && scriptEditor.file.length > 0 && App.library.script(scriptEditor.file).file === undefined) {
                 scriptEditor.clear();
                 App.currentScript = "";
             }
+            Qt.callLater(root.showOne);
         }
         function onDatabaseChanged(): void {
             // Rules and scripts belong to the database.
             ruleEditor.clear();
             scriptEditor.clear();
+            root.rulePlace = 0;
+            root.scriptPlace = 0;
+            Qt.callLater(root.showOne);
         }
     }
 
