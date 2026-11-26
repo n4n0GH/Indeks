@@ -293,6 +293,55 @@ QList<DocumentModel::Row> DocumentModel::partsOf(qint64 id, bool *truncated) con
     return parts;
 }
 
+DocumentModel::Row DocumentModel::documentRow(qint64 id) const
+{
+    // In the trash or not, as the list is: a document that went there, or came back from
+    // there, has left the list.
+    const bool trash = SearchQuery(m_scope).includesTrash();
+    bool truncated = false;
+    const QList<Row> found = SearchWorker::fetch(rowsSql(trash ? u"d.id = ? AND d.trashed <> 0"_s : u"d.id = ? AND d.trashed = 0"_s), {id}, 1, &truncated);
+    return found.isEmpty() ? Row() : found.constFirst();
+}
+
+void DocumentModel::keepRevealed(QList<Row> &rows) const
+{
+    if (m_revealedTop == 0 && m_revealedPart == 0) {
+        return;
+    }
+    const auto at = [&rows](qint64 id) {
+        for (int i = 0; i < rows.size(); ++i) {
+            if (rows.at(i).id == id) {
+                return i;
+            }
+        }
+        return -1;
+    };
+    if (m_revealedTop != 0 && at(m_revealedTop) < 0) {
+        const Row row = documentRow(m_revealedTop);
+        if (row.id != m_revealedTop) {
+            return;
+        }
+        rows.append(row);
+        if (row.parts > 0 && m_expanded.contains(row.id)) {
+            bool truncated = false;
+            rows.append(partsOf(row.id, &truncated));
+        }
+    }
+    if (m_revealedPart != 0 && at(m_revealedPart) < 0) {
+        Row part = documentRow(m_revealedPart);
+        const int top = part.id == m_revealedPart ? at(part.parentId) : -1;
+        if (top < 0 || !m_expanded.contains(part.parentId)) {
+            return;
+        }
+        part.depth = 1;
+        int last = top;
+        while (last + 1 < rows.size() && rows.at(last + 1).depth > 0) {
+            ++last;
+        }
+        rows.insert(last + 1, part);
+    }
+}
+
 void DocumentModel::indexRows()
 {
     m_rowOfId.clear();
@@ -446,6 +495,9 @@ void DocumentModel::loaded()
         m_wantedId = 0;
         selectId(wanted);
     }
+    if (m_revealId != 0) {
+        reveal(m_revealId);
+    }
     if (m_refreshWanted) {
         m_refreshWanted = false;
         load(Load::Refreshed, true);
@@ -474,6 +526,9 @@ void DocumentModel::clear()
 {
     ++m_tickets.search;
     m_wantedId = 0;
+    m_revealId = 0;
+    m_revealedTop = 0;
+    m_revealedPart = 0;
     forgetExcerpts();
     setLoading(false);
     m_lingering.clear();
@@ -604,6 +659,9 @@ void DocumentModel::load(Load load, bool quiet)
         m_dismissed.clear();
         m_handled = m_selected;
         m_wantedId = 0;
+        m_revealId = 0;
+        m_revealedTop = 0;
+        m_revealedPart = 0;
     }
     // Whatever changed in the index, this reads it.
     m_refreshWanted = false;
@@ -750,6 +808,7 @@ void DocumentModel::apply(const QList<Row> &found, bool foundTruncated, const QS
             }
         }
     }
+    keepRevealed(rows);
     if (tree != m_tree) {
         m_tree = tree;
         Q_EMIT treeChanged();
@@ -904,6 +963,61 @@ void DocumentModel::selectId(qint64 id)
         // The list it may be in is on its way.
         m_wantedId = id;
     }
+}
+
+void DocumentModel::reveal(qint64 id)
+{
+    if (m_loading) {
+        // Once the list is there; see loaded().
+        m_revealId = id;
+        return;
+    }
+    m_revealId = 0;
+    if (!m_rowOfId.contains(id)) {
+        const Document document = Store::document(id);
+        if (!document.isValid()) {
+            return;
+        }
+        // A message of a mailbox is listed under its mailbox.
+        const qint64 top = document.isPart() ? document.parentId : id;
+        if (!m_rowOfId.contains(top)) {
+            // A list of very many documents holds only so many of them (MaxRows), and this
+            // one comes after those. It is listed after the last one: not where it belongs
+            // in the order, but there to be seen, which is what was asked for.
+            const Row row = documentRow(top);
+            if (row.id != top) {
+                return;
+            }
+            m_revealedTop = top;
+            beginInsertRows({}, int(m_rows.size()), int(m_rows.size()));
+            m_rows.append(row);
+            m_rowOfId.insert(top, int(m_rows.size()) - 1);
+            endInsertRows();
+            Q_EMIT countChanged();
+        }
+        if (top != id) {
+            setExpanded(top, true);
+            if (!m_rowOfId.contains(id)) {
+                // A mailbox of more messages than are listed: this one after the last.
+                Row part = documentRow(id);
+                if (part.id != id || !m_expanded.contains(top)) {
+                    return;
+                }
+                m_revealedPart = id;
+                part.depth = 1;
+                int last = m_rowOfId.value(top);
+                while (last + 1 < m_rows.size() && m_rows.at(last + 1).depth > 0) {
+                    ++last;
+                }
+                beginInsertRows({}, last + 1, last + 1);
+                m_rows.insert(last + 1, part);
+                indexRows();
+                endInsertRows();
+                Q_EMIT countChanged();
+            }
+        }
+    }
+    selectId(id);
 }
 
 bool DocumentModel::isSelected(int row) const

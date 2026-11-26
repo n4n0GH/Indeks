@@ -175,6 +175,16 @@ some hundred thousand documents and a second for the duplicates among them.
   return. `selectId()` of a document that is not listed yet is remembered and done when the
   list arrives (`m_wantedId`); `PreviewPane.editOnceShown()` does the same for a new
   document that is to be written in.
+- **A document that is to be shown must not be missed because the list does not hold it.**
+  `App::showDocument()` goes to all documents and then calls `DocumentModel::reveal()`,
+  not `selectId()`: a list holds `MaxRows` rows at most, and the messages of a mailbox
+  only while it is open, so a document can belong to a list and still not be in it.
+  `reveal()` waits for the list like `selectId()` (`m_revealId`), opens the mailbox of a
+  message, and lists what is still missing after the last row (of the list, or of the
+  mailbox). What it listed stays through every reading of the list (`keepRevealed()`),
+  until another list is gone to. The view settles its layout before it goes to the row
+  (`DocumentList`, `onCurrentChanged`): the line that says a list is cut short takes room
+  from the list a frame later, and the row would be gone to where it then no longer is.
 - **Changes to the index do not restart a list that is on its way** (that would put it off
   for as long as documents come in): the list is read once more when it is there
   (`m_refreshWanted`). Such a refresh, and every other one after a change, is `quiet`:

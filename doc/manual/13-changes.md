@@ -8,6 +8,14 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.7.0
+
+- **A to-do shows its document wherever it is:** A click on a to-do went to *All
+  Documents* and selected nothing when the document was a message inside a mailbox, or
+  came after the first 20,000 of a long list. The mailbox is now opened for it, and a
+  document from further down a long list is listed after the last row. The same goes for
+  every other way to a document, the linked documents of the *Information* tab for one.
+
 ## Version 0.7.0
 
 - **Text on scans can be selected:** On a scanned page and in a picture, the text that was

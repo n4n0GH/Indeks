@@ -1362,7 +1362,9 @@ void App::showDocument(qint64 documentId)
         m_documents->setCriteria(QString());
         goTo(Store::document(documentId).trashed ? u"place:trash"_s : u"place:all"_s);
     }
-    m_documents->selectId(documentId);
+    // Not selectId(): among all documents this one may stand beyond what a long list
+    // holds, or be a message inside a mailbox, and it is to come up all the same.
+    m_documents->reveal(documentId);
 }
 
 void App::addFolders(const QList<QUrl> &urls)

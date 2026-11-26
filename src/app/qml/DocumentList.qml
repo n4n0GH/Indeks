@@ -764,6 +764,15 @@ QQC2.Pane {
                             }
                             function onCurrentChanged(): void {
                                 if (App.documents.currentRow >= 0) {
+                                    // The row may have been put into the list this very
+                                    // moment (DocumentModel.reveal()), and the line that
+                                    // says a list is cut short may be about to take room
+                                    // from the list. The view takes note of new rows, and
+                                    // the layout of what changed, once a frame, which is
+                                    // too late for this: the row would be gone to where
+                                    // it then no longer is.
+                                    views.parent.ensurePolished();
+                                    list.forceLayout();
                                     list.positionViewAtIndex(App.documents.currentRow, ListView.Contain);
                                 }
                             }
@@ -1102,6 +1111,9 @@ QQC2.Pane {
                             }
                             function onCurrentChanged(): void {
                                 if (App.documents.currentRow >= 0) {
+                                    // As in the list.
+                                    views.parent.ensurePolished();
+                                    tiles.forceLayout();
                                     tiles.positionViewAtIndex(App.documents.currentRow, GridView.Contain);
                                 }
                             }

@@ -183,6 +183,13 @@ public:
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void selectId(qint64 id);
+    /**
+     * Selects a document that belongs into the list wherever it is, also where selectId()
+     * does not find it: beyond the place a long list is cut off at, where it is then listed
+     * after the last row, and inside a mailbox that is not open, which is opened for it. If
+     * the list is still being read, this happens when it is there.
+     */
+    Q_INVOKABLE void reveal(qint64 id);
     Q_INVOKABLE bool isSelected(int row) const;
     Q_INVOKABLE int rowOf(qint64 id) const;
     Q_INVOKABLE qint64 idAt(int row) const;
@@ -243,6 +250,10 @@ private:
     /** The list's query for the documents that @p where finds, in the order the list is in. */
     QString rowsSql(const QString &where) const;
     QList<Row> partsOf(qint64 id, bool *truncated) const;
+    /** The row of one document, as this list would show it; without an id if it does not belong. */
+    Row documentRow(qint64 id) const;
+    /** Puts what reveal() listed back into rows that were read anew. */
+    void keepRevealed(QList<Row> &rows) const;
     bool canExpand(const Row &row) const;
     void indexRows();
     void setSelection(const QSet<qint64> &selected, qint64 current);
@@ -275,6 +286,13 @@ private:
     bool m_refreshWanted = false;
     /** The document to select as soon as the list that is on its way has it. */
     qint64 m_wantedId = 0;
+    qint64 m_revealId = 0; ///< what reveal() is to bring up once the list is there
+    // What reveal() listed that the list would not hold by itself: a document after the
+    // last row of a list that is cut off, and a message after the last one listed of its
+    // mailbox. They stay listed, through every reading of the list, until another list is
+    // gone to.
+    qint64 m_revealedTop = 0;
+    qint64 m_revealedPart = 0;
 
     // Searching in the background
     QThread m_thread;

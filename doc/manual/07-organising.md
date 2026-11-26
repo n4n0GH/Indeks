@@ -188,7 +188,10 @@ deadline and then those that are done.
   days ahead is set under *Settings → To-Do List*; at first it is three.
 - A to-do that is past its day is highlighted in **red**.
 - A to-do with a linked document shows the document's icon. Click the line to show that
-  document, also when it is in the trash.
+  document, wherever it is: Indeks goes to *All Documents*, or to the trash if it is
+  there, and selects it. A message of a mailbox is shown in its mailbox, which is opened
+  for it. Among very many documents, of which the list holds the first 20,000, a document
+  that comes later is listed after the last of those.
 
 **Finishing and changing.**
 
