@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.5.0
+## Version 0.5.1
 
 - **From thumbnails to the list:** When Indeks was started with the documents shown as
   thumbnails, the first switch to the list made a row for every document that was listed

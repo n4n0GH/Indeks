@@ -36,6 +36,14 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.1" date="2026-11-26">
+      <description>
+        <p>Mends a standstill of the window.</p>
+        <ul>
+          <li>When Indeks was started with the documents shown as thumbnails, the first switch to the list could make the window stand still for minutes where many thousands of documents were listed, in an opened mailbox for instance</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-25">
       <description>
         <p>Documents are found by what they look like, shown as thumbnails and searched inside; the window can be arranged; large databases open without a wait.</p>
