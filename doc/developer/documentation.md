@@ -77,6 +77,16 @@ taken from an Indeks with made-up documents, never from real ones, at the size o
 at 96 dpi. Keep them few: every picture has to be taken again when the part it shows
 changes.
 
+A picture of the whole window (`main-window.png`, and `doc/images/indeks.png` of the README)
+is taken with the frame of the window and the shadow around it, on nothing, the way
+Spectacle takes a window. KWin makes such a picture itself: `CaptureActiveWindow` of
+`org.kde.KWin.ScreenShot2` with `include-decoration` and `include-shadow`, asked of a KWin
+that runs for this alone (`kwin_wayland --virtual`, in a D-Bus session and runtime folder of
+its own; see [development.md](development.md) for those). The builder draws a thin line
+around a wide picture, to say where it ends; around a picture that is transparent at its
+corner, as these are, it draws none. Pictures of a part of the window are cut out of the
+window and have neither frame nor shadow.
+
 ### Building it
 
 The manual is built with Indeks, by `indeks-manualbuilder` (`doc/tools/manualbuilder.cpp`):

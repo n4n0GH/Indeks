@@ -1126,8 +1126,14 @@ int main(int argc, char **argv)
             const qreal y = top + figure.offset;
             const QRectF where(left + (fullWidth - figure.size.width()) / 2, y, figure.size.width(), figure.size.height());
             painter.drawImage(where, figure.image);
-            painter.setPen(QPen(RuleColor, mm(0.15)));
-            painter.drawRect(where);
+            // A line around it says where the picture ends, which a picture of a part of
+            // the window does not say itself. One of a whole window does, with its frame
+            // and the shadow around it, on nothing: a line around that would box it in.
+            const bool hasOwnEdge = figure.image.hasAlphaChannel() && qAlpha(figure.image.pixel(0, 0)) == 0;
+            if (!hasOwnEdge) {
+                painter.setPen(QPen(RuleColor, mm(0.15)));
+                painter.drawRect(where);
+            }
             painter.setFont(captionFont);
             painter.setPen(Faint);
             painter.drawText(QRectF(left, where.bottom() + mm(1.5), fullWidth, mm(5)), Qt::AlignHCenter | Qt::AlignVCenter, figure.caption);
