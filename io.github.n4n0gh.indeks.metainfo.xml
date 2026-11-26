@@ -36,6 +36,16 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.0" date="2026-11-26">
+      <description>
+        <p>To-dos with a deadline can be shown in the calendar.</p>
+        <ul>
+          <li>The to-dos of a database that have a deadline are kept as a calendar file, each on the day it is due; a to-do that is done leaves the calendar</li>
+          <li>Where the calendar of KDE is installed, the to-dos are added to it, so that KOrganizer, Merkuro and the calendar of the clock in the panel show them</li>
+          <li>Turned on under Settings, To-Do List, for each database</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-26">
       <description>
         <p>Mends a standstill of the window.</p>
