@@ -36,6 +36,15 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.2" date="2026-11-26">
+      <description>
+        <p>The Flatpak uses the icon theme of the desktop, and the manual says how to back up.</p>
+        <ul>
+          <li>The Flatpak drew the icons of Breeze where the icon theme of the desktop came with a global theme; it now draws those of your theme</li>
+          <li>The manual has a section on backing up a database and bringing it back, and names the folder of the Flatpak wherever it names the one of the local database</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.1" date="2026-11-26">
       <description>
         <p>The sidebar and the side panel slide in and out.</p>

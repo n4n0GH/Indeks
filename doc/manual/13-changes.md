@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.6.1
+## Version 0.6.2
 
 - **The icons of your desktop, in the Flatpak:** The Flatpak drew the icons of Breeze where
   the icon theme of the desktop came with a global theme. It now draws those of your
