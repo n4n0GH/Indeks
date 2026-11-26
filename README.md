@@ -12,7 +12,7 @@
 A document manager for KDE Plasma in the spirit of DEVONthink and EagleFiler, built with
 Qt 6, Kirigami and KDE Frameworks.
 
-![The Indeks window: places, groups and tags on the left, the list of documents with a PDF shown below it, and what is known about the document on the right](doc/images/indeks.png)
+![The Indeks window: places, saved searches, groups and tags on the left, the list of documents with a PDF shown below it, and on the right what is known about the document, above the to-do list](doc/images/indeks.png)
 
 Indeks does not take your files away from where they are. It keeps an index of folders you
 point it at – on this computer, on external drives, on servers – and lets you find, preview,
