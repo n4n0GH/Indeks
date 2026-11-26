@@ -32,7 +32,9 @@ cannot be reached.
 | `scripts/` | Scripts |
 | `to-dos.ics` | The to-dos that have a deadline, as a calendar, if that is turned on. See *Organising → To-dos in the calendar* |
 
-The local database is in `~/.local/share/indeks`.
+The local database is in `~/.local/share/indeks`, or in
+`~/.var/app/io.github.n4n0gh.indeks/data/indeks` if you installed Indeks as a Flatpak. See
+*Where Indeks keeps things* below.
 
 `index.sqlite` is what makes a folder a database. Indeks marks the file as its own. A file
 of that name that belongs to another program is not opened and not changed.
@@ -110,7 +112,7 @@ Installed with the system, or run as an AppImage:
 | Path | Content |
 | --- | --- |
 | `~/.local/share/indeks/` | The local database |
-| `~/.cache/indeks/` | Downloads of remote documents, PDFs made of Office documents, messages taken out of mailboxes. Safe to delete. |
+| `~/.cache/indeks/` | Downloads of remote documents, PDFs made of Office documents, messages taken out of mailboxes, thumbnails. Safe to delete. |
 | `~/.config/indeksrc` | Settings, including the list of databases |
 | `~/.config/indeks-allowed-scripts` | Which scripts of shared databases may run on this computer |
 | `~/.local/state/indeksstaterc` | The size and place of the window, and the folders last used in file dialogs |
@@ -124,9 +126,82 @@ The Flatpak keeps all of this in one folder of its own,
 | `cache/indeks/` | The cache. Safe to delete. |
 | `config/indeksrc` | Settings, including the list of databases |
 | `config/indeks-allowed-scripts` | Which scripts of shared databases may run on this computer |
+| `.local/state/indeksstaterc` | The size and place of the window, and the folders last used in file dialogs |
 
 Databases you started or added somewhere else are in the folders you chose for them, with
-either kind of installation. *Databases…* lists where each one is.
+either kind of installation. *Databases…* lists where each one is, the local one included.
+
+All of these are hidden: `.local`, `.cache`, `.config` and `.var` begin with a dot, and file
+managers leave such folders out. In Dolphin, `Ctrl+H` shows them; or type the path into the
+bar at the top of the window.
+
+## Backing up
+
+Indeks has no backup of its own, and needs none: a database is a folder, and every backup
+program copies folders. Use the one you use for the rest of your files.
+
+**What to back up.**
+
+- **The folder of each database.** It holds what exists nowhere else: your tags, groups,
+  links, notes, drawings, to-dos, rules and saved searches, the documents you created in
+  Indeks and the copies you edited. Where it is: see the tables above, or *Databases…*.
+  Mind the folder of the Flatpak, which a backup of `~/.local` alone does not reach.
+- **Your documents.** The files of indexed locations are not in the database. Back up their
+  folders too; without the files, a database that is brought back knows the names, the text
+  and your notes, but has nothing to show.
+- **The settings,** if you like: the file `indeksrc` holds the list of your databases and how
+  you arranged the window. The cache needs no backup.
+
+**When.** While Indeks is open, the index is being written to: beside `index.sqlite` stand
+helper files whose names begin with `index.sqlite-`, and they belong together. A copy that
+is taken while they change can be an index that does not open. So:
+
+- let the backup run while Indeks is closed, or
+- back up from a snapshot of the file system (Btrfs, ZFS, LVM), which holds all files as
+  they were at one moment.
+
+**With what.** Some programs that are common on Linux. Indeks asks nothing special of any of
+them.
+
+- **Kup:** The backup of KDE Plasma, set up in the System Settings. It copies folders to an
+  external drive or a share, with or without older versions.
+- **Déjà Dup** (*Backups* in GNOME) and **Pika Backup:** Simple programs that back up on a
+  schedule.
+- **Vorta:** A window for BorgBackup. **BorgBackup**, **restic** and **Kopia** themselves
+  are used in a terminal. They keep many versions in little room, encrypted, on drives,
+  servers and storage on the internet.
+- **Back In Time**, **rsnapshot** and **rsync:** Plain copies of folders, with older
+  versions or without.
+- **Snapper** and **btrbk:** Snapshots on Btrfs. A snapshot on the same disk guards against
+  a mistake, not against losing the disk; btrbk also sends snapshots to another disk.
+
+Two lines for a terminal, as examples: a plain copy with rsync, and a backup of the database
+together with a folder of documents with restic, into a store that `restic init` has made
+before.
+
+```sh
+rsync -a ~/.local/share/indeks/ /run/media/you/Backup/indeks/
+restic -r /run/media/you/Backup/restic backup ~/.local/share/indeks ~/Documents
+```
+
+> **Note:** Programs that keep folders the same on several computers, such as Syncthing,
+> Nextcloud or Dropbox, are no backup: what is deleted or damaged here is deleted or damaged
+> there a moment later. And a database in such a folder must never be open on two computers
+> at once.
+
+**Getting it back.**
+
+1. Quit Indeks.
+2. Put your documents back where they were, under the same paths.
+3. Put the folder of the database back where it was. Indeks opens it at the next start.
+
+- **On a new computer,** put the local database into its usual folder before you start
+  Indeks for the first time, and Indeks opens it without asking. Or put it anywhere, and
+  choose *Open an existing database* at the first start.
+- **In another folder than before:** *Add → Add Database…*, and choose its `index.sqlite`.
+- **Documents that are not where they were** are taken for deleted and go to the trash in
+  Indeks, with everything attached to them. They leave it by themselves once the files are
+  back in their places. See *In and Out → When a file goes away*.
 
 ## Uninstalling Indeks
 

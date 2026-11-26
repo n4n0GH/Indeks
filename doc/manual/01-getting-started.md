@@ -99,7 +99,8 @@ Start Indeks from the application menu. The first time, Indeks asks where its *d
 to be: the folder in which it keeps its index, the documents you create in it and the copies
 it makes for editing. Your files are not moved there.
 
-- **Start a new database:** The folder shown is the usual place, `~/.local/share/indeks`. If
+- **Start a new database:** The folder shown is the usual place: `~/.local/share/indeks`, or
+  `~/.var/app/io.github.n4n0gh.indeks/data/indeks` for the Flatpak. If
   you have no other in mind, leave it as it is and choose *Create Database*. *Choose…* opens
   at that folder and lets you pick another, on a second disk or a share for instance.
 - **Open an existing database:** If you have a database already, on a share or brought along
@@ -161,6 +162,12 @@ You can also drag documents onto a group or a tag in the sidebar.
 
 The index holds work that exists nowhere else: your tags, groups, links, notes, drawings,
 to-dos, rules, and the documents you created or edited in Indeks. Include the database folder in your
-backups. For the local database that is `~/.local/share/indeks`; see *Databases* for others.
+backups. For the local database that is `~/.local/share/indeks`, or
+`~/.var/app/io.github.n4n0gh.indeks/data/indeks` if you installed the Flatpak; *Databases…*
+in Indeks says where each database is.
 
 Your indexed files are not stored in the database. Back them up as you always have.
+
+Indeks leaves the backing up to the program you use for the rest of your files. *Databases →
+Backing up* says what to mind, names some programs, and tells how a database is brought
+back.
