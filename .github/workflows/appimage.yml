@@ -44,7 +44,7 @@ jobs:
             cmake ninja gcc-c++ rsvg-convert desktop-file-utils \
             kf6-extra-cmake-modules \
             qt6-base-devel qt6-declarative-devel qt6-quickcontrols2-devel \
-            qt6-sql-devel qt6-network-devel qt6-widgets-devel qt6-test-devel \
+            qt6-sql-devel qt6-network-devel qt6-dbus-devel qt6-widgets-devel qt6-test-devel \
             qt6-pdf-devel qt6-pdfquick-devel \
             kf6-kirigami-devel kf6-ki18n-devel kf6-kcoreaddons-devel \
             kf6-kconfig-devel kf6-kio-devel kf6-kcrash-devel \
