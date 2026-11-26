@@ -36,6 +36,15 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.1" date="2026-11-26">
+      <description>
+        <p>A to-do shows its document wherever it is.</p>
+        <ul>
+          <li>A click on a to-do selected nothing when its document was a message inside a mailbox, or came after the first 20,000 of a long list; the document now comes up in both cases</li>
+          <li>The same goes for linked documents and the cards of a canvas</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.0" date="2026-11-26">
       <description>
         <p>Text on scans can be selected, copied and found.</p>
