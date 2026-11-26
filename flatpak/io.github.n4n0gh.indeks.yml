@@ -29,6 +29,12 @@ finish-args:
   # The settings of Plasma's global theme (the icon theme, say), which are not in
   # kdeglobals (that one the runtime lets be read).
   - --filesystem=xdg-config/kdedefaults:ro
+  # The to-dos that have a deadline are put into the system calendar by asking Akonadi, on
+  # the session bus, to show their calendar file: its control, and the agent it makes for
+  # the file, which is told where the file is.
+  - --talk-name=org.freedesktop.Akonadi.Control
+  - --talk-name=org.freedesktop.Akonadi.Resource.*
+  - --talk-name=org.freedesktop.Akonadi.Agent.*
   # Not there inside the sandbox, and so not available in the Flatpak:
   #  - LibreOffice, which Indeks has show Office documents as they look and read the old
   #    Office formats; such documents are shown as the text found in them;

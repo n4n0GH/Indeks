@@ -8,6 +8,7 @@
 #include "panellayout.h"
 #include "library.h"
 #include "sidebarmodel.h"
+#include "systemcalendar.h"
 
 #include <AbstractKirigamiApplication>
 
@@ -46,6 +47,17 @@ class App : public AbstractKirigamiApplication
     Q_PROPERTY(PanelLayout *panels READ panels CONSTANT)
     /** Name of the database that is open. */
     Q_PROPERTY(QString databaseName READ databaseName NOTIFY databasesChanged)
+    /**
+     * The to-dos of the open database that have a deadline are kept as a calendar file
+     * (Library::todoCalendarEnabled()); where the file is, what is wrong with it if
+     * anything, and what calendar programs are to call the calendar.
+     */
+    Q_PROPERTY(bool todoCalendar READ todoCalendar NOTIFY todoCalendarChanged)
+    Q_PROPERTY(QString todoCalendarFile READ todoCalendarFile NOTIFY todoCalendarChanged)
+    Q_PROPERTY(QString todoCalendarProblem READ todoCalendarProblem NOTIFY todoCalendarChanged)
+    Q_PROPERTY(QString todoCalendarName READ todoCalendarName NOTIFY todoCalendarChanged)
+    /** That file among the calendars of the system. */
+    Q_PROPERTY(SystemCalendar *systemCalendar READ systemCalendar CONSTANT)
     /**
      * The database was just opened, at start or by switching to it, and its list of
      * documents or the numbers in the sidebar are still being read in the background.
@@ -113,6 +125,14 @@ public:
     {
         return m_panels;
     }
+    SystemCalendar *systemCalendar() const
+    {
+        return m_systemCalendar;
+    }
+    bool todoCalendar() const;
+    QString todoCalendarFile() const;
+    QString todoCalendarProblem() const;
+    QString todoCalendarName() const;
     ActivityModel *activity() const
     {
         return m_activity;
@@ -288,6 +308,7 @@ Q_SIGNALS:
     void annotatingChanged();
     void advancedSearchChanged();
     void databasesChanged();
+    void todoCalendarChanged();
     void openingChanged();
     void textEditingChanged();
     void previewChanged();
@@ -306,6 +327,13 @@ private:
     void syncDocumentView();
     /** Names the commands that move views between the panels after where each view is. */
     void updatePanelActions();
+    /**
+     * Turns the calendar of to-dos on or off. On, it is added to the system calendar too if
+     * there is one; off, it is taken from there first and the file removed after.
+     */
+    void setTodoCalendar(bool keep);
+    /** Tells the calendar's name and file to who needs them, and marks the commands. */
+    void syncTodoCalendar();
     QVariantList selection() const;
     QString localDatabaseName() const;
     /** Opens the database in @p path, starting it if @p create, and puts it on the list. */
@@ -325,6 +353,8 @@ private:
     SidebarModel *m_sidebar = nullptr;
     ActivityModel *m_activity = nullptr;
     PanelLayout *m_panels = nullptr;
+    SystemCalendar *m_systemCalendar = nullptr;
+    bool m_calendarTurningOff = false;
     /** What the Edit action does with the selected document. */
     enum class EditMode {
         None,

@@ -45,6 +45,7 @@ to them. The files stay where they are, and you keep using them with any other p
   on a page, and you can draw on PDFs and pictures.
 - **Automating.** Rules tag and file documents by themselves. Scripts do what rules cannot.
 - **Keeping track.** A to-do list with deadlines, where each entry can point to a document.
+  Your calendar can show the deadlines.
 
 ## Three principles
 

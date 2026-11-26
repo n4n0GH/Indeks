@@ -60,6 +60,16 @@ is not installed, this page says so.
 - **Highlight to-dos that are due within:** How many days before its deadline a to-do is
   highlighted in orange, from *On the day only* up to 365 days. To-dos past their deadline
   are always highlighted in red.
+- **Keep the to-dos that have a deadline in a calendar:** Writes the open to-dos that have a
+  deadline into a calendar file in the folder of the database, and keeps it up to date. This
+  is set for the database that is open. Off at first.
+- **Show the calendar in the system calendar:** Adds that file to the calendar of KDE, which
+  KOrganizer, Merkuro and the calendar of the clock in the panel show. It is turned on
+  together with the calendar. The switch is there only where that calendar is installed.
+- **Show the Calendar File:** Shows the file in the file manager, for adding it to another
+  calendar program.
+
+See *Organising → To-dos in the calendar*.
 
 ## Panels
 

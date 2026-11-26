@@ -221,6 +221,12 @@ Every command is in the command bar. This list says what each one does.
 - **Run Script…:** Lists the scripts to pick one to run on the selected documents.
 - **Show Script Output**, **Stop Running Scripts:** See *Automation*.
 - **Remove Completed To-Dos:** Removes the to-dos that are done.
+- **Keep To-Dos with a Deadline in a Calendar:** Keeps the open to-dos that have a deadline
+  as a calendar file in the folder of the database, or stops doing so. See *Organising →
+  To-dos in the calendar*.
+- **Show the Calendar of To-Dos in the System Calendar:** Adds that calendar to the calendar
+  of KDE, or takes it out again.
+- **Show the Calendar File of To-Dos in File Manager:** Shows `to-dos.ics` in its folder.
 - **Databases…**, **Rename Database…:** See *Databases*.
 - **Add Database…:** Opens a database that exists, chosen by its file `index.sqlite`.
 - **New Database…:** Starts an empty database in a folder.
@@ -313,5 +319,7 @@ document, nothing is done to that document.
 - **LibreOffice** to show Office documents as they look and to read the old Office formats.
 - **Python 3** and **bubblewrap** to run scripts. The Flatpak brings its own Python and needs
   no bubblewrap.
+- **The calendar of KDE** (Akonadi, which comes with KOrganizer and Merkuro) to have the
+  to-dos shown in the system calendar. Other calendar programs show the calendar file.
 
-Indeks works without the last three; the features that need them say what is missing.
+Indeks works without the last four; the features that need them say what is missing.

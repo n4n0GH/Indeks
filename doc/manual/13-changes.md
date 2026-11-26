@@ -8,6 +8,14 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.5.1
+
+- **To-dos in the calendar:** The to-dos that have a deadline can be shown by calendar
+  programs, each on the day it is due. Indeks keeps them as a calendar file in the folder
+  of the database and adds it to the calendar of KDE, so that KOrganizer, Merkuro and the
+  calendar of the clock in the panel show them. A to-do that is done leaves the calendar.
+  Turned on under *Settings → To-Do List*. See *Organising → To-dos in the calendar*.
+
 ## Version 0.5.1
 
 - **From thumbnails to the list:** When Indeks was started with the documents shown as

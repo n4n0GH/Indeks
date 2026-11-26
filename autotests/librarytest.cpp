@@ -19,6 +19,7 @@
 #include "scripts.h"
 #include "searchquery.h"
 #include "store.h"
+#include "todocalendar.h"
 #include "weblink.h"
 
 #include <QElapsedTimer>
@@ -1631,6 +1632,125 @@ def process(document):
         m_library->removeTodo(plain);
         m_library->removeTodo(far);
         QVERIFY(m_library->todos().isEmpty());
+    }
+
+    void keepsACalendarOfToDosWithADeadline()
+    {
+        const QString path = m_library->todoCalendarFile();
+        QCOMPARE(path, m_data.filePath(u"to-dos.ics"_s));
+        const auto calendar = [&] {
+            m_library->flushTodoCalendar();
+            return QString::fromUtf8(readFile(path)).remove(u"\r\n "_s);
+        };
+        const qint64 document = m_library->createDocument(u"Lease"_s, u"txt"_s, u"The flat in the old town.\n"_s);
+        const QString documentPath = Store::document(document).url.toLocalFile();
+        const qint64 plain = m_library->addTodo(u"Water the plants"_s);
+        const qint64 rent = m_library->addTodo(u"Pay the rent; café, bakery"_s, document, u"2031-03-01"_s);
+        const qint64 seeds = m_library->addTodo(u"Buy seeds"_s, 0, u"2031-02-14"_s);
+
+        // Nothing is written unless it is asked for.
+        m_library->flushTodoCalendar();
+        QVERIFY(!m_library->todoCalendarEnabled());
+        QVERIFY(!QFileInfo::exists(path));
+
+        QSignalSpy changes(m_library.get(), &Library::todoCalendarChanged);
+        m_library->setTodoCalendarName(u"To-dos, mine"_s);
+        m_library->setTodoCalendarEnabled(true);
+        QVERIFY(m_library->todoCalendarEnabled());
+        QCOMPARE(changes.count(), 1);
+        QString text = calendar();
+        QVERIFY(TodoCalendar::isOwn(readFile(path)));
+        QVERIFY(text.startsWith(u"BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"_s));
+        QVERIFY(text.endsWith(u"END:VCALENDAR\r\n"_s));
+        QVERIFY(text.contains(u"X-WR-CALNAME:To-dos\\, mine\r\n"_s));
+        // What has a day is in it, the nearest day first; what has none is not.
+        QCOMPARE(text.count(u"BEGIN:VTODO"_s), 2);
+        QVERIFY(!text.contains(u"Water the plants"_s));
+        QVERIFY(text.indexOf(u"SUMMARY:Buy seeds\r\n"_s) > 0);
+        QVERIFY(text.indexOf(u"SUMMARY:Buy seeds\r\n"_s) < text.indexOf(u"SUMMARY:Pay the rent\\; café\\, bakery\r\n"_s));
+        QVERIFY(text.contains(u"DUE;VALUE=DATE:20310214\r\n"_s));
+        QVERIFY(text.contains(u"DUE;VALUE=DATE:20310301\r\n"_s));
+        QVERIFY(text.contains(u"UID:todo-%1@"_s.arg(seeds)));
+        // The document a to-do is about is named, with where it is.
+        QVERIFY(text.contains(u"DESCRIPTION:Document in Indeks: Lease.txt\\n"_s + documentPath));
+        QVERIFY(text.contains(u"URL:"_s + QString::fromLatin1(QUrl::fromLocalFile(documentPath).toEncoded())));
+        // No line is longer than a calendar's may be.
+        for (const QByteArray &line : readFile(path).split('\n')) {
+            QVERIFY2(line.size() <= 76, line.constData());
+        }
+
+        // The to-dos are known to the calendar programs by the same names from then on.
+        const QString uid = text.mid(text.indexOf(u"UID:"_s), text.indexOf(u"\r\n"_s, text.indexOf(u"UID:"_s)) - text.indexOf(u"UID:"_s));
+
+        // The calendar follows the list: another day, another text, ...
+        m_library->updateTodo(seeds, u"Buy seeds and soil"_s, 0, u"2031-02-20"_s);
+        text = calendar();
+        QVERIFY(text.contains(u"SUMMARY:Buy seeds and soil\r\n"_s));
+        QVERIFY(text.contains(u"DUE;VALUE=DATE:20310220\r\n"_s));
+        QVERIFY(text.contains(uid));
+        // ... a day for what had none, ...
+        m_library->updateTodo(plain, u"Water the plants"_s, 0, u"2031-01-05"_s);
+        QCOMPARE(calendar().count(u"BEGIN:VTODO"_s), 3);
+        // ... and what is done, or has no day any more, or is deleted, is gone from it.
+        m_library->setTodoDone(rent, true);
+        text = calendar();
+        QCOMPARE(text.count(u"BEGIN:VTODO"_s), 2);
+        QVERIFY(!text.contains(u"Pay the rent"_s));
+        m_library->setTodoDone(rent, false);
+        QCOMPARE(calendar().count(u"BEGIN:VTODO"_s), 3);
+        m_library->updateTodo(plain, u"Water the plants"_s, 0, QString());
+        QCOMPARE(calendar().count(u"BEGIN:VTODO"_s), 2);
+        m_library->removeTodo(seeds);
+        text = calendar();
+        QCOMPARE(text.count(u"BEGIN:VTODO"_s), 1);
+        QVERIFY(text.contains(u"Pay the rent"_s));
+        // A calendar without to-dos is still a calendar.
+        m_library->removeTodo(rent);
+        text = calendar();
+        QCOMPARE(text.count(u"BEGIN:VTODO"_s), 0);
+        QVERIFY(text.endsWith(u"END:VCALENDAR\r\n"_s));
+
+        // Turned off, the file goes.
+        m_library->setTodoCalendarEnabled(false);
+        m_library->flushTodoCalendar();
+        QVERIFY(!m_library->todoCalendarEnabled());
+        QVERIFY(!QFileInfo::exists(path));
+
+        // A file of that name that is somebody else's is neither written over nor removed.
+        const QByteArray foreign = "BEGIN:VCALENDAR\r\nPRODID:-//Somebody//Else//EN\r\nEND:VCALENDAR\r\n";
+        writeFile(path, foreign);
+        const qint64 again = m_library->addTodo(u"Renew the passport"_s, 0, u"2031-05-05"_s);
+        m_library->setTodoCalendarEnabled(true);
+        m_library->flushTodoCalendar();
+        QTRY_VERIFY(!m_library->todoCalendarProblem().isEmpty());
+        QCOMPARE(readFile(path), foreign);
+        m_library->setTodoCalendarEnabled(false);
+        m_library->flushTodoCalendar();
+        QCOMPARE(readFile(path), foreign);
+        QVERIFY(m_library->todoCalendarProblem().isEmpty());
+        QVERIFY(QFile::remove(path));
+        m_library->removeTodo(again);
+        m_library->removeTodo(plain);
+        m_library->moveToTrash({document});
+        m_library->emptyTrash();
+
+        // Long lines are folded without cutting a character in two, and the same to-dos
+        // always make the same file.
+        TodoCalendar::Entry entry;
+        entry.id = 7;
+        entry.text = QString(60, u'ä') + u" and so on"_s;
+        entry.due = QDate(2031, 12, 24);
+        entry.created = 1900000000;
+        const QByteArray folded = TodoCalendar::render({entry}, QString(), u"abc"_s);
+        QCOMPARE(folded, TodoCalendar::render({entry}, QString(), u"abc"_s));
+        for (const QByteArray &line : folded.split('\n')) {
+            QVERIFY(line.size() <= 76);
+            QCOMPARE(QString::fromUtf8(line).toUtf8(), line);
+            QVERIFY(!QString::fromUtf8(line).contains(QChar::ReplacementCharacter));
+        }
+        QVERIFY(QString::fromUtf8(folded).remove(u"\r\n "_s).contains(u"SUMMARY:"_s + entry.text + u"\r\n"_s));
+        QVERIFY(folded.contains("UID:todo-7@abc.indeks\r\n"));
+        QVERIFY(folded.contains("DTSTAMP:20300317T174640Z\r\n"));
     }
 
     void newFilesInLocationsGoToTheInbox()

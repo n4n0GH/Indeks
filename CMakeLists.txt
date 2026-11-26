@@ -39,6 +39,7 @@ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS
     QuickControls2
     Sql
     Network
+    DBus
     Pdf
     Test
 )

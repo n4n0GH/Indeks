@@ -58,6 +58,8 @@ target_sources(indekscore PRIVATE
     store.h
     task.cpp
     task.h
+    todocalendar.cpp
+    todocalendar.h
     types.cpp
     types.h
 )

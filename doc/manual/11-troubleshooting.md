@@ -58,6 +58,19 @@ LibreOffice is not installed, or it could not convert the document. Install Libr
 - *Show Script Output* lists the errors a script ran into.
 - A script that needs more than 30 seconds for one document is stopped.
 
+## A to-do is not in the calendar
+
+- Only to-dos that are open and have a deadline are in the calendar.
+- The calendar is turned on for each database: *Settings → To-Do List*, with that database
+  open.
+- A calendar program shows only the calendars that are ticked in its list of calendars.
+  Look there for *Indeks To-Dos*. The calendar of the clock in the panel has such a list in
+  its own settings.
+- *Show the Calendar File* under *Settings → To-Do List* leads to the file. If the settings
+  say there that the file could not be written, the folder of the database cannot be written
+  to, or a file called `to-dos.ics` that is not from Indeks is in the way; move that one
+  elsewhere.
+
 ## Indexing is slow or uses too much of the computer
 
 - Text recognition is the slowest part. Lower *Pages read at the same time* under *Settings →

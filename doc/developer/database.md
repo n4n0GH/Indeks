@@ -7,7 +7,9 @@
 
 A database is a folder. The index in it is one SQLite file, `index.sqlite`
 (`Paths::indexFileName()`); beside it are `files/` (documents created in Indeks), `copies/`
-(working copies) and `scripts/`.
+(working copies) and `scripts/`, and `to-dos.ics` where the to-dos are kept as a calendar
+(written from the index, never read; see *To-dos in the calendar* in
+[architecture.md](architecture.md)).
 
 ## Whose file it is
 
@@ -65,7 +67,7 @@ step, in one transaction. A database from a newer Indeks is refused.
 | `rules` | Rules: name, the compiled query, the filters and actions as JSON, whether active and whether run on import. |
 | `annotations` | Notes (`kind = 'note'`) and drawings (`kind = 'ink'`), per document and page. `x`, `y`: where a sticky note stands, as shares of the page; -1 for none. |
 | `todos` | The to-do list: text, linked document (0 for none), deadline as `2026-11-30` or empty, done. |
-| `meta` | Single values of the database itself: its folder, counters for maintenance, the columns chosen for each view (`columns:<view key>`), and the filters of each saved search (`search-filters:<id>`: JSON with the `filters` of the editor and the `query` they come to). They are kept here so that the table of searches stays the one older versions know; filters whose `query` is no longer the search's are not used (`Library::savedSearchFilters()`). |
+| `meta` | Single values of the database itself: its folder, counters for maintenance, the columns chosen for each view (`columns:<view key>`), and the filters of each saved search (`search-filters:<id>`: JSON with the `filters` of the editor and the `query` they come to). They are kept here so that the table of searches stays the one older versions know; filters whose `query` is no longer the search's are not used (`Library::savedSearchFilters()`). `todo-calendar` (1 while the to-dos with a deadline are kept as a calendar file) and `todo-calendar-id` (a random name by which calendar programs tell the to-dos of this database from those of others; it stays when the calendar is turned off). An older Indeks does not know these two and leaves the file as it is, so a to-do it changes shows in the calendar only once a newer one opens the database. |
 
 ### Derived tables
 

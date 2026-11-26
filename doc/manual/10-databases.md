@@ -30,6 +30,7 @@ cannot be reached.
 | `files/` | Documents created in Indeks |
 | `copies/` | Working copies of documents that were edited or drawn on |
 | `scripts/` | Scripts |
+| `to-dos.ics` | The to-dos that have a deadline, as a calendar, if that is turned on. See *Organising → To-dos in the calendar* |
 
 The local database is in `~/.local/share/indeks`.
 

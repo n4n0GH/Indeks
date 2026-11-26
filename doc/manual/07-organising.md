@@ -200,3 +200,29 @@ deadline and then those that are done.
 
 > **Note:** A document with an open to-do counts as worked with, like one with notes. If the
 > document leaves Indeks, the to-do stays as a line of text.
+
+### To-dos in the calendar
+
+Your calendar program can show the to-dos that have a deadline, each on the day it is due.
+Turn on *Keep the to-dos that have a deadline in a calendar* under *Settings → To-Do List*,
+or choose *Keep To-Dos with a Deadline in a Calendar* in the command bar.
+
+- **What is in it:** Every to-do that is open and has a deadline, with the document it is
+  about. A to-do leaves the calendar when you tick it off, delete it or take its deadline
+  away, and returns when you untick it. To-dos without a deadline are not in it.
+- **The system calendar:** Where the calendar of KDE is installed, Indeks adds the to-dos to
+  it as a calendar of their own, *Indeks To-Dos* with the name of the database. KOrganizer,
+  Merkuro and the calendar of the clock in the panel show it. *Show the calendar in the
+  system calendar* in the settings takes it out again and puts it back; where there is no
+  such calendar, the switch is not there.
+- **Other calendar programs:** The calendar is a file, `to-dos.ics`, in the folder of the
+  database. Add it to your calendar program as a calendar from a file. *Show the Calendar
+  File* in the settings leads to it.
+- **Each database has its own:** The calendar is turned on for the database that is open.
+  The to-dos of a database stay in the calendar while another database is open.
+
+Turning it off takes the calendar out of the system calendar and removes the file.
+
+> **Note:** The calendar goes one way, from Indeks to the calendar program. Indeks writes the
+> file anew whenever the to-dos change, so what is changed in a calendar program does not
+> last. Change and finish to-dos in Indeks.

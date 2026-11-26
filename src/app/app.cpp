@@ -108,6 +108,7 @@ App::App(QObject *parent)
     , m_sidebar(new SidebarModel(m_library, this))
     , m_activity(new ActivityModel(m_library, this))
     , m_panels(new PanelLayout(this))
+    , m_systemCalendar(new SystemCalendar(this))
 {
     s_instance = this;
 
@@ -254,6 +255,13 @@ App::App(QObject *parent)
     connect(m_library, &Library::sourcesChanged, this, &App::updateActions);
     connect(m_library, &Library::todosChanged, this, &App::updateActions);
     updateActions();
+
+    // The calendar of to-dos is the open database's, and is called after it.
+    connect(m_library, &Library::todoCalendarChanged, this, &App::syncTodoCalendar);
+    connect(this, &App::databasesChanged, this, &App::syncTodoCalendar);
+    connect(m_systemCalendar, &SystemCalendar::changed, this, &App::syncTodoCalendar);
+    syncTodoCalendar();
+    m_systemCalendar->refresh();
 
     applySettings();
     m_library->start(config->rescanOnStart());
@@ -470,6 +478,24 @@ void App::setupActions()
     addAction(u"todos_clear_done"_s, i18nc("@action", "Remove Completed To-Dos"), u"edit-clear-history"_s, {}, [this] {
         const int removed = m_library->removeDoneTodos();
         Q_EMIT passiveMessage(i18ncp("@info", "%1 completed to-do was removed.", "%1 completed to-dos were removed.", removed));
+    });
+    // The to-dos that have a deadline as a calendar, for calendar programs to show.
+    addToggle(u"todos_calendar"_s, i18nc("@action", "Keep To-Dos with a Deadline in a Calendar"), u"view-calendar-tasks"_s, {}, false, [this](bool checked) {
+        setTodoCalendar(checked);
+    });
+    addToggle(u"todos_calendar_system"_s, i18nc("@action", "Show the Calendar of To-Dos in the System Calendar"), u"view-calendar"_s, {}, false, [this](bool checked) {
+        // Marking the command says how things are (syncTodoCalendar()) and comes by here too.
+        if (checked == m_systemCalendar->isShown() || m_systemCalendar->isBusy() || !m_library->todoCalendarEnabled()) {
+            return;
+        }
+        if (checked) {
+            m_systemCalendar->add();
+        } else {
+            m_systemCalendar->remove(m_library->todoCalendarFile());
+        }
+    });
+    addAction(u"todos_calendar_file"_s, i18nc("@action", "Show the Calendar File of To-Dos in File Manager"), u"system-file-manager"_s, {}, [this] {
+        KIO::highlightInFileManager({QUrl::fromLocalFile(m_library->todoCalendarFile())});
     });
     // The order of the sections of the database view; what dragging a heading does.
     addAction(u"sidebar_section_up"_s, i18nc("@action", "Move Section of the Selected Sidebar Entry Up"), u"go-up"_s, {}, [this] {
@@ -1155,6 +1181,71 @@ void App::syncPreviewChoice()
             choice->setChecked(chosen);
         }
     }
+}
+
+bool App::todoCalendar() const
+{
+    return m_library->todoCalendarEnabled();
+}
+
+QString App::todoCalendarFile() const
+{
+    return m_library->todoCalendarFile();
+}
+
+QString App::todoCalendarProblem() const
+{
+    return m_library->todoCalendarProblem();
+}
+
+QString App::todoCalendarName() const
+{
+    return i18nc("@title what calendar programs call the calendar of to-dos; %1 is the name of the database", "Indeks To-Dos (%1)", databaseName());
+}
+
+void App::setTodoCalendar(bool keep)
+{
+    if (keep == m_library->todoCalendarEnabled() || m_calendarTurningOff) {
+        return;
+    }
+    if (keep) {
+        m_library->setTodoCalendarEnabled(true);
+        if (m_systemCalendar->isAvailable()) {
+            // The file is to be there when the system calendar is pointed at it.
+            m_library->flushTodoCalendar();
+            m_systemCalendar->add();
+        }
+        return;
+    }
+    // Out of the system calendar first, while the file is still there to be found by.
+    m_calendarTurningOff = true;
+    m_systemCalendar->remove(m_library->todoCalendarFile(), [this] {
+        m_calendarTurningOff = false;
+        m_library->setTodoCalendarEnabled(false);
+    });
+}
+
+void App::syncTodoCalendar()
+{
+    const bool kept = m_library->todoCalendarEnabled();
+    const QString name = todoCalendarName();
+    m_library->setTodoCalendarName(name);
+    m_systemCalendar->setCalendar(kept ? m_library->todoCalendarFile() : QString(), name);
+    if (QAction *keep = action(u"todos_calendar"_s)) {
+        keep->setChecked(kept && !m_calendarTurningOff);
+    }
+    if (QAction *system = action(u"todos_calendar_system"_s)) {
+        const bool busy = m_systemCalendar->isBusy();
+        system->setEnabled(kept && !m_calendarTurningOff && m_systemCalendar->isAvailable() && !busy);
+        // While it is being added or removed, the mark stays where the user put it.
+        if (!busy) {
+            system->setChecked(kept && m_systemCalendar->isShown());
+        }
+    }
+    if (QAction *file = action(u"todos_calendar_file"_s)) {
+        file->setEnabled(kept);
+    }
+    Q_EMIT todoCalendarChanged();
 }
 
 void App::syncDocumentView()

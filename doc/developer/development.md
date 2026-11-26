@@ -10,8 +10,8 @@
 Requirements (package names for openSUSE Tumbleweed in brackets):
 
 - CMake, Ninja, a C++20 compiler, Extra CMake Modules
-- Qt 6.8 or later: Quick, Quick Controls, Sql (SQLite with FTS5), Pdf [`qt6-pdf-devel`,
-  `qt6-pdfquick-devel`, `qt6-pdf-imports`]
+- Qt 6.8 or later: Quick, Quick Controls, Sql (SQLite with FTS5), DBus, Pdf
+  [`qt6-pdf-devel`, `qt6-pdfquick-devel`, `qt6-pdf-imports`]
 - KDE Frameworks 6.8 or later: Kirigami, I18n, CoreAddons, Config, KIO, Service, GuiAddons,
   Crash, DBusAddons, IconThemes, WindowSystem, FileMetaData [`kf6-kfilemetadata-devel`],
   KMime [`kf6-kmime-devel`]
@@ -19,7 +19,9 @@ Requirements (package names for openSUSE Tumbleweed in brackets):
 - At run time: the `org.kde.syntaxhighlighting` QML module, and Tesseract for text
   recognition [`tesseract-ocr`, `tesseract-ocr-traineddata-<language>`]
 - Optional at run time: LibreOffice [`libreoffice-writer`, `libreoffice-calc`,
-  `libreoffice-impress`], Python 3 [`python3`] and bubblewrap [`bubblewrap`]
+  `libreoffice-impress`], Python 3 [`python3`] and bubblewrap [`bubblewrap`]; Akonadi with
+  its agent for calendar files [`akonadi`, `kdepim-runtime`], for to-dos in the system
+  calendar
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX=$HOME/.local
@@ -58,14 +60,15 @@ See [architecture.md](architecture.md) for what is in them.
 
 ## Tests
 
-`ctest` runs four tests:
+`ctest` runs these tests:
 
 - `appstreamtest` checks the metadata file.
 - `searchquerytest` checks what the search language compiles to.
 - `delimitedtest` checks the reading of CSV and TSV.
 - `textformattest` checks what plain text is taken for: Markdown, a table, or text.
 - `librarytest` drives the core through `Library` with real files in temporary folders:
-  indexing, moved and deleted files, mailboxes, rules, scripts, to-dos, the trash. It needs
+  indexing, moved and deleted files, mailboxes, rules, scripts, to-dos and their calendar
+  file, the trash. It needs
   no display. Tests that need Tesseract, LibreOffice, Python or bubblewrap are skipped where
   those are missing.
 
@@ -109,6 +112,33 @@ test session ends, and from then on no Flatpak application starts
 (`bwrap: Can't find source path /run/user/<uid>/doc/by-app/…`) until
 `systemctl --user restart xdg-document-portal.service`. `WAYLAND_DISPLAY` is given as a full
 path because the Wayland socket stays in the real runtime folder.
+
+### With an Akonadi of its own
+
+To-dos in the system calendar (`SystemCalendar`) are tried against an Akonadi that is not
+the desktop's. The private D-Bus session keeps the two apart on the bus, but an Akonadi
+started in it would still open the database of the real one, which is under
+`~/.local/share/akonadi`. So this session gets a home of its own as well, with everything
+below it:
+
+```sh
+T=$HOME/.cache/indeks-try                # not /tmp: the home must not be on a RAM disk
+mkdir -p $T/home && mkdir -p -m 700 $T/run
+env HOME=$T/home XDG_DATA_HOME=$T/home/.local/share XDG_CONFIG_HOME=$T/home/.config \
+    XDG_STATE_HOME=$T/home/.local/state XDG_CACHE_HOME=$T/home/.cache \
+    INDEKS_DATA_DIR=$T/data XDG_RUNTIME_DIR=$T/run AKONADI_INSTANCE=try \
+    WAYLAND_DISPLAY="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" \
+    dbus-run-session -- sh -c 'akonadictl --instance try start; sleep 10; build/bin/indeks; akonadictl --instance try stop'
+```
+
+- With `AKONADI_INSTANCE` set, Akonadi's services have that name at their end, and the bus
+  does not start them by itself; hence `akonadictl start`. Leave the variable out to try
+  how Indeks has Akonadi started.
+- `qdbus6 org.freedesktop.Akonadi.Control.try /AgentManager agentInstances` (inside the
+  session) lists the agents; the one for the calendar is an `akonadi_ical_resource_<n>`.
+  What Akonadi read from the file is in its own database, `akonadi.db` below
+  `$T/home/.local/share/akonadi`, in `pimitemtable`.
+- `akonadictl start` keeps its output open: do not wait on a pipe behind it.
 
 ## Conventions
 

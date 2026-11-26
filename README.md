@@ -37,7 +37,9 @@ tag, group and annotate what is in them.
   or a picture.
 - **Annotating.** Comments, notes, sticky notes on pages, freehand drawing on PDFs and
   pictures.
-- **To-dos.** A list with deadlines whose entries can point to documents.
+- **To-dos.** A list with deadlines whose entries can point to documents. Those with a
+  deadline can be shown in the calendar: as a calendar file for any calendar program, and
+  in KOrganizer, Merkuro and the Plasma clock without further ado.
 - **Never destructive.** Indeks does not write to the files it indexes. Editing and drawing
   work on a copy; a file that is deleted elsewhere shows up in the trash instead of vanishing
   from the index.

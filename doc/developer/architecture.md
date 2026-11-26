@@ -58,6 +58,7 @@ does the work. It is built as three programs and one library.
 | `ScriptHost` | `scripthost.*` | Runs scripts: a thread that talks to `python3` in a sandbox, in lines of JSON. `scriptbridge.py` is the other end, compiled into the library. |
 | `DatabaseFolder` | `databasefolder.*` | A database as a folder: whether it can be reached, whether it holds an index of Indeks, something else of that name or nothing at all, whether another computer has it open. |
 | `Maintenance` | `maintenance.*` | Gives space back to the file system after documents were removed. |
+| `TodoCalendar` | `todocalendar.*` | The to-dos that have a deadline as a calendar file (iCalendar), and writing it. See *To-dos in the calendar* below. |
 | `Paths` | `paths.*` | Where things are: database folder, cache. Honours `INDEKS_DATA_DIR`. |
 
 ## Application classes
@@ -68,6 +69,7 @@ does the work. It is built as three programs and one library.
 | `DocumentModel` | `documentmodel.*` | The list of documents: the scope from the sidebar, narrowed by the search and filters. Keeps the selection by document id and the documents that linger in a list. There are two: `App.documents` is the list in the window, and `App.linkCandidates` is what the dialog for linked documents finds for what is typed there. The second is switched off (`active`) while that dialog is closed, so that it reads nothing. A dialog that lets the user pick documents by searching can use it the same way, one dialog at a time. |
 | `SearchWorker` | `searchworker.*` | Reads every list of `DocumentModel`, and runs full text searches, in a thread of its own, so that neither a click in the sidebar nor typing is held up. |
 | `PanelLayout` | `panellayout.*` | Which view is in which area of the sidebar and the side panel, and which view each area shows; see *The two panels and their views*. |
+| `SystemCalendar` | `systemcalendar.*` | Puts the calendar file of the to-dos among the calendars of Akonadi, and takes it out, over D-Bus. See *To-dos in the calendar* below. |
 | `SidebarModel` | `sidebarmodel.*` | The entries of the sidebar's database tab, each with its key (`place:inbox`, `group:12`), query and count. The entries are listed at once; the numbers come from `CountWorker`. The sections with a heading stand in the order the user gave them (`sectionOrder`, `moveSection()`; the setting `sidebarSections`). |
 | `CountWorker` | `countworker.*` | Counts the documents behind sidebar entries in a thread of its own. |
 | `ActivityModel` | `activitymodel.*` | What Indeks is doing and what waits, for the activity display. |
@@ -411,6 +413,66 @@ filters, saving a search and the preview) was added to toolbars from before by t
 constructor of `App`, once (`toolbarLayout`); a name that is added to the default later
 needs the same care, or only new installations get it.
 
+## To-dos in the calendar
+
+The to-dos that are open and have a deadline can be shown by calendar programs. There are
+two halves to it, and the first works without the second.
+
+**The file.** `TodoCalendar::render()` makes an iCalendar file of the to-dos, one `VTODO`
+each, due on its day (`DUE;VALUE=DATE`). `Library` writes it as `to-dos.ics` into the folder
+of the database (`todoCalendarFile()`), if that is turned on for the database
+(`todoCalendarEnabled()`: the value `todo-calendar` in `meta`).
+
+- The file is put together anew from the list whenever `todosChanged` or `changed` says
+  that something may be different (`scheduleTodoCalendar()`, once for all that comes within
+  400 ms), and written only if it is not what was written last. A to-do that is done is
+  simply no longer in it: nothing is ever taken out of a file.
+- The same to-dos make the same bytes. `DTSTAMP` is when the to-do was made, not when the
+  file was written. A calendar program that reads the file again therefore finds nothing
+  changed that has not.
+- A to-do is known to the calendar programs by its `UID`: its number and a random name of
+  the database (`todo-calendar-id` in `meta`), so that two databases never have the same
+  one in the same calendar program.
+- The write is done in a pool thread of `Library` (`m_calendarPool`, one at a time), since
+  the folder may be on a server. `flushTodoCalendar()` waits for it: before a database is
+  closed, and when Indeks is, so that a to-do ticked off in the last moment is not left in
+  the calendar.
+- A file of that name that Indeks did not write (`TodoCalendar::isOwn()`, by its `PRODID`)
+  is neither written over nor removed.
+
+The file goes one way. Indeks never reads it: taking changes back from a calendar program
+would need a way to tell which side changed what, and the list in the index is the one that
+counts.
+
+**The system calendar.** Akonadi, which KOrganizer, Merkuro and Plasma's clock read, shows
+a calendar file through an agent of the kind `akonadi_ical_resource`. `SystemCalendar` has
+such an agent made, pointed at the file, set to read only and to watch the file, and
+removed again, by calling Akonadi over D-Bus (`org.freedesktop.Akonadi.Control`, the agent's
+`/Settings`). Nothing of Akonadi is linked: where it is not installed, the bus has nobody
+of that name, and `available` is false.
+
+- Whether the file is shown is asked, not remembered: the agents for calendar files are
+  asked for their path. It stays true when the user removes the calendar in KOrganizer.
+- Akonadi is started only when the user has the calendar added, never to be asked or to be
+  told to forget one. While it does not run, the state of the last time counts (`Shown` in
+  the state file), and a calendar that is to go is noted (`Forget`) and removed the next
+  time Akonadi is found running.
+- An agent that was just made answers after a moment; `configure()` tries until it does.
+- Every call is asynchronous. A `ticket` drops the answers to a question that has been
+  asked anew since.
+- `AKONADI_INSTANCE` is honoured (the names of the services end in it), which is how this
+  is tried without touching the Akonadi of the desktop; see
+  [development.md](development.md).
+
+`App` joins the two: turning the calendar on (`setTodoCalendar()`) also adds it to the
+system calendar if there is one, and turning it off takes it out there first, while the
+file is still there to be found by. In the Flatpak the calls need the `--talk-name`
+permissions for Akonadi in the manifest.
+
+A calendar program other than these is given the file by the user. To write to a calendar
+service instead (CalDAV, say) would be a third half, and would need Indeks to keep what it
+sent where.
+
 ## Threads and processes
 
 - **Main thread:** the interface, `Library`, and every short database statement that the
@@ -421,7 +483,8 @@ needs the same care, or only new installations get it.
 - **Count thread:** the numbers of the sidebar (`CountWorker`).
 - **Pool threads of `Library`:** PDF renditions of Office documents, counting the records
   of large JSON Lines files, and the look through the index at start. What uses the index
-  there closes its connection when it is done: the thread is the pool's.
+  there closes its connection when it is done: the thread is the pool's. A pool of its own
+  writes the calendar file of the to-dos, which does not use the index.
 - **Script thread:** `ScriptHost`.
 - **Helper processes:** `indeks-extractor` (several), `tesseract` (several), `soffice`,
   `python3` inside `bwrap`. A helper that crashes or hangs is replaced; the file it was at is

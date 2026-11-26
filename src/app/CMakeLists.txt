@@ -34,6 +34,8 @@ target_sources(indeks PRIVATE
     searchworker.h
     sidebarmodel.cpp
     sidebarmodel.h
+    systemcalendar.cpp
+    systemcalendar.h
     tablemodel.cpp
     tablemodel.h
     thumbnailprovider.cpp
@@ -80,6 +82,7 @@ target_link_libraries(indeks PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
+    Qt6::DBus
     Qt6::Pdf
     KF6::I18n
     KF6::I18nQml

@@ -26,6 +26,7 @@
 #include "textformat.h"
 #include "store.h"
 #include "task.h"
+#include "todocalendar.h"
 #include "weblink.h"
 
 #include <KDirWatch>
@@ -49,6 +50,7 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QThread>
+#include <QUuid>
 
 #include <algorithm>
 #include <functional>
@@ -210,6 +212,16 @@ Library::Library(QObject *parent)
     attachDatabase(); // open and migrate before anything else touches the index
     m_renditionPool.setMaxThreadCount(1);
     m_countPool.setMaxThreadCount(1);
+    m_calendarPool.setMaxThreadCount(1);
+
+    // The calendar of to-dos follows the list, and the documents the to-dos are about,
+    // whose names are in it.
+    m_calendarTimer.setSingleShot(true);
+    m_calendarTimer.setInterval(400);
+    connect(&m_calendarTimer, &QTimer::timeout, this, &Library::writeTodoCalendar);
+    connect(this, &Library::todosChanged, this, &Library::scheduleTodoCalendar);
+    connect(this, &Library::changed, this, &Library::scheduleTodoCalendar);
+    scheduleTodoCalendar();
 
     m_changeTimer.setSingleShot(true);
     m_changeTimer.setInterval(120);
@@ -353,6 +365,8 @@ Library::Library(QObject *parent)
 
 Library::~Library()
 {
+    // A to-do ticked off just before Indeks is closed is not to stay in the calendar.
+    flushTodoCalendar();
     m_scripts->shutdown(5000);
     m_renditionAbort = true;
     m_renditionPool.waitForDone();
@@ -482,6 +496,9 @@ QString Library::switchDatabase(const QString &dir, bool create)
     m_scripts->rest(10000);
     m_ruleRuns.clear();
     m_scriptReports.clear();
+    // What changed in the to-dos of this database goes into its calendar before it is closed.
+    flushTodoCalendar();
+    m_calendarProblem.clear();
     Q_EMIT databaseAboutToChange();
     ++m_databaseTicket;
     // Nothing is known about the size of the other one yet.
@@ -510,6 +527,7 @@ QString Library::switchDatabase(const QString &dir, bool create)
     Q_EMIT databaseChanged();
     Q_EMIT sourcesChanged();
     Q_EMIT todosChanged();
+    Q_EMIT todoCalendarChanged();
     Q_EMIT viewColumnsChanged();
     Q_EMIT scriptsChanged();
     Q_EMIT changed();
@@ -2751,6 +2769,128 @@ int Library::removeDoneTodos()
         Q_EMIT todosChanged();
     }
     return removed;
+}
+
+namespace
+{
+/** How long after the calendar of to-dos could not be written it is tried again. */
+constexpr int CalendarRetryMs = 60 * 1000;
+}
+
+bool Library::todoCalendarEnabled() const
+{
+    return Database::isOpen() && Database::value(u"SELECT value FROM meta WHERE key = 'todo-calendar'"_s).toInt() == 1;
+}
+
+QString Library::todoCalendarFile() const
+{
+    return QDir::cleanPath(Paths::dataDir() + u'/' + TodoCalendar::fileName());
+}
+
+void Library::setTodoCalendarEnabled(bool enabled)
+{
+    if (!Database::isOpen() || enabled == todoCalendarEnabled()) {
+        return;
+    }
+    m_calendarTimer.stop();
+    m_calendarProblem.clear();
+    m_calendarPath.clear();
+    m_calendarWritten.clear();
+    if (enabled) {
+        Database::exec(u"INSERT OR REPLACE INTO meta (key, value) VALUES ('todo-calendar', '1')"_s);
+        // What the to-dos of this database are told by from those of any other; see
+        // TodoCalendar::render(). It stays when the calendar is turned off and on again, so
+        // that the calendar programs know the to-dos again.
+        if (Database::value(u"SELECT value FROM meta WHERE key = 'todo-calendar-id'"_s).toString().isEmpty()) {
+            Database::exec(u"INSERT OR REPLACE INTO meta (key, value) VALUES ('todo-calendar-id', ?)"_s, {QUuid::createUuid().toString(QUuid::WithoutBraces)});
+        }
+        writeTodoCalendar();
+    } else {
+        Database::exec(u"DELETE FROM meta WHERE key = 'todo-calendar'"_s);
+        const QString path = todoCalendarFile();
+        m_calendarPool.start([path] {
+            TodoCalendar::remove(path);
+        });
+    }
+    Q_EMIT todoCalendarChanged();
+}
+
+void Library::setTodoCalendarName(const QString &name)
+{
+    if (name != m_calendarName) {
+        m_calendarName = name;
+        scheduleTodoCalendar();
+    }
+}
+
+void Library::scheduleTodoCalendar()
+{
+    if (!m_calendarTimer.isActive()) {
+        m_calendarTimer.start();
+    }
+}
+
+void Library::flushTodoCalendar()
+{
+    if (m_calendarTimer.isActive()) {
+        writeTodoCalendar();
+    }
+    m_calendarPool.waitForDone();
+}
+
+void Library::writeTodoCalendar()
+{
+    m_calendarTimer.stop();
+    if (m_databaseLost || !todoCalendarEnabled()) {
+        return;
+    }
+    QList<TodoCalendar::Entry> entries;
+    QSqlQuery query = Database::exec(u"SELECT t.id, t.text, t.due, t.created, d.name, d.url FROM todos t "
+                                     "LEFT JOIN documents d ON d.id = t.doc_id AND t.doc_id <> 0 WHERE t.done = 0 AND t.due <> ''"_s);
+    while (query.next()) {
+        TodoCalendar::Entry entry;
+        entry.id = query.value(0).toLongLong();
+        entry.text = query.value(1).toString();
+        entry.due = todoDay(query.value(2).toString());
+        entry.created = query.value(3).toLongLong();
+        entry.documentName = query.value(4).toString();
+        entry.documentUrl = QUrl(query.value(5).toString());
+        entries.append(entry);
+    }
+    const QString id = Database::value(u"SELECT value FROM meta WHERE key = 'todo-calendar-id'"_s).toString();
+    const QByteArray calendar = TodoCalendar::render(entries, m_calendarName, id);
+    const QString path = todoCalendarFile();
+    if (path == m_calendarPath && calendar == m_calendarWritten) {
+        return;
+    }
+    m_calendarPath = path;
+    m_calendarWritten = calendar;
+    m_calendarPool.start([this, path, calendar] {
+        const QString problem = TodoCalendar::write(path, calendar);
+        QMetaObject::invokeMethod(
+            this,
+            [this, path, problem] {
+                if (path != m_calendarPath) {
+                    return; // another database by now
+                }
+                if (!problem.isEmpty()) {
+                    qCWarning(INDEKS_CORE) << problem;
+                    // Tried again in a while, and before that if the to-dos change: not
+                    // with everything that happens to a document in the meantime.
+                    QTimer::singleShot(CalendarRetryMs, this, [this, path] {
+                        if (path == m_calendarPath) {
+                            m_calendarWritten.clear();
+                            scheduleTodoCalendar();
+                        }
+                    });
+                }
+                if (problem != m_calendarProblem) {
+                    m_calendarProblem = problem;
+                    Q_EMIT todoCalendarChanged();
+                }
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 QString Library::ink(qint64 documentId, int page) const

@@ -86,6 +86,9 @@ repository nobody has installed from yet.
 Flathub's QtWebEngine base app, of which the web engine itself is removed again. Tesseract is
 built along, with English and German.
 
+To-dos are added to the system calendar by talking to Akonadi on the session bus, which
+the manifest allows by name (`--talk-name=org.freedesktop.Akonadi.…`).
+
 Not there inside the sandbox, and so not available in the Flatpak: LibreOffice (Office
 documents are shown as their text, and the old Office formats are found by name only) and
 *Send to Indeks* in Dolphin. Bubblewrap is not there either, and scripts run all the same:

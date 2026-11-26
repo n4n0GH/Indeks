@@ -407,6 +407,26 @@ public:
     Q_INVOKABLE void removeTodo(qint64 id);
     /** Takes what is done off the list; returns how many that were. */
     Q_INVOKABLE int removeDoneTodos();
+    /**
+     * Whether the to-dos of this database that are open and have a deadline are kept as a
+     * calendar file in its folder, for calendar programs to show (see TodoCalendar). The file
+     * follows the list: a to-do that is done, or lost its day, is no longer in it. This is
+     * set for each database, in the database, so that whoever opens it keeps the file up.
+     * Turning it off removes the file.
+     */
+    Q_INVOKABLE bool todoCalendarEnabled() const;
+    Q_INVOKABLE void setTodoCalendarEnabled(bool enabled);
+    /** Where that file is, whether it is kept or not. */
+    Q_INVOKABLE QString todoCalendarFile() const;
+    /** Why the file could not be written the last time; empty if it could. */
+    Q_INVOKABLE QString todoCalendarProblem() const
+    {
+        return m_calendarProblem;
+    }
+    /** What calendar programs are to call the calendar. */
+    void setTodoCalendarName(const QString &name);
+    /** Writes the calendar now, if there is something to write, and waits until it is there. */
+    void flushTodoCalendar();
 
     /** Drawing on @p page as JSON; page 0 for single-page documents. */
     Q_INVOKABLE QString ink(qint64 documentId, int page) const;
@@ -445,6 +465,8 @@ Q_SIGNALS:
     void documentCreated(qint64 id);
     void sourcesChanged();
     void todosChanged();
+    /** Whether the calendar of to-dos is kept, where, or what is wrong with it. */
+    void todoCalendarChanged();
     void viewColumnsChanged();
     void busyChanged();
     void databaseSizeChanged();
@@ -485,6 +507,9 @@ private:
     void tidyIfDue();
     void touch();
     void touchDocument(qint64 id);
+    /** Has the calendar of to-dos written shortly, once for all that changes until then. */
+    void scheduleTodoCalendar();
+    void writeTodoCalendar();
     void watchSource(const Source &source);
     void unwatchSource(const Source &source);
     void onPathChanged(const QString &path, bool created);
@@ -540,6 +565,15 @@ private:
     bool m_started = false;
     bool m_rescanOnStart = false;
     bool m_databaseLost = false;
+
+    // The calendar of to-dos is written away from the user interface, one write after the
+    // other: the folder of a database may be on a server that takes its time.
+    QThreadPool m_calendarPool;
+    QTimer m_calendarTimer;
+    QString m_calendarName;
+    QString m_calendarProblem;
+    QString m_calendarPath; ///< where m_calendarWritten was sent to
+    QByteArray m_calendarWritten; ///< what was last sent there: the same again is not written
 };
 
 /** Converts ids coming from QML. */
