@@ -320,6 +320,15 @@ A **view** is what a tab leads to. There are five: `database` (`DatabaseView`),
 `PanelLayout` (`App.panels`) keeps it, in the settings (`panelLeftTop` and the like,
 `panelCurrent`).
 
+- **A panel slides in and out** (`PanelSlot.qml`, which is what stands in the row across
+  the window; the panel is in it). Showing and hiding moves `shown` between 0 and 1, as
+  long and as eased as Kirigami's drawers (`Kirigami.Units.longDuration`, which is nothing
+  where the desktop has animations off), and the place is `restWidth * shown` wide
+  meanwhile. The panel keeps its full width on the way and moves with the edge that faces
+  the middle, so nothing in it is laid out anew; the middle is, at every step, and that is
+  cheap (a few milliseconds a frame with a PDF in the preview). The width the user drags a
+  panel to is `panelWidth`, not the `preferredWidth` of the split view, which follows the
+  slide. The window comes up without a slide (`settled`).
 - **The views are made once**, in `Main.qml`, and each puts itself into the container of
   the area it is in (`parent: mainPage.viewHome(…)`) and shows while its area has chosen it.
   So a view keeps what it holds, the text of a search for one, when it is moved.

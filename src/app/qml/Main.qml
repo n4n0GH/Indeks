@@ -85,17 +85,25 @@ StatefulApp.StatefulWindow {
             orientation: Qt.Horizontal
             handle: PanelBorder {}
 
-            SidePanel {
-                id: sidebar
+            // The two panels slide in and out at their edges of the window; see PanelSlot.
+            PanelSlot {
+                id: sidebarSlot
 
                 side: "left"
-                visible: Config.leftSidebarVisible && hasViews
-                actions: appActions
-                barHeight: mainPage.barHeight
-                viewDrag: viewDrag
-                QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 14
-                QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 9
-                QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 28
+                open: Config.leftSidebarVisible && sidebar.hasViews
+                panelWidth: Kirigami.Units.gridUnit * 14
+                leastWidth: Kirigami.Units.gridUnit * 9
+                mostWidth: Kirigami.Units.gridUnit * 28
+
+                SidePanel {
+                    id: sidebar
+
+                    anchors.fill: parent
+                    side: "left"
+                    actions: appActions
+                    barHeight: mainPage.barHeight
+                    viewDrag: viewDrag
+                }
             }
 
             ColumnLayout {
@@ -190,17 +198,24 @@ StatefulApp.StatefulWindow {
                 }
             }
 
-            SidePanel {
-                id: sidePanel
+            PanelSlot {
+                id: sidePanelSlot
 
                 side: "right"
-                visible: Config.rightSidebarVisible && hasViews
-                actions: appActions
-                barHeight: mainPage.barHeight
-                viewDrag: viewDrag
-                QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 16
-                QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 11
-                QQC2.SplitView.maximumWidth: Kirigami.Units.gridUnit * 30
+                open: Config.rightSidebarVisible && sidePanel.hasViews
+                panelWidth: Kirigami.Units.gridUnit * 16
+                leastWidth: Kirigami.Units.gridUnit * 11
+                mostWidth: Kirigami.Units.gridUnit * 30
+
+                SidePanel {
+                    id: sidePanel
+
+                    anchors.fill: parent
+                    side: "right"
+                    actions: appActions
+                    barHeight: mainPage.barHeight
+                    viewDrag: viewDrag
+                }
             }
         }
 
@@ -298,12 +313,12 @@ StatefulApp.StatefulWindow {
         }
         EdgeDrop {
             side: "left"
-            wanted: !sidebar.visible
+            wanted: !sidebarSlot.open
             x: mainSplit.x
         }
         EdgeDrop {
             side: "right"
-            wanted: !sidePanel.visible
+            wanted: !sidePanelSlot.open
             x: mainSplit.x + mainSplit.width - width
         }
 
@@ -311,21 +326,22 @@ StatefulApp.StatefulWindow {
         ResizeGrip {
             id: sidebarGrip
 
-            visible: sidebar.visible
-            border: mainSplit.x + sidebar.x + sidebar.width
-            onMoved: position => sidebar.QQC2.SplitView.preferredWidth = Math.max(sidebar.QQC2.SplitView.minimumWidth,
-                Math.min(sidebar.QQC2.SplitView.maximumWidth, position - mainSplit.x - sidebar.x))
+            // Not while the panel slides: its border is on its way then.
+            visible: sidebarSlot.visible && !sidebarSlot.sliding
+            border: mainSplit.x + sidebarSlot.x + sidebarSlot.width
+            onMoved: position => sidebarSlot.panelWidth = Math.max(sidebarSlot.leastWidth,
+                Math.min(sidebarSlot.mostWidth, position - mainSplit.x - sidebarSlot.x))
         }
         ResizeGrip {
             id: infoGrip
 
             // The line between the two panels, which this begins at.
-            readonly property real line: sidePanel.x - centreColumn.x - centreColumn.width
+            readonly property real line: sidePanelSlot.x - centreColumn.x - centreColumn.width
 
-            visible: sidePanel.visible
+            visible: sidePanelSlot.visible && !sidePanelSlot.sliding
             border: mainSplit.x + centreColumn.x + centreColumn.width
-            onMoved: position => sidePanel.QQC2.SplitView.preferredWidth = Math.max(sidePanel.QQC2.SplitView.minimumWidth,
-                Math.min(sidePanel.QQC2.SplitView.maximumWidth, mainSplit.x + sidePanel.x + sidePanel.width - position - line))
+            onMoved: position => sidePanelSlot.panelWidth = Math.max(sidePanelSlot.leastWidth,
+                Math.min(sidePanelSlot.mostWidth, mainSplit.x + sidePanelSlot.x + sidePanelSlot.width - position - line))
         }
         ResizeGrip {
             id: previewGrip

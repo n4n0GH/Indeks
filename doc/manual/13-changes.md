@@ -8,6 +8,13 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.6.0
+
+- **The panels slide:** The sidebar and the side panel slide in and out at their edges of
+  the window when they are shown and hidden, and the middle of the window follows, instead
+  of the window changing at one stroke. Where the desktop is set to do without animations,
+  Indeks does without this one too.
+
 ## Version 0.6.0
 
 - **To-dos in the calendar:** The to-dos that have a deadline can be shown by calendar

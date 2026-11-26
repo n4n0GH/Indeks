@@ -40,7 +40,8 @@ Clipboard…*; *New Group…*, *New Tag…*, *New Rule…* and *New Script…*; 
 ## Sidebar
 
 The sidebar is the panel on the left. It has tabs at its top, shown by their icons: at
-first *Database* and *Automation*. `Ctrl+B` or `F9` shows and hides it. Which tabs it has is
+first *Database* and *Automation*. `Ctrl+B` or `F9` shows and hides it: it slides in and out
+at its edge of the window, and the middle of the window takes the room. Which tabs it has is
 yours to say; see *Arranging the panels* below.
 
 ### The Database tab
@@ -242,8 +243,9 @@ Buttons that do not fit move into a menu at the end of the bar.
 
 The side panel is the panel on the right. At first it has two areas, one above the other,
 each with its tabs at the top: *Information* and *Find* above, and *To-Do* below.
-`Ctrl+Shift+B` or `F11` shows and hides the panel. Which tabs it has, and in which area, is
-yours to say; see *Arranging the panels* below.
+`Ctrl+Shift+B` or `F11` shows and hides the panel, which slides in and out like the
+sidebar. Which tabs it has, and in which area, is yours to say; see *Arranging the panels*
+below.
 
 ### Information
 
