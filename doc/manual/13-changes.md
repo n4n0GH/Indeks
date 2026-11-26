@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.6.0
+## Version 0.6.1
 
 - **The panels slide:** The sidebar and the side panel slide in and out at their edges of
   the window when they are shown and hidden, and the middle of the window follows, instead

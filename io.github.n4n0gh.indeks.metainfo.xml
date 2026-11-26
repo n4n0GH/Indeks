@@ -36,6 +36,14 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.1" date="2026-11-26">
+      <description>
+        <p>The sidebar and the side panel slide in and out.</p>
+        <ul>
+          <li>Shown and hidden, the sidebar and the side panel slide at their edges of the window, and the middle of the window follows</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-26">
       <description>
         <p>To-dos with a deadline can be shown in the calendar.</p>
