@@ -263,6 +263,15 @@ the keys go through the same functions of the component for both (`selectRow()`,
 `moveCurrent()`, `dragProxy`), and what is said while there is nothing to show stands over
 whichever is shown.
 
+- **Both views fill the same room** (`views`), by anchors, whichever is shown. They are not
+  rows of the layout that come and go with `visible`: a layout gives an item that is not
+  shown no size, and a `ScrollView` that was never given one is as large as what is in it.
+  A `ListView` that gets the model in that state grows with every row it makes and so
+  makes a row for every document, and throws all but a screenful away once the layout has
+  told it how much room there is. With twenty thousand documents that took minutes
+  (0.5.0, when Indeks was started with thumbnails and the list was then shown for the
+  first time). The same goes for any view that is shown only some of the time: give it
+  its size by anchors, or the model only once it has one.
 - **The bar above them** (`viewBar`) has the *Sort By* menu, the switch and the slider. Its
   entries are the application's actions (`sort_by_<column>`, `sort_descending`,
   `view_as_list`, `view_as_grid`) under shorter names (the component `Choice`), and

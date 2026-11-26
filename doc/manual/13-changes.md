@@ -8,6 +8,14 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.5.0
+
+- **From thumbnails to the list:** When Indeks was started with the documents shown as
+  thumbnails, the first switch to the list made a row for every document that was listed
+  instead of for those in view. With many thousands of them, in an opened mailbox for
+  instance, the window stood still for minutes and was offered to be closed as not
+  responding. The switch now takes no longer than any other.
+
 ## Version 0.5.0
 
 - **Documents that look alike:** *Find Similar-Looking Documents* lists the PDFs and
