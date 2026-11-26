@@ -89,6 +89,19 @@ built along, with English and German.
 To-dos are added to the system calendar by talking to Akonadi on the session bus, which
 the manifest allows by name (`--talk-name=org.freedesktop.Akonadi.…`).
 
+The icon theme of the desktop takes two things in the sandbox. Flatpak shows the themes
+themselves, those of the system and those in `~/.local/share/icons`, under `/run/host`.
+Which one is in use, Plasma often says not in `kdeglobals` but in the defaults of its
+global theme, `~/.config/kdedefaults`, which it lists in `XDG_CONFIG_DIRS`; Flatpak sets
+that variable anew. So the manifest lets the folder be read
+(`--filesystem=xdg-config/kdedefaults:ro`), and `readPlasmaDefaultsInFlatpak()` in
+`main.cpp` puts it back at the front of the list before anything reads a setting. It does
+not if the theme named there cannot be seen from the sandbox: KDE's libraries draw no
+icons at all for a theme they do not find, and Breeze's without one. To try it,
+`flatpak-builder --run` will not do, since it shows no themes of the host; run the built
+program in the sandbox of an installed Indeks instead (`flatpak run --command=…`), with
+data and settings of its own.
+
 Not there inside the sandbox, and so not available in the Flatpak: LibreOffice (Office
 documents are shown as their text, and the old Office formats are found by name only) and
 *Send to Indeks* in Dolphin. Bubblewrap is not there either, and scripts run all the same:

@@ -20,6 +20,8 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
+#include <QFileInfo>
 #include <QIcon>
 #include <QNetworkAccessManager>
 #include <QQmlApplicationEngine>
@@ -27,7 +29,9 @@
 #include <QQmlNetworkAccessManagerFactory>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QSettings>
 
+#include <algorithm>
 #include <cstdlib>
 
 using namespace Qt::StringLiterals;
@@ -67,10 +71,77 @@ public:
         return new LocalOnlyAccessManager(parent);
     }
 };
+
+/** Whether the icon theme called @p name is in one of the folders icon themes are looked for in. */
+bool iconThemeInReach(const QString &name)
+{
+    QString own = qEnvironmentVariable("XDG_DATA_HOME");
+    if (own.isEmpty()) {
+        own = QDir::homePath() + "/.local/share"_L1;
+    }
+    QString shared = qEnvironmentVariable("XDG_DATA_DIRS");
+    if (shared.isEmpty()) {
+        shared = u"/usr/local/share:/usr/share"_s;
+    }
+    QStringList folders{own + "/icons"_L1};
+    const QStringList listed = shared.split(u':', Qt::SkipEmptyParts);
+    for (const QString &folder : listed) {
+        folders.append(folder + "/icons"_L1);
+    }
+    return std::any_of(folders.cbegin(), folders.cend(), [&name](const QString &folder) {
+        return QFileInfo::exists(folder + u'/' + name + "/index.theme"_L1);
+    });
+}
+
+/**
+ * In a Flatpak, has KDE's libraries read the settings of Plasma's global theme, the icon
+ * theme for one, as they do outside.
+ *
+ * What a global theme sets is not written into `kdeglobals` but into a folder of defaults,
+ * `kdedefaults` in the folder of settings, which Plasma lists in `XDG_CONFIG_DIRS` for its
+ * session. Flatpak sets that variable anew, so in the sandbox only `kdeglobals` is read,
+ * and where the icon theme is not named there, Breeze is drawn whatever the desktop uses.
+ * The manifest lets the folder be read; this puts it back at the front of the list. The
+ * icon themes themselves Flatpak shows of its own accord, those of the system and those
+ * in the user's data folder.
+ *
+ * Not if the defaults name an icon theme that cannot be seen from in here: KDE's libraries
+ * then draw no icons at all, where without the defaults they draw Breeze's.
+ *
+ * To be called before anything reads a setting.
+ */
+void readPlasmaDefaultsInFlatpak()
+{
+    if (!QFileInfo::exists(u"/.flatpak-info"_s)) {
+        return;
+    }
+    QString settings = qEnvironmentVariable("XDG_CONFIG_HOME");
+    if (settings.isEmpty()) {
+        settings = QDir::homePath() + "/.config"_L1;
+    }
+    const QString defaults = QDir::cleanPath(settings + "/kdedefaults"_L1);
+    if (!QFileInfo(defaults).isDir()) {
+        return;
+    }
+    const QString iconTheme = QSettings(defaults + "/kdeglobals"_L1, QSettings::IniFormat).value(u"Icons/Theme"_s).toString();
+    if (!iconTheme.isEmpty() && !iconThemeInReach(iconTheme)) {
+        qWarning("The icon theme of the desktop, %s, cannot be seen from inside the Flatpak; Breeze is used instead.", qPrintable(iconTheme));
+        return;
+    }
+    QString listed = qEnvironmentVariable("XDG_CONFIG_DIRS");
+    if (listed.isEmpty()) {
+        listed = u"/etc/xdg"_s;
+    }
+    QStringList folders = listed.split(u':', Qt::SkipEmptyParts);
+    folders.removeAll(defaults);
+    folders.prepend(defaults);
+    qputenv("XDG_CONFIG_DIRS", QFile::encodeName(folders.join(u':')));
+}
 }
 
 int main(int argc, char *argv[])
 {
+    readPlasmaDefaultsInFlatpak();
     KIconTheme::initTheme();
     QApplication app(argc, argv);
     KLocalizedString::setApplicationDomain(QByteArrayLiteral("indeks"));

@@ -10,6 +10,9 @@ chapters before this one always describe the version named on the cover.
 
 ## Since version 0.6.1
 
+- **The icons of your desktop, in the Flatpak:** The Flatpak drew the icons of Breeze where
+  the icon theme of the desktop came with a global theme. It now draws those of your
+  theme, as Indeks does when it is installed otherwise.
 - **Backing up, in the manual:** *Databases → Backing up* says what to back up, when, with
   which programs, and how a database is brought back. Wherever the manual names the folder
   of the local database, it now names the one of the Flatpak too.

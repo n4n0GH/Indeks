@@ -27,7 +27,8 @@ finish-args:
   # put into any folder (on a share, say). Files in indexed folders are only ever read.
   - --filesystem=host
   # The settings of Plasma's global theme (the icon theme, say), which are not in
-  # kdeglobals (that one the runtime lets be read).
+  # kdeglobals (that one the runtime lets be read). main.cpp has KDE's libraries look here
+  # (readPlasmaDefaultsInFlatpak); being allowed to read the folder is not enough.
   - --filesystem=xdg-config/kdedefaults:ro
   # The to-dos that have a deadline are put into the system calendar by asking Akonadi, on
   # the session bus, to show their calendar file: its control, and the agent it makes for

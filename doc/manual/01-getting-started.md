@@ -79,6 +79,8 @@ flatpak install --user https://n4n0gh.github.io/Indeks/indeks.flatpakref
   text instead of as they look, and Dolphin has no *Send to Indeks*.
 - Scripts run with the Python that comes with the Flatpak. Python packages you installed on
   your system are not there for them.
+- It uses the icon theme of your desktop if that is installed for the whole system or in
+  `~/.local/share/icons`, and Breeze otherwise.
 
 **AppImage.** Download `Indeks-<version>-x86_64.AppImage` from the releases page, make it
 executable and start it.
