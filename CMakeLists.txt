@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-project(indeks VERSION 0.6.2 LANGUAGES CXX)
+project(indeks VERSION 0.7.0 LANGUAGES CXX)
 
 set(QT_MIN_VERSION "6.8.0")
 set(KF_MIN_VERSION "6.8.0")

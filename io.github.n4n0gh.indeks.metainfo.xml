@@ -36,6 +36,17 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.0" date="2026-11-26">
+      <description>
+        <p>Text on scans can be selected, copied and found.</p>
+        <ul>
+          <li>On a scanned page and in a picture, the text that was recognised can be selected with the mouse and copied, as on any other page</li>
+          <li>“Find in Document” and the marks of search hits work on scanned pages and in pictures</li>
+          <li>“Show Recognized Text” (Ctrl+U) shows the text that was recognised in place of the scan</li>
+          <li>A scan that an earlier version recognised is read once more when it is first looked at, so that its text can be selected too</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.2" date="2026-11-26">
       <description>
         <p>The Flatpak uses the icon theme of the desktop, and the manual says how to back up.</p>

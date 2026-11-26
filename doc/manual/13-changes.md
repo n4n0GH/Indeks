@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.6.2
+## Version 0.7.0
 
 - **Text on scans can be selected:** On a scanned page and in a picture, the text that was
   recognised can be selected with the mouse and copied, as on any other page. Indeks now
