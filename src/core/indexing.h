@@ -123,6 +123,13 @@ bool runOcr(qint64 documentId, const IndexOptions &options, const QString &path 
 QList<qint64> runOcrBatch(const QList<qint64> &documentIds, const IndexOptions &options);
 
 /**
+ * For a scan whose text was recognised by an Indeks that did not yet keep where the words
+ * stand: reads it again and stores that alone (Store::setRecognizedLayout()). The text in
+ * the index is not touched. Returns whether something was stored.
+ */
+bool recognizeLayout(qint64 documentId, const IndexOptions &options);
+
+/**
  * Reads a document again from wherever its content is at hand: the original, the working copy
  * or a cached download.
  */

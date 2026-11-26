@@ -143,6 +143,17 @@ void PdfText::selectWordAt(int page, const QPointF &point)
     take(page, m_document.getSelectionAtIndex(page, start, end - start));
 }
 
+QList<int> PdfText::pagesWithText(int count)
+{
+    QList<int> pages;
+    for (int page = 0; page < qMin(count, m_document.pageCount()); ++page) {
+        if (!lines(page).isEmpty()) {
+            pages.append(page);
+        }
+    }
+    return pages;
+}
+
 void PdfText::selectPage(int page)
 {
     if (page < 0 || page >= m_document.pageCount()) {

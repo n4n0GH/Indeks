@@ -43,6 +43,11 @@ public Q_SLOTS:
     void reindexDocument(qint64 id);
     void processOcrQueue();
     /**
+     * Finds out where the words of a scan stand whose text was recognised before Indeks kept
+     * that; see Indexing::recognizeLayout().
+     */
+    void recognizeLayout(qint64 id);
+    /**
      * Notes what the pictures and PDFs look like that the index has nothing of the kind for
      * (see Fingerprint): those from before Indeks did that when it read a file, and those an
      * older Indeks changed since. A portion at a time, with room for other work in between.
@@ -77,6 +82,8 @@ Q_SIGNALS:
     void changed();
     void documentsAdded(const QList<qint64> &ids);
     void sourceScanned(qint64 sourceId, bool available);
+    /** Where the words of a scan stand is known now, or known anew. */
+    void layoutRecognized(qint64 id);
     void ocrActiveChanged(bool active);
     void lookActiveChanged(bool active);
 
@@ -172,6 +179,8 @@ public:
     void indexDownload(qint64 sourceId, const QUrl &url, const QString &downloadPath, qint64 size, qint64 mtime, bool inbox);
     void reindexDocument(qint64 id);
     void processOcrQueue();
+    /** See IndexWorker::recognizeLayout(). Asking again while it waits or runs does nothing. */
+    void recognizeLayout(qint64 id);
     /** Has the pictures and PDFs looked at that were not yet; see IndexWorker::lookAtDocuments(). */
     void lookAtDocuments();
     /** Queues giving space back to the file system, unless that is waiting already. */
@@ -210,6 +219,8 @@ Q_SIGNALS:
     void changed();
     void documentsAdded(const QList<qint64> &ids);
     void sourceScanned(qint64 sourceId, bool available);
+    /** Where the words of a scan stand is known now, or known anew. */
+    void layoutRecognized(qint64 id);
 
 private:
     template<typename Functor>
@@ -220,6 +231,7 @@ private:
     IndexWorker *m_worker = nullptr;
     std::atomic_bool m_abort = false;
     QList<QueueItem> m_jobs; ///< what was asked for and is not done yet, oldest first
+    QSet<qint64> m_layoutsAsked; ///< scans recognizeLayout() was asked for and has not answered
     bool m_jobRunning = false; ///< whether the worker has begun with m_jobs.first()
     bool m_ocrActive = false;
     bool m_lookActive = false;

@@ -682,8 +682,28 @@ void IndexWorker::ocrStep()
     } else if (!Indexing::runOcr(next, m_options)) {
         m_ocrUnreachable.insert(next);
     }
+    // Whoever shows one of them can have its text selected from now on.
+    for (const qint64 id : std::as_const(pictures)) {
+        Q_EMIT layoutRecognized(id);
+    }
     notifyChanged();
     QMetaObject::invokeMethod(this, &IndexWorker::ocrStep, Qt::QueuedConnection);
+}
+
+void IndexWorker::recognizeLayout(qint64 id)
+{
+    Q_EMIT jobStarted();
+    const Document doc = Store::document(id);
+    if (doc.isValid() && !aborted()) {
+        QueueItem item = queueItemForUrl(doc.url, doc.size);
+        item.name = doc.name;
+        Q_EMIT progress(Recognizing, item, 0, 1);
+        Indexing::recognizeLayout(id, m_options);
+        Q_EMIT progress(Idle, {}, 0, 0);
+    }
+    Q_EMIT jobFinished();
+    // Said in any case: whoever asked is to be free to ask again.
+    Q_EMIT layoutRecognized(id);
 }
 
 void IndexWorker::lookAtDocuments()
@@ -838,6 +858,10 @@ Indexer::Indexer(QObject *parent)
 
     connect(m_worker, &IndexWorker::changed, this, &Indexer::changed);
     connect(m_worker, &IndexWorker::documentsAdded, this, &Indexer::documentsAdded);
+    connect(m_worker, &IndexWorker::layoutRecognized, this, [this](qint64 id) {
+        m_layoutsAsked.remove(id);
+        Q_EMIT layoutRecognized(id);
+    });
     connect(m_worker, &IndexWorker::sourceScanned, this, &Indexer::sourceScanned);
     // The worker reports what it does in plain data; the texts are made here because
     // translations must first be used in the main thread.
@@ -965,6 +989,7 @@ void Indexer::restart()
     QCoreApplication::removePostedEvents(this, QEvent::MetaCall);
     const bool wasBusy = isBusy();
     m_jobs.clear();
+    m_layoutsAsked.clear();
     m_jobRunning = false;
     m_ocrActive = false;
     m_lookActive = false;
@@ -1118,6 +1143,21 @@ void Indexer::processOcrQueue()
 void Indexer::lookAtDocuments()
 {
     QMetaObject::invokeMethod(m_worker, &IndexWorker::lookAtDocuments, Qt::QueuedConnection);
+}
+
+void Indexer::recognizeLayout(qint64 id)
+{
+    if (m_layoutsAsked.contains(id)) {
+        return;
+    }
+    m_layoutsAsked.insert(id);
+    const Document doc = Store::document(id);
+    QueueItem description = queueItemForUrl(doc.url, doc.size);
+    description.name = doc.name;
+    description.state = QueueItem::WaitingForOcr;
+    post(description, [worker = m_worker, id] {
+        worker->recognizeLayout(id);
+    });
 }
 
 void Indexer::waitUntilIdle(int timeoutMs)

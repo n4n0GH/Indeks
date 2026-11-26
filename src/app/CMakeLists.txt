@@ -30,6 +30,8 @@ target_sources(indeks PRIVATE
     panellayout.h
     pdftext.cpp
     pdftext.h
+    recognizedtext.cpp
+    recognizedtext.h
     searchworker.cpp
     searchworker.h
     sidebarmodel.cpp

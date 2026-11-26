@@ -5,6 +5,7 @@
 
 #include <QImage>
 #include <QList>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QStringList>
@@ -22,11 +23,37 @@ QStringList installedLanguages();
 /** Reduces a "+"-separated wish list to the installed languages; falls back to what is there. */
 QString usableLanguages(const QString &wanted);
 
+/**
+ * A word tesseract read, and where it stands. With these, text can be selected on a scan and
+ * a place that was found can be pointed at, although the scan is a picture.
+ */
+struct Word {
+    QString text;
+    /** Where it stands, as shares of the width and the height of the image (0 to 1). */
+    QRectF box;
+    /** Which line of the image it is on, counted from 0 in the order of reading. */
+    int line = 0;
+    /** The first word of a paragraph: an empty line stands before it in the text. */
+    bool paragraph = false;
+};
+/** The words of an image, or of a page, in the order of reading. */
+using Page = QList<Word>;
+
 /** What tesseract made of one image. */
 struct Recognized {
     QString text;
+    Page words;
     bool ok = false; ///< false if the image could not be read or tesseract failed on it
 };
+
+/**
+ * The words in what tesseract writes about an image of @p size when it is asked for "tsv":
+ * a table with a row for every block, paragraph, line and word, and where each stands.
+ */
+Page parseLayout(const QByteArray &tsv, const QSize &size);
+
+/** Words as text: a line for each line of the image, an empty one between paragraphs. */
+QString textOf(const Page &words);
 
 /** How many tesseract processes run at once unless told otherwise: most of the cores. */
 int defaultParallelism();
@@ -55,9 +82,15 @@ QString recognize(const QImage &image, const QString &languages, bool *ok = null
 /** Reads an image file of any format Qt can read, as recognition wants it. */
 QImage readImageFile(const QString &path);
 
-/** Recognises text in an image file of any format Qt can read. */
-QString recognizeImageFile(const QString &path, const QString &languages, bool *ok = nullptr);
+/**
+ * Recognises text in an image file of any format Qt can read. @p layout, if given, gets
+ * the words and where they stand: one page.
+ */
+QString recognizeImageFile(const QString &path, const QString &languages, bool *ok = nullptr, QList<Page> *layout = nullptr);
 
-/** Renders up to @p maxPages pages of a PDF and recognises the text on them, @p parallel at a time. */
-QString recognizePdfFile(const QString &path, const QString &languages, int maxPages = 200, int parallel = 0, bool *ok = nullptr);
+/**
+ * Renders up to @p maxPages pages of a PDF and recognises the text on them, @p parallel at a
+ * time. @p layout, if given, gets the words of each of those pages and where they stand.
+ */
+QString recognizePdfFile(const QString &path, const QString &languages, int maxPages = 200, int parallel = 0, bool *ok = nullptr, QList<Page> *layout = nullptr);
 }

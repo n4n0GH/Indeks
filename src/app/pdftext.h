@@ -66,6 +66,11 @@ public:
     Q_INVOKABLE void selectWordAt(int page, const QPointF &point);
     /** Selects all the text of a page. */
     Q_INVOKABLE void selectPage(int page);
+    /**
+     * Which of the first @p count pages have text of their own. The others are pictures of
+     * text, scans, whose text is the recognised one; see RecognizedText.
+     */
+    Q_INVOKABLE QList<int> pagesWithText(int count);
     Q_INVOKABLE void clear();
 
 Q_SIGNALS:

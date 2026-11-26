@@ -42,6 +42,12 @@ its context menu, or wait for Indeks to notice.
 - Very small pictures, such as icons, are not looked at.
 - To run recognition on a document again, choose *Recognize Text (OCR)* from its context
   menu.
+- **Text on a scan cannot be selected:** The *Information* tab says under *OCR* whether the
+  text was recognised. If it says *Waiting*, it is not yet. A scan that an earlier version
+  of Indeks recognised is read once more when you first look at it; give it a moment.
+- **What is selected or found is not what the page says:** It is what recognition read.
+  *Show Recognized Text* (`Ctrl+U`) shows it. Fewer, fitting languages under *Settings →
+  Text Recognition*, and *Recognize Text (OCR)* again, may read it better.
 
 ## Office documents are shown as plain text
 

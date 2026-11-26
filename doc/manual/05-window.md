@@ -234,7 +234,8 @@ The icon of the button shows which one holds. Indeks remembers the choice.
   with a menu: *Add Note…* for a note on the whole document and *Add Sticky* for a note
   stuck to a place.
 - What the viewer of this kind of document offers, such as *Copy Selected Text*.
-- *Show Unformatted* or *View Raw* (`Ctrl+U`), where a document is laid out for reading.
+- *Show Unformatted* or *View Raw* (`Ctrl+U`), where a document is laid out for reading,
+  and *Show Recognized Text* for a scan.
 - The zoom.
 
 Buttons that do not fit move into a menu at the end of the bar.

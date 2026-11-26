@@ -46,7 +46,9 @@ Indeks uses the program Tesseract to recognise text in pictures and scanned PDFs
 is not installed, this page says so.
 
 - **Recognize text in images and scanned PDF documents:** Runs in the background after
-  indexing. The recognised text is stored in the index; the files stay as they are.
+  indexing. The recognised text is stored in the index, together with where each word
+  stands, so that it can be selected on the scan; the files stay as they are. See
+  *Documents → Scanned pages*.
 - **Pages read at the same time:** Each uses one processor core at low priority. *Automatic*
   uses three quarters of the cores.
 - **Languages to look for:** The languages Tesseract has data for. Choosing fewer languages

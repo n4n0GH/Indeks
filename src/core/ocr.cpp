@@ -23,6 +23,8 @@
 #include <QProcess>
 #include <QStandardPaths>
 
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <vector>
 
@@ -130,9 +132,71 @@ QImage prepared(const QImage &source)
 struct Running {
     int index = 0;
     QString file;
+    QSize size; ///< of the image tesseract was given: what its places are counted in
     std::unique_ptr<QProcess> process;
     QElapsedTimer timer;
 };
+}
+
+Page parseLayout(const QByteArray &tsv, const QSize &size)
+{
+    // level, page, block, paragraph, line, word, left, top, width, height, confidence, text;
+    // the first row names them. A row of level 5 is a word; the others are what holds words.
+    Page words;
+    if (size.isEmpty()) {
+        return words;
+    }
+    int line = -1;
+    int lastLine[3] = {-1, -1, -1}; // block, paragraph, line of the word before
+    int lastParagraph[2] = {-1, -1};
+    const QList<QByteArray> rows = tsv.split('\n');
+    for (const QByteArray &row : rows) {
+        const QList<QByteArray> cells = row.split('\t');
+        if (cells.size() < 12 || cells.at(0) != "5") {
+            continue;
+        }
+        Word word;
+        // A word that has a tab in it, should there ever be one, is still one word.
+        word.text = QString::fromUtf8(cells.mid(11).join('\t')).trimmed();
+        if (word.text.isEmpty()) {
+            continue;
+        }
+        const int at[3] = {cells.at(2).toInt(), cells.at(3).toInt(), cells.at(4).toInt()};
+        if (at[0] != lastLine[0] || at[1] != lastLine[1] || at[2] != lastLine[2]) {
+            ++line;
+            word.paragraph = line > 0 && (at[0] != lastParagraph[0] || at[1] != lastParagraph[1]);
+            lastParagraph[0] = at[0];
+            lastParagraph[1] = at[1];
+            std::copy(std::begin(at), std::end(at), std::begin(lastLine));
+        }
+        word.line = line;
+        const QRectF pixels(cells.at(6).toDouble(), cells.at(7).toDouble(), cells.at(8).toDouble(), cells.at(9).toDouble());
+        word.box = QRectF(pixels.x() / size.width(), pixels.y() / size.height(), pixels.width() / size.width(), pixels.height() / size.height())
+                       .intersected(QRectF(0, 0, 1, 1));
+        if (word.box.isEmpty()) {
+            continue;
+        }
+        words.append(word);
+    }
+    return words;
+}
+
+QString textOf(const Page &words)
+{
+    QString text;
+    int line = -1;
+    for (const Word &word : words) {
+        if (word.line != line) {
+            if (line >= 0) {
+                text += word.paragraph ? "\n\n"_L1 : "\n"_L1;
+            }
+            line = word.line;
+        } else {
+            text += u' ';
+        }
+        text += word.text;
+    }
+    return text;
 }
 
 bool isTooSmallForText(const QSize &size)
@@ -176,7 +240,8 @@ QList<Recognized> recognizeAll(int count, const std::function<QImage(int)> &imag
     auto finish = [&](Running &job, bool ok) {
         if (ok) {
             results[job.index].ok = true;
-            results[job.index].text = QString::fromUtf8(job.process->readAllStandardOutput()).trimmed();
+            results[job.index].words = parseLayout(job.process->readAllStandardOutput(), job.size);
+            results[job.index].text = textOf(results[job.index].words);
         }
         QFile::remove(job.file);
         if (progress) {
@@ -212,7 +277,9 @@ QList<Recognized> recognizeAll(int count, const std::function<QImage(int)> &imag
             Running job;
             job.index = index;
             job.file = work.filePath(QString::number(index) + ".pgm"_L1);
-            if (!prepared(page).save(job.file, "PGM")) {
+            const QImage ready = prepared(page);
+            job.size = ready.size();
+            if (!ready.save(job.file, "PGM")) {
                 if (progress) {
                     progress(++done);
                 }
@@ -227,7 +294,9 @@ QList<Recognized> recognizeAll(int count, const std::function<QImage(int)> &imag
                     // Not being allowed to step back is no reason not to run.
                 }
             });
-            job.process->start(tesseractPath(), {job.file, u"stdout"_s, u"-l"_s, usable});
+            // As a table of the words and where they stand ("tsv"), which the text is put
+            // together from as well; see parseLayout().
+            job.process->start(tesseractPath(), {job.file, u"stdout"_s, u"-l"_s, usable, u"tsv"_s});
             if (!job.process->waitForStarted(10000)) {
                 qCWarning(INDEKS_CORE) << "Cannot start tesseract:" << job.process->errorString();
                 QFile::remove(job.file);
@@ -288,8 +357,11 @@ QImage readImageFile(const QString &path)
     return reader.read();
 }
 
-QString recognizeImageFile(const QString &path, const QString &languages, bool *ok)
+QString recognizeImageFile(const QString &path, const QString &languages, bool *ok, QList<Page> *layout)
 {
+    if (layout) {
+        layout->clear();
+    }
     const QImage image = readImageFile(path);
     if (image.isNull()) {
         if (ok) {
@@ -297,13 +369,29 @@ QString recognizeImageFile(const QString &path, const QString &languages, bool *
         }
         return {};
     }
-    return recognize(image, languages, ok);
+    const QList<Recognized> result = recognizeAll(
+        1,
+        [&image](int) {
+            return image;
+        },
+        languages,
+        1);
+    if (ok) {
+        *ok = result.constFirst().ok;
+    }
+    if (layout && result.constFirst().ok) {
+        layout->append(result.constFirst().words);
+    }
+    return result.constFirst().text;
 }
 
-QString recognizePdfFile(const QString &path, const QString &languages, int maxPages, int parallel, bool *ok)
+QString recognizePdfFile(const QString &path, const QString &languages, int maxPages, int parallel, bool *ok, QList<Page> *layout)
 {
     if (ok) {
         *ok = false;
+    }
+    if (layout) {
+        layout->clear();
     }
     QPdfDocument document;
     if (document.load(path) != QPdfDocument::Error::None) {
@@ -334,9 +422,16 @@ QString recognizePdfFile(const QString &path, const QString &languages, int maxP
         if (!page.text.isEmpty()) {
             pages.append(page.text);
         }
+        // A page for every page, also where nothing was read: they go by their numbers.
+        if (layout) {
+            layout->append(page.words);
+        }
     }
     if (ok) {
         *ok = anyOk && !Task::aborted();
+    }
+    if (layout && (!anyOk || Task::aborted())) {
+        layout->clear();
     }
     return pages.join("\n\n"_L1);
 }

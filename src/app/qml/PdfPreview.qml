@@ -29,7 +29,7 @@ ColumnLayout {
 
     property string findText
     readonly property bool findable: pdf.status === PdfDocument.Ready
-    readonly property int findCount: findText.length > 0 ? searchModel.count : 0
+    readonly property int findCount: findText.length > 0 ? searchModel.count + scanText.findCount : 0
     readonly property bool findMore: false
     property int findIndex: -1
     onFindTextChanged: findIndex = -1
@@ -46,6 +46,16 @@ ColumnLayout {
             return ({});
         }
         // Qt hands the words around a hit over with a sign for every line break in them.
+        if (at >= searchModel.count) {
+            // A place on a scanned page; see RecognizedText.
+            const found = scanText.hit(at - searchModel.count);
+            return {
+                label: i18nc("@info a page of a document, by its number", "Page %1", found.page + 1),
+                before: found.before,
+                match: found.match,
+                after: found.after
+            };
+        }
         const hit = searchModel.index(at, 0);
         const before = (searchModel.data(hit, contextBeforeRole) ?? "").replace(/[\s\u23ce]+/g, " ");
         return {
@@ -62,20 +72,30 @@ ColumnLayout {
             return;
         }
         findIndex = at;
-        const hit = searchModel.index(at, 0);
-        const page = searchModel.data(hit, pageRole);
-        // Which of the hits is the one the reader is at: the page, and its number on the page.
-        searchModel.currentPage = page;
-        searchModel.currentResult = searchModel.data(hit, indexOnPageRole);
-        // The page to the top of the view, then down to a third above the hit.
-        const place = searchModel.data(hit, locationRole);
-        const points = pdf.pagePointSize(page);
-        pages.positionViewAtIndex(page, ListView.Beginning);
-        if (points.width > 0) {
-            const down = place.y * paperWidth / points.width - pages.height / 3;
-            const last = pages.contentHeight - pages.height + pages.originY + pages.bottomMargin;
-            pages.contentY = Math.max(pages.contentY, Math.min(last, pages.contentY + down));
+        let page = 0;
+        let down = 0; // how far down its page the place is, in the size the page is shown at
+        if (at >= searchModel.count) {
+            // On a scanned page: where the recognised words stand, in shares of the page.
+            const found = scanText.hit(at - searchModel.count);
+            scanText.setCurrent(at - searchModel.count);
+            page = found.page;
+            const size = pdf.pagePointSize(page);
+            down = size.width > 0 ? found.top * paperWidth * size.height / size.width : 0;
+        } else {
+            scanText.setCurrent(-1);
+            const hit = searchModel.index(at, 0);
+            page = searchModel.data(hit, pageRole);
+            // Which of the hits is the one the reader is at: the page, and its number on the page.
+            searchModel.currentPage = page;
+            searchModel.currentResult = searchModel.data(hit, indexOnPageRole);
+            const place = searchModel.data(hit, locationRole);
+            const size = pdf.pagePointSize(page);
+            down = size.width > 0 ? place.y * paperWidth / size.width : 0;
         }
+        // The page to the top of the view, then down to a third above the hit.
+        pages.positionViewAtIndex(page, ListView.Beginning);
+        const last = pages.contentHeight - pages.height + pages.originY + pages.bottomMargin;
+        pages.contentY = Math.max(pages.contentY, Math.min(last, pages.contentY + down - pages.height / 3));
     }
 
     // How wide a page is shown; the same for all of them.
@@ -86,6 +106,12 @@ ColumnLayout {
     property real zoom: 1.0
 
     spacing: 0
+
+    // For the bar above the preview: the text that was recognised on a scan can be shown in
+    // its place. That is another viewer, which PreviewPane puts here; this only says so.
+    property bool rawAvailable: false
+    readonly property bool raw: false
+    property string rawText
 
     function undoStroke(): void {
         const item = pages.itemAtIndex(lastDrawnPage >= 0 ? lastDrawnPage : currentPage);
@@ -98,11 +124,27 @@ ColumnLayout {
     function copySelection(): void {
         if (!textSelection.empty) {
             App.copyText(textSelection.text);
+        } else if (!scanText.empty) {
+            App.copyText(scanText.text);
         }
     }
     /** Selects all the text of the page that is in view. */
     function selectAll(): void {
-        textSelection.selectPage(currentPage);
+        if (isScan(currentPage)) {
+            textSelection.clear();
+            scanText.selectPage(currentPage);
+        } else {
+            scanText.clear();
+            textSelection.selectPage(currentPage);
+        }
+    }
+    /**
+     * Whether a page is a picture of text whose words were recognised: then it is those
+     * that are selected and found on it (RecognizedText), and not the text of the PDF, of
+     * which the page has none.
+     */
+    function isScan(page: int): bool {
+        return scanText.revision >= 0 && scanText.hasWords(page);
     }
 
     // Notes stuck to the pages; see StickyNotes.
@@ -157,7 +199,7 @@ ColumnLayout {
             text: i18nc("@action:intoolbar", "Copy Selected Text")
             displayHint: Kirigami.DisplayHint.IconOnly
             visible: root.ready
-            enabled: !textSelection.empty
+            enabled: !textSelection.empty || !scanText.empty
             onTriggered: root.copySelection()
         }
     ]
@@ -178,6 +220,20 @@ ColumnLayout {
         id: textSelection
 
         source: pdf.status === PdfDocument.Ready ? root.source : ""
+    }
+
+    // The words recognised on scanned pages, and where they stand. A scan whose text was
+    // recognised before Indeks kept that is read again now, in the background; its words
+    // arrive when that is done.
+    RecognizedText {
+        id: scanText
+
+        documentId: root.documentId
+        // Pages that have text of their own are the PDF's. Asked only of the pages words
+        // were recognised on, and so not at all of a PDF that is no scan.
+        ownTextPages: scanText.pageCount > 0 && textSelection.source.toString().length > 0 ? textSelection.pagesWithText(scanText.pageCount) : []
+        findText: searchModel.searchString
+        Component.onCompleted: App.library.requestRecognizedLayout(root.documentId)
     }
 
     PdfSearchModel {
@@ -220,6 +276,12 @@ ColumnLayout {
                 function inPoints(place: point): point {
                     return Qt.point(place.x / pageScale, place.y / pageScale);
                 }
+                // A place as shares of the width and the height of the page, which is what
+                // the places of recognised words are.
+                function inShares(place: point): point {
+                    return Qt.point(place.x / Math.max(1, paper.width), place.y / Math.max(1, paper.height));
+                }
+                readonly property bool scan: root.isScan(index)
 
                 width: pages.width
                 height: paper.height
@@ -273,7 +335,8 @@ ColumnLayout {
                             fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.5)
                             scale: Qt.size(pageItem.pageScale, pageItem.pageScale)
                             PathMultiline {
-                                paths: root.findIndex >= 0 && searchModel.currentPage === pageItem.index ? searchModel.currentResultBoundingPolygons : []
+                                paths: root.findIndex >= 0 && root.findIndex < searchModel.count && searchModel.currentPage === pageItem.index
+                                    ? searchModel.currentResultBoundingPolygons : []
                             }
                         }
                         ShapePath {
@@ -282,6 +345,42 @@ ColumnLayout {
                             scale: Qt.size(pageItem.pageScale, pageItem.pageScale)
                             PathMultiline {
                                 paths: textSelection.page === pageItem.index ? textSelection.geometry : []
+                            }
+                        }
+                    }
+
+                    // The same three for a scanned page: what was found on it, the place
+                    // that was gone to, and what is selected. The places of recognised
+                    // words are shares of the page, hence the other scale.
+                    Shape {
+                        anchors.fill: parent
+                        visible: image.status === Image.Ready && pageItem.scan
+
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.neutralTextColor, 0.4)
+                            scale: Qt.size(paper.width, paper.height)
+                            PathMultiline {
+                                paths: {
+                                    scanText.findCount; // re-evaluate when the search changes
+                                    return pageItem.scan ? scanText.marks(pageItem.index) : [];
+                                }
+                            }
+                        }
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.5)
+                            scale: Qt.size(paper.width, paper.height)
+                            PathMultiline {
+                                paths: root.findIndex >= searchModel.count && scanText.currentPage === pageItem.index ? scanText.currentMarks : []
+                            }
+                        }
+                        ShapePath {
+                            strokeWidth: -1
+                            fillColor: Qt.alpha(Kirigami.Theme.highlightColor, 0.4)
+                            scale: Qt.size(paper.width, paper.height)
+                            PathMultiline {
+                                paths: scanText.page === pageItem.index ? scanText.geometry : []
                             }
                         }
                     }
@@ -301,7 +400,13 @@ ColumnLayout {
                             pages.forceActiveFocus();
                         }
                         onCentroidChanged: if (active) {
-                            textSelection.selectBetween(pageItem.index, pageItem.inPoints(centroid.pressPosition), pageItem.inPoints(centroid.position));
+                            if (pageItem.scan) {
+                                textSelection.clear();
+                                scanText.selectBetween(pageItem.index, pageItem.inShares(centroid.pressPosition), pageItem.inShares(centroid.position));
+                            } else {
+                                scanText.clear();
+                                textSelection.selectBetween(pageItem.index, pageItem.inPoints(centroid.pressPosition), pageItem.inPoints(centroid.position));
+                            }
                         }
                     }
                     TapHandler {
@@ -312,8 +417,15 @@ ColumnLayout {
                         onSingleTapped: {
                             pages.forceActiveFocus();
                             textSelection.clear();
+                            scanText.clear();
                         }
-                        onDoubleTapped: eventPoint => textSelection.selectWordAt(pageItem.index, pageItem.inPoints(eventPoint.position))
+                        onDoubleTapped: eventPoint => {
+                            if (pageItem.scan) {
+                                scanText.selectWordAt(pageItem.index, pageItem.inShares(eventPoint.position));
+                            } else {
+                                textSelection.selectWordAt(pageItem.index, pageItem.inPoints(eventPoint.position));
+                            }
+                        }
                     }
                     // Where there is text to select, the pointer says so.
                     HoverHandler {

@@ -9,6 +9,7 @@
 #include "paths.h"
 #include "searchquery.h"
 
+#include <QDataStream>
 #include <QDir>
 #include <QFileInfo>
 
@@ -168,6 +169,101 @@ void setFingerprint(qint64 id, const QString &hash, const Fingerprint &print)
         values.append(qint64(word));
     }
     Database::exec(u"INSERT OR REPLACE INTO fingerprints (doc_id, hash, shape, ink, b0, b1, b2, b3, b4, b5, b6, b7) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"_s, values);
+}
+
+namespace
+{
+// The words of a page as one value: each with its place in 65535ths of the page, the line
+// it is on and whether a paragraph begins with it; compressed, since a page of text is a
+// few hundred of them and a database holds many pages.
+constexpr quint8 LayoutVersion = 1;
+constexpr qreal LayoutScale = 65535.0;
+
+QByteArray packWords(const Ocr::Page &words)
+{
+    QByteArray raw;
+    QDataStream out(&raw, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_6_0);
+    out << LayoutVersion << quint32(words.size());
+    const auto share = [](qreal value) {
+        return quint16(qBound(0.0, value, 1.0) * LayoutScale + 0.5);
+    };
+    for (const Ocr::Word &word : words) {
+        out << share(word.box.x()) << share(word.box.y()) << share(word.box.width()) << share(word.box.height()) << quint16(qMin(word.line, 65535))
+            << quint8(word.paragraph ? 1 : 0) << word.text.toUtf8();
+    }
+    return qCompress(raw, 6);
+}
+
+Ocr::Page unpackWords(const QByteArray &packed)
+{
+    Ocr::Page words;
+    const QByteArray raw = qUncompress(packed);
+    QDataStream in(raw);
+    in.setVersion(QDataStream::Qt_6_0);
+    quint8 version = 0;
+    quint32 count = 0;
+    in >> version >> count;
+    if (version != LayoutVersion || in.status() != QDataStream::Ok) {
+        return words;
+    }
+    words.reserve(qMin<quint32>(count, 100000));
+    for (quint32 i = 0; i < count && in.status() == QDataStream::Ok; ++i) {
+        quint16 x = 0;
+        quint16 y = 0;
+        quint16 width = 0;
+        quint16 height = 0;
+        quint16 line = 0;
+        quint8 flags = 0;
+        QByteArray text;
+        in >> x >> y >> width >> height >> line >> flags >> text;
+        if (in.status() != QDataStream::Ok) {
+            break;
+        }
+        Ocr::Word word;
+        word.box = QRectF(x / LayoutScale, y / LayoutScale, width / LayoutScale, height / LayoutScale);
+        word.line = line;
+        word.paragraph = (flags & 1) != 0;
+        word.text = QString::fromUtf8(text);
+        words.append(word);
+    }
+    return words;
+}
+}
+
+void setRecognizedLayout(qint64 id, const QList<Ocr::Page> &pages)
+{
+    Database::exec(u"DELETE FROM recognized_words WHERE doc_id = ?"_s, {id});
+    for (qsizetype page = 0; page < pages.size(); ++page) {
+        Database::exec(u"INSERT INTO recognized_words (doc_id, page, words) VALUES (?, ?, ?)"_s, {id, page, packWords(pages.at(page))});
+    }
+}
+
+QList<Ocr::Page> recognizedLayout(qint64 id)
+{
+    QList<Ocr::Page> pages;
+    QSqlQuery query = Database::exec(u"SELECT page, words FROM recognized_words WHERE doc_id = ? ORDER BY page"_s, {id});
+    while (query.next()) {
+        const int page = query.value(0).toInt();
+        if (page < 0 || page > 100000) {
+            continue;
+        }
+        while (pages.size() <= page) {
+            pages.append(Ocr::Page());
+        }
+        pages[page] = unpackWords(query.value(1).toByteArray());
+    }
+    return pages;
+}
+
+bool hasRecognizedLayout(qint64 id)
+{
+    return Database::value(u"SELECT 1 FROM recognized_words WHERE doc_id = ? LIMIT 1"_s, {id}).toInt() == 1;
+}
+
+void clearRecognizedLayout(qint64 id)
+{
+    Database::exec(u"DELETE FROM recognized_words WHERE doc_id = ?"_s, {id});
 }
 
 QString contentPath(const Document &document)

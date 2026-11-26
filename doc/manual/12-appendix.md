@@ -107,7 +107,7 @@ All shortcuts can be changed under *Configure Keyboard Shortcuts…*.
 | `Ctrl++`, `Ctrl+-` | Zoom in and out |
 | `Ctrl+0` | Reset the zoom |
 | `Ctrl` + mouse wheel | Zoom |
-| `Ctrl+U` | Show unformatted, or view raw |
+| `Ctrl+U` | Show unformatted, view raw, or show the recognised text of a scan |
 | `Ctrl+D` | Find in the document |
 | `F3`, `Shift+F3` | To the next and the previous place found in the document |
 | `Ctrl+Enter` | Put away a sticky note or add a note that is being written |
@@ -207,7 +207,8 @@ Every command is in the command bar. This list says what each one does.
 - **Zoom In**, **Zoom Out**, **Reset Zoom:** Change the size of the preview.
 - **Show Unformatted:** Shows the document as it is in the file, where the preview lays
   it out for reading: Markdown, HTML, tables, JSON, and plain text files that turned out to
-  be one of these. Called *View Raw* for tables and data.
+  be one of these. Called *View Raw* for tables and data, and *Show Recognized Text* for a
+  scan or a picture, where it shows the text that was recognised.
 - **Show Indexing Activity:** Lists what Indeks is working on.
 
 ### Scripts, to-dos and databases

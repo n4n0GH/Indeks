@@ -78,10 +78,26 @@ QQC2.Pane {
         }
     }
     function toggleRaw(): void {
+        if (shownKind === "pdf" || shownKind === "image") {
+            // A scan and the text that was recognised on it are two viewers.
+            if (recognizedShown || hasRecognizedText) {
+                recognizedShown = !recognizedShown;
+                show(shownKind, shownInfo, shownSource, message);
+            }
+            return;
+        }
         if (viewer.item?.rawAvailable) {
             viewer.item.raw = !viewer.item.raw;
         }
     }
+
+    /**
+     * The text that was recognised on a scan is shown in place of the scan: as text to
+     * read and to copy from, for where selecting on the page itself is not enough.
+     */
+    property bool recognizedShown: false
+    readonly property bool hasRecognizedText: (shownKind === "pdf" || shownKind === "image") && (shownInfo.ocr ?? 0) === 2
+    readonly property string recognizedText: i18nc("@action:intoolbar show the text that was recognised on a scan instead of the scan", "Show Recognized Text")
 
     // ---------------------------------------------------------- searching within the document
     //
@@ -182,7 +198,7 @@ QQC2.Pane {
             item.aboutToClose();
         }
         if (item && (shownKind === "pdf" || shownKind === "office")) {
-            pdfPage = item.currentPage;
+            pdfPage = item.currentPage ?? pdfPage;
         }
         viewer.sourceComponent = null;
     }
@@ -209,7 +225,8 @@ QQC2.Pane {
             "email": emailComponent,
             "canvas": canvasComponent
         };
-        viewer.sourceComponent = components[kind] ?? null;
+        const recognized = recognizedShown && (kind === "pdf" || kind === "image");
+        viewer.sourceComponent = recognized ? extractedComponent : components[kind] ?? null;
         editIfWanted();
     }
 
@@ -290,6 +307,11 @@ QQC2.Pane {
     }
     Binding {
         target: App
+        property: "rawViewText"
+        value: viewer.item?.rawText ?? ""
+    }
+    Binding {
+        target: App
         property: "tableShown"
         value: viewer.item?.table ?? false
     }
@@ -300,6 +322,8 @@ QQC2.Pane {
     }
 
     onDocumentIdChanged: {
+        // The next document is shown as itself.
+        recognizedShown = false;
         if (documentId > 0 && documentId !== editWanted) {
             // Another document was selected in the meantime: that one is not for writing in.
             editWanted = 0;
@@ -401,6 +425,8 @@ QQC2.Pane {
             drawColor: root.drawColor
             drawWidth: root.drawWidth
             initialPage: root.pdfPage
+            rawAvailable: root.hasRecognizedText
+            rawText: root.recognizedText
         }
     }
 
@@ -410,6 +436,9 @@ QQC2.Pane {
         ImagePreview {
             documentId: root.shownId
             source: root.shownSource
+            searchTerms: App.documents.searchTerms
+            rawAvailable: root.hasRecognizedText
+            rawText: root.recognizedText
             drawing: App.annotating
             drawTool: root.drawTool
             drawColor: root.drawColor
@@ -444,6 +473,11 @@ QQC2.Pane {
             id: extracted
 
             readonly property string indexedText: App.library.indexedText(root.shownId)
+
+            // Standing in for a scan, as the text that was recognised on it; see toggleRaw().
+            readonly property bool rawAvailable: root.recognizedShown
+            readonly property bool raw: root.recognizedShown
+            readonly property string rawText: root.recognizedText
 
             // Searching within the text; see above for what the preview asks for.
             property alias findText: extractedFind.text
@@ -486,6 +520,9 @@ QQC2.Pane {
                 visible: true
                 type: root.shownKind === "unavailable" || root.message.length > 0 ? Kirigami.MessageType.Warning : Kirigami.MessageType.Information
                 text: {
+                    if (root.recognizedShown) {
+                        return i18nc("@info", "This is the text Indeks recognized in the document. It can also be selected on the pages themselves.");
+                    }
                     if (root.shownKind === "unavailable") {
                         return extracted.indexedText.length > 0
                             ? i18nc("@info", "%1 Below is the text Indeks stored when it indexed the document.", root.message)
@@ -503,7 +540,7 @@ QQC2.Pane {
                 actions: [
                     Kirigami.Action {
                         fromQAction: App.action("doc_open")
-                        visible: root.shownKind !== "unavailable"
+                        visible: root.shownKind !== "unavailable" && !root.recognizedShown
                     }
                 ]
             }

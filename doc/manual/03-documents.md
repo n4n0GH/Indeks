@@ -83,13 +83,39 @@ PDF documents are shown page by page. The bar above the preview says which page 
 - **Search hits:** Coming from a search, the places where the word was found are marked.
 - **Drawing and notes:** See *Organising → Drawing* and *Sticky notes*.
 
-> **Note:** A scanned page is a picture of text and has no text to select. Indeks recognises
-> its text for searching; see *Settings → Text Recognition*.
+### Scanned pages
+
+A scanned page is a picture of text. Indeks recognises the text (see *Settings → Text
+Recognition*), and notes where each word stands on the page. So a scan is searched like any
+other document, and its text can be selected on the page itself:
+
+- **Selecting, copying:** As on other pages: drag, double-click a word, `Ctrl+A`, `Ctrl+C`.
+  A selection is always whole words. Indeks knows where a word begins and ends, not where
+  its letters do.
+- **Search hits and finding** work as on other pages; see *Finding → Finding inside a
+  document*.
+- **Show Recognized Text** (`Ctrl+U`), in the bar above the preview, shows the text that was
+  recognised in place of the pages: to read it, to see what recognition made of the scan,
+  and to copy longer stretches. The same button brings the pages back.
+
+In a PDF of which some pages are scans and others are not, each page is treated as what it
+is.
+
+> **Note:** What is recognised is as good as the scan. A word that was read wrongly is
+> selected, copied and found as it was read. *Show Recognized Text* shows what that is.
+
+A scan whose text was recognised by an earlier version of Indeks, which did not keep where
+the words stand, is read once more when you first look at it, in the background; its text
+can be selected a moment later.
 
 ## Pictures
 
 Pictures are shown fitted to the preview. The bar says their size in pixels. You can zoom,
-draw on them and stick notes to them. Text in pictures is recognised for searching.
+draw on them and stick notes to them.
+
+Text in a picture, a photo of a receipt or a screenshot for instance, is recognised like
+that of a scanned page, and can be selected, copied, found and shown the same way; see *PDF
+→ Scanned pages* above.
 
 ## Office documents
 

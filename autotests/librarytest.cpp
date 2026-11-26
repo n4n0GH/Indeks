@@ -1333,9 +1333,110 @@ def process(document):
         QCOMPARE(m_library->count(u"lighthouse"_s), 1);
         QCOMPARE(m_library->count(u"is:ocr"_s), 1);
 
-        // Unchanged files keep their recognised text when they are indexed again.
+        // Where the two words stand is kept as well, so that they can be selected on the
+        // picture: one page, the words in the order of reading, side by side on one line.
+        QList<Ocr::Page> layout = m_library->recognizedLayout(doc.id);
+        QCOMPARE(layout.size(), 1);
+        QCOMPARE(layout.constFirst().size(), 2);
+        const Ocr::Word first = layout.constFirst().at(0);
+        const Ocr::Word second = layout.constFirst().at(1);
+        QCOMPARE(first.text, u"Lighthouse"_s);
+        QCOMPARE(second.text, u"keeper"_s);
+        QCOMPARE(first.line, second.line);
+        QVERIFY(first.box.right() < second.box.left());
+        for (const Ocr::Word &word : {first, second}) {
+            QVERIFY(QRectF(0, 0, 1, 1).contains(word.box));
+            QVERIFY(word.box.width() > 0.05 && word.box.height() > 0.05);
+        }
+
+        // Unchanged files keep their recognised text when they are indexed again, ...
         m_library->contentSaved(doc.id);
         QCOMPARE(m_library->count(u"lighthouse"_s), 1);
+        // ... and where it stands.
+        QCOMPARE(m_library->recognizedLayout(doc.id).size(), 1);
+
+        // A scan from before Indeks kept the places has them found out when it is asked
+        // for, and the text in the index stays as it is.
+        Store::clearRecognizedLayout(doc.id);
+        const QString text = m_library->indexedText(doc.id);
+        QSignalSpy located(m_library.get(), &Library::recognizedLayoutChanged);
+        m_library->requestRecognizedLayout(doc.id);
+        m_library->requestRecognizedLayout(doc.id); // asking twice is asking once
+        QVERIFY(located.wait(60000));
+        QCOMPARE(located.constFirst().constFirst().toLongLong(), doc.id);
+        layout = m_library->recognizedLayout(doc.id);
+        QCOMPARE(layout.size(), 1);
+        QCOMPARE(layout.constFirst().size(), 2);
+        QCOMPARE(m_library->indexedText(doc.id), text);
+        QCOMPARE(Store::document(doc.id).ocr, OcrState::Done);
+        // Once it has them, asking does nothing.
+        m_library->requestRecognizedLayout(doc.id);
+        QVERIFY(!located.wait(300) || located.size() == 1);
+    }
+
+    void readsWhereRecognisedWordsStand()
+    {
+        // What tesseract writes about a picture 200 wide and 100 high: a row for the page,
+        // the blocks, paragraphs, lines and words. Needs no tesseract.
+        const QByteArray tsv =
+            "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+            "1\t1\t0\t0\t0\t0\t0\t0\t200\t100\t-1\t\n"
+            "2\t1\t1\t0\t0\t0\t20\t10\t160\t40\t-1\t\n"
+            "3\t1\t1\t1\t0\t0\t20\t10\t160\t40\t-1\t\n"
+            "4\t1\t1\t1\t1\t0\t20\t10\t160\t10\t-1\t\n"
+            "5\t1\t1\t1\t1\t1\t20\t10\t60\t10\t96.2\tPipes\n"
+            "5\t1\t1\t1\t1\t2\t100\t10\t80\t10\t95.1\tand\n"
+            "4\t1\t1\t1\t2\t0\t20\t30\t100\t10\t-1\t\n"
+            "5\t1\t1\t1\t2\t1\t20\t30\t100\t10\t91.0\tfittings:\n"
+            "5\t1\t1\t1\t2\t2\t130\t30\t10\t10\t30.0\t \n"
+            "2\t1\t2\t0\t0\t0\t20\t70\t50\t20\t-1\t\n"
+            "3\t1\t2\t1\t0\t0\t20\t70\t50\t20\t-1\t\n"
+            "4\t1\t2\t1\t1\t0\t20\t70\t50\t20\t-1\t\n"
+            "5\t1\t2\t1\t1\t1\t20\t70\t50\t20\t88.8\tGrüße\n";
+        const Ocr::Page words = Ocr::parseLayout(tsv, QSize(200, 100));
+        QCOMPARE(words.size(), 4); // the word that is only a blank is none
+        QCOMPARE(words.at(0).text, u"Pipes"_s);
+        QCOMPARE(words.at(0).box, QRectF(0.1, 0.1, 0.3, 0.1));
+        QCOMPARE(words.at(1).line, 0);
+        QCOMPARE(words.at(2).line, 1);
+        QVERIFY(!words.at(2).paragraph); // the same paragraph goes on
+        QCOMPARE(words.at(3).text, u"Grüße"_s);
+        QCOMPARE(words.at(3).line, 2);
+        QVERIFY(words.at(3).paragraph);
+        QCOMPARE(Ocr::textOf(words), u"Pipes and\nfittings:\n\nGrüße"_s);
+        QVERIFY(Ocr::parseLayout(tsv, QSize()).isEmpty());
+        QVERIFY(Ocr::parseLayout("not a table at all", QSize(200, 100)).isEmpty());
+
+        // Kept page by page, a page without words included, and gone with the document.
+        const qint64 document = m_library->createDocument(u"Scan stand-in"_s, u"txt"_s, u"Nothing to see.\n"_s);
+        QVERIFY(!Store::hasRecognizedLayout(document));
+        QVERIFY(m_library->recognizedLayout(document).isEmpty());
+        Store::setRecognizedLayout(document, {words, Ocr::Page(), words.mid(3)});
+        QVERIFY(Store::hasRecognizedLayout(document));
+        const QList<Ocr::Page> kept = m_library->recognizedLayout(document);
+        QCOMPARE(kept.size(), 3);
+        QCOMPARE(kept.at(0).size(), 4);
+        QVERIFY(kept.at(1).isEmpty());
+        QCOMPARE(kept.at(2).size(), 1);
+        QCOMPARE(Ocr::textOf(kept.at(0)), Ocr::textOf(words));
+        for (qsizetype i = 0; i < words.size(); ++i) {
+            // A place is kept to a 65535th of the page.
+            QVERIFY(qAbs(kept.at(0).at(i).box.x() - words.at(i).box.x()) < 0.0001);
+            QVERIFY(qAbs(kept.at(0).at(i).box.bottom() - words.at(i).box.bottom()) < 0.0001);
+            QCOMPARE(kept.at(0).at(i).paragraph, words.at(i).paragraph);
+        }
+        // Setting replaces.
+        Store::setRecognizedLayout(document, {words.mid(0, 1)});
+        QCOMPARE(m_library->recognizedLayout(document).size(), 1);
+        // Asking for the places of something that is no scan does nothing.
+        QSignalSpy located(m_library.get(), &Library::recognizedLayoutChanged);
+        Store::clearRecognizedLayout(document);
+        m_library->requestRecognizedLayout(document);
+        QVERIFY(!located.wait(200));
+        Store::setRecognizedLayout(document, {words});
+        m_library->moveToTrash({document});
+        m_library->emptyTrash();
+        QVERIFY(!Store::hasRecognizedLayout(document));
     }
 
     void recognisesSeveralPicturesAtOnce()

@@ -81,6 +81,8 @@ would shut older versions out for something they can do without.
 | --- | --- |
 | `fingerprints` | What a picture or a PDF looks like (`Fingerprint`): `shape` (0 nothing to go by, 1 page, 2 picture), `ink` (how many bits are set) and the 256 bits in `b0` to `b7`, 32 to a number. `hash` is the hash of the content it was made of; where it is not the document's any more, an older Indeks has read the file anew, and the document is looked at again (`IndexWorker::lookAtDocuments()`). Rows go with their document (`ON DELETE CASCADE`). |
 
+| `recognized_words` | Where the words stand that were recognised on a scan (`Ocr::Word`), a row for each page that was read (`page`, 0 for a picture): `words` is the compressed list of them, each with its place in 65535ths of the page, its line and whether a paragraph begins with it (`Store::setRecognizedLayout()`). A page without words has a row too, which says that the page was looked at. A scan that has text in the index (`ocr` is 2) and no row here was recognised before the places were kept; `Library::requestRecognizedLayout()` has them found. |
+
 A table belongs here only if nothing is lost when it is: no table of things the user
 attached.
 

@@ -300,6 +300,7 @@ Library::Library(QObject *parent)
     connect(m_indexer, &Indexer::busyChanged, this, &Library::busyChanged);
     connect(m_indexer, &Indexer::statusChanged, this, &Library::statusChanged);
     connect(m_indexer, &Indexer::documentsAdded, this, &Library::applyImportRules);
+    connect(m_indexer, &Indexer::layoutRecognized, this, &Library::recognizedLayoutChanged);
     connect(m_remote, &RemoteScanner::changed, this, &Library::touch);
     connect(m_remote, &RemoteScanner::busyChanged, this, &Library::busyChanged);
     connect(m_remote, &RemoteScanner::statusChanged, this, &Library::statusChanged);
@@ -2891,6 +2892,23 @@ void Library::writeTodoCalendar()
             },
             Qt::QueuedConnection);
     });
+}
+
+QList<Ocr::Page> Library::recognizedLayout(qint64 id) const
+{
+    return Store::recognizedLayout(id);
+}
+
+void Library::requestRecognizedLayout(qint64 id)
+{
+    if (!m_options.ocrEnabled || !Ocr::isAvailable()) {
+        return;
+    }
+    const Document doc = Store::document(id);
+    if (!doc.isValid() || doc.ocr != OcrState::Done || (doc.kind != Kind::Pdf && doc.kind != Kind::Image) || Store::hasRecognizedLayout(id)) {
+        return;
+    }
+    m_indexer->recognizeLayout(id);
 }
 
 QString Library::ink(qint64 documentId, int page) const

@@ -1135,6 +1135,19 @@ void App::setRawView(bool raw)
     }
 }
 
+void App::setRawViewText(const QString &text)
+{
+    if (m_rawViewText == text) {
+        return;
+    }
+    m_rawViewText = text;
+    // The command is called what the button of the preview is called.
+    if (QAction *toggle = action(u"view_raw"_s)) {
+        toggle->setText(text.isEmpty() ? i18nc("@action", "Show Unformatted") : text);
+    }
+    Q_EMIT previewChanged();
+}
+
 void App::syncEditAction()
 {
     if (QAction *edit = action(u"doc_edit"_s)) {

@@ -183,6 +183,9 @@ tab of that panel:
   document it was typed for.
 
 Text, Markdown and HTML, tables, PDF documents, Office documents and e-mails can be
-searched this way; in an e-mail, the text of the message is. Pictures, canvases and websites
-have no text in the preview to search. A text cannot be searched while you are editing it.
+searched this way; in an e-mail, the text of the message is. So can scanned pages and
+pictures in which text was recognised: the places are marked on the scan itself. In a PDF
+with scanned pages and others, the places on the scanned pages are listed after the others.
+Canvases and websites have no text in the preview to search. A text cannot be searched while
+you are editing it.
 The marks go away when you leave the *Find* tab.

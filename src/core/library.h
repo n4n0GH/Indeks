@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ocr.h"
 #include "types.h"
 
 #include <QHash>
@@ -428,6 +429,18 @@ public:
     /** Writes the calendar now, if there is something to write, and waits until it is there. */
     void flushTodoCalendar();
 
+    /**
+     * Where the words stand that were recognised on the pages of a scan (a picture is one
+     * page); see Ocr::Word. Empty for a document that has none, or none yet.
+     */
+    QList<Ocr::Page> recognizedLayout(qint64 id) const;
+    /**
+     * Has the words of a scan located whose text was recognised before Indeks kept where
+     * they stand, in the background. recognizedLayoutChanged() says when that is done. Does
+     * nothing for other documents, so whoever shows a document may simply ask.
+     */
+    Q_INVOKABLE void requestRecognizedLayout(qint64 id);
+
     /** Drawing on @p page as JSON; page 0 for single-page documents. */
     Q_INVOKABLE QString ink(qint64 documentId, int page) const;
     Q_INVOKABLE void setInk(qint64 documentId, int page, const QString &json);
@@ -465,6 +478,8 @@ Q_SIGNALS:
     void documentCreated(qint64 id);
     void sourcesChanged();
     void todosChanged();
+    /** Where the words of a scan stand was found out, or found out anew. */
+    void recognizedLayoutChanged(qint64 id);
     /** Whether the calendar of to-dos is kept, where, or what is wrong with it. */
     void todoCalendarChanged();
     void viewColumnsChanged();

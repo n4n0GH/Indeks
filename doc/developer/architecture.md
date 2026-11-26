@@ -50,7 +50,7 @@ does the work. It is built as three programs and one library.
 | `Mailbox` | `mailbox.*` | Goes through an mbox file once and notes where each message stands. |
 | `TextFormat` | `textformat.*` | Says what a plain text file is written as, going by its beginning: Markdown, values in rows and columns, or text (`guess()`). Careful on purpose, since prose taken for Markdown loses its line breaks; `textformattest` holds the cases on both sides of the line. `Library::guessedTextFormat()` asks it for `text/plain` files only, and `TextPreview` shows the file as what it is, with the raw view one click away. Tables are told with the help of `DelimitedTable` (`delimited.*`), whose `Dialect` also covers bars between spaces (`a | b`) and rows that go on in lines set in below them (`guessDialect()`, `looksLikeSpacedBars()`). |
 | `WebLink` | `weblink.*` | Websites as documents (`Kind::Website`): reads the address out of an internet shortcut (`.url`) or a `.webloc` file, writes the `.url` files Indeks makes, and says whether a text is the address of a website. Only `http` and `https` count; `App::openExternally()` hands such an address to the desktop's browser and opens everything else as a file. |
-| `Ocr` | `ocr.*` | Runs Tesseract on pictures and on pages of PDFs. |
+| `Ocr` | `ocr.*` | Runs Tesseract on pictures and on pages of PDFs, and reads from what it writes the words and where they stand (`Ocr::Word`, `parseLayout()`). See *Text on scans* below. |
 | `Office` | `office.*` | Has LibreOffice make PDF renditions of Office documents. |
 | `Fingerprint` | `fingerprint.*` | What a picture or the first page of a PDF looks like, in 256 bits, and the comparison of two of them, in the program and as SQL. See *Documents that look alike* below. |
 | `Rules` | `rules.*` | Which documents a rule matches, and carrying out its actions. Used from the main thread and the script thread. |
@@ -78,6 +78,7 @@ does the work. It is built as three programs and one library.
 | `ThumbnailProvider` | `thumbnailprovider.*` | The small pictures of the grid of documents, `image://thumbnail/…`: made in a pool of its own (three threads), kept as PNG files in the cache folder. See *The documents as list and as grid* below. |
 | `TableModel` | `tablemodel.*` | CSV and TSV files as a table. Rows and columns are counted as the table is shown: without the columns the user hid (`m_shown`), in the order the rows are sorted into (`m_order`, worked out in a pool thread by `sortBy()`). The file and `DelimitedTable` know nothing of either. |
 | `PdfText` | `pdftext.*` | Text selection on PDF pages that snaps to the nearest text. |
+| `RecognizedText` | `recognizedtext.*` | The same for the text that was recognised on a scan, and finding in it; see *Text on scans* below. |
 | `InkCanvas` | `inkcanvas.*` | Freehand drawing on pages and pictures. |
 | `CodeLayout` | `codelayout.*` | Lays out long text files a window at a time. |
 
@@ -200,12 +201,51 @@ viewer knows what it shows and how to mark it. A viewer that can be searched off
 | `TextPreview`, text as it is in the file | The places are found in `sourceText`, the whole text; `CodeView` marks those among the lines it holds (`marks`) and `select()` goes to one, fetching its lines first. |
 | `TextPreview`, rendered text; `EmailPreview`; the text Indeks stored | `TextFind`, a child of the `TextArea`: searches the text as it reads on screen. |
 | `DataTable` | `TableModel::findAll()`; the cells that hold the text are coloured. |
-| `PdfPreview`, also for Office documents | Qt's `PdfSearchModel`, which goes through the pages in the background, so that hits come in as it goes. What it knows of a hit is read with `data()` and the roles of `QPdfSearchModel::Role`. |
+| `PdfPreview`, also for Office documents | Qt's `PdfSearchModel`, which goes through the pages in the background, so that hits come in as it goes. What it knows of a hit is read with `data()` and the roles of `QPdfSearchModel::Role`. The hits on scanned pages are `RecognizedText`'s, and are counted after those: hit `i` is the model's while `i` is below its count, and the scan's from there on. |
+| `ImagePreview` | `RecognizedText`, where text was recognised in the picture. |
 
 `FindMarks` draws the marks over a `TextEdit`, for the stretch that is in view only. The
 search is not case sensitive and is not asked for while a text is being edited. The marks
 go when the *Find* tab is left: `SidePanel.findText` is empty then. Selecting another
 document empties the field (`FindPane`).
+
+## Text on scans
+
+A scan is a picture of text: there is nothing in the file to select. What makes its text
+selectable is that the index keeps, besides the text that was recognised, where each word
+of it stands.
+
+- **Reading.** Tesseract is asked for a table of what it found (`tsv`): a row for every
+  block, paragraph, line and word, with its place in pixels. `Ocr::parseLayout()` makes
+  `Ocr::Word`s of the rows that are words: the text, the place as shares of the width and
+  the height of the image (0 to 1, so that it holds at whatever size the page is shown),
+  the line, and whether a paragraph begins there. The text that goes into the full text
+  index is put together from the same words (`Ocr::textOf()`), so the two cannot differ.
+- **Keeping.** `Store::setRecognizedLayout()`, a row for each page in the derived table
+  `recognized_words` (see [database.md](database.md)). It is written where the text is
+  (`Indexing::runOcr()`, `runOcrBatch()`) and dropped where the text is, when the file is
+  read anew.
+- **Scans from before.** A scan that has its text and no words was recognised by an Indeks
+  that did not keep them. The viewer asks for them when it shows such a document
+  (`Library::requestRecognizedLayout()`, which does nothing for any other), the indexer
+  reads the scan again and stores the words alone (`Indexing::recognizeLayout()`; the text
+  in the index is not touched), and `Library::recognizedLayoutChanged()` says when they are
+  there. Nothing is read again that nobody looks at: going through every scan of a large
+  database would take hours.
+- **Selecting and finding.** `RecognizedText` does on the words what `PdfText` does on the
+  text of a PDF, by the same names (`selectBetween()`, `selectWordAt()`, `selectPage()`,
+  `text`, `geometry`), and what `PdfSearchModel` does for finding (`findText`, `findCount`,
+  `hit()`, `marks()`). A selection is whole words; of a word that is found in part, the
+  mark covers the share of its width that the letters found are of its letters.
+- **In the viewers.** `ImagePreview` has one page, 0. `PdfPreview` asks page by page
+  (`isScan()`): a page that has text of its own is the PDF's, and `RecognizedText` is told
+  to leave those alone (`ownTextPages`), so that a PDF of scans and other pages has every
+  place once. Places are scaled to the size the page is shown at by the `scale` of the
+  `ShapePath`.
+- **The recognised text as text.** *Show Recognized Text* is the viewer's raw view
+  (`rawAvailable`, `rawText`), which `PreviewPane` answers itself for a scan: it shows the
+  text of the index in the viewer for stored text (`recognizedShown`). `App.rawViewText`
+  gives the command of the command bar the name the button has.
 
 ## Filters put together by hand
 

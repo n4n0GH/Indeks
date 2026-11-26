@@ -79,6 +79,8 @@ class App : public AbstractKirigamiApplication
     /** The preview shows a table, whose columns can be hidden and sorted by. Set by the preview. */
     Q_PROPERTY(bool tableShown READ isTableShown WRITE setTableShown NOTIFY previewChanged)
     Q_PROPERTY(bool rawView READ isRawView WRITE setRawView NOTIFY previewChanged)
+    /** What the viewer calls its raw view, "Show Recognized Text" for a scan; empty for the usual name. */
+    Q_PROPERTY(QString rawViewText READ rawViewText WRITE setRawViewText NOTIFY previewChanged)
     /**
      * What the middle of the window is about: "database" for the documents, "automation"
      * for the rules and scripts. Set by the two views of the panels that go by these names,
@@ -172,6 +174,11 @@ public:
         return m_rawView;
     }
     void setRawView(bool raw);
+    QString rawViewText() const
+    {
+        return m_rawViewText;
+    }
+    void setRawViewText(const QString &text);
     QString sidebarTab() const
     {
         return m_sidebarTab;
@@ -374,6 +381,7 @@ private:
     bool m_rawViewAvailable = false;
     bool m_tableShown = false;
     bool m_rawView = false;
+    QString m_rawViewText;
     EditMode m_editMode = EditMode::None;
     QVariantMap m_clipping;
     QString m_clippedText;

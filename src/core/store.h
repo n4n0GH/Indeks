@@ -4,6 +4,7 @@
 #pragma once
 
 #include "fingerprint.h"
+#include "ocr.h"
 #include "types.h"
 
 #include <QHash>
@@ -72,6 +73,17 @@ Fingerprint fingerprint(qint64 id);
  * shape is noted too: the document was looked at, and there is nothing to go by.
  */
 void setFingerprint(qint64 id, const QString &hash, const Fingerprint &print);
+/**
+ * The words that were recognised on the pages of a scan, and where they stand: page by
+ * page, a picture being one page. Kept so that text can be selected and found on the scan
+ * itself (table `recognized_words`, which is derived: recognising again brings it back).
+ * Setting replaces what was there; a document that was looked at has a row for every page
+ * that was read, also for a page without words.
+ */
+void setRecognizedLayout(qint64 id, const QList<Ocr::Page> &pages);
+QList<Ocr::Page> recognizedLayout(qint64 id);
+bool hasRecognizedLayout(qint64 id);
+void clearRecognizedLayout(qint64 id);
 
 /**
  * What becomes of a document whose file is no longer where it was: it goes into the trash,

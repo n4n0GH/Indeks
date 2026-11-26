@@ -275,19 +275,33 @@ namespace
 // it was made of, by which one that is out of date is told.
 void ensureDerivedTables(QSqlDatabase &db)
 {
-    QSqlQuery there(db);
-    if (there.exec(u"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'fingerprints'"_s) && there.next()) {
-        return;
+    // Only what is missing is made: an index that has them all is not written to.
+    const auto missing = [&db](const QString &table) {
+        QSqlQuery there(db);
+        there.prepare(u"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?"_s);
+        there.addBindValue(table);
+        return !(there.exec() && there.next());
+    };
+    if (missing(u"fingerprints"_s)) {
+        run(db,
+            u"CREATE TABLE IF NOT EXISTS fingerprints ("
+            "doc_id INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE, "
+            "hash TEXT NOT NULL DEFAULT '', "
+            "shape INTEGER NOT NULL DEFAULT 0, "
+            "ink INTEGER NOT NULL DEFAULT 0, "
+            "b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0, "
+            "b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0)"_s);
     }
-    there.finish();
-    run(db,
-        u"CREATE TABLE IF NOT EXISTS fingerprints ("
-        "doc_id INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE, "
-        "hash TEXT NOT NULL DEFAULT '', "
-        "shape INTEGER NOT NULL DEFAULT 0, "
-        "ink INTEGER NOT NULL DEFAULT 0, "
-        "b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0, "
-        "b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0)"_s);
+    if (missing(u"recognized_words"_s)) {
+        // The words recognised on the pages of scans, and where they stand; see
+        // Store::setRecognizedLayout().
+        run(db,
+            u"CREATE TABLE IF NOT EXISTS recognized_words ("
+            "doc_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, "
+            "page INTEGER NOT NULL, "
+            "words BLOB NOT NULL, "
+            "PRIMARY KEY (doc_id, page)) WITHOUT ROWID"_s);
+    }
 }
 }
 

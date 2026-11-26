@@ -8,6 +8,18 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.6.2
+
+- **Text on scans can be selected:** On a scanned page and in a picture, the text that was
+  recognised can be selected with the mouse and copied, as on any other page. Indeks now
+  keeps where each recognised word stands. See *Documents → Scanned pages*.
+- **Finding on scans:** *Find in Document* and the marks of search hits work on scanned
+  pages and in pictures.
+- **Show Recognized Text** (`Ctrl+U`), in the bar above the preview of a scan or a picture,
+  shows the text that was recognised in place of it.
+- **Scans from before:** A scan that an earlier version recognised is read once more when
+  you first look at it, in the background, so that its text can be selected too.
+
 ## Version 0.6.2
 
 - **The icons of your desktop, in the Flatpak:** The Flatpak drew the icons of Breeze where

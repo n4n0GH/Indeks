@@ -127,6 +127,10 @@ Result storeFile(const FileJob &job, const Document &existing, const Prepared &p
 
     if (existing.isValid()) {
         result.id = existing.id;
+        if (!keepText) {
+            // Where the words stood on the pages as they were says nothing about these.
+            Store::clearRecognizedLayout(existing.id);
+        }
         // A document that was added on its own is adopted by the indexed location that contains it.
         const qint64 sourceId = job.sourceId != 0 ? job.sourceId : existing.sourceId;
         Store::fileReturned(existing.id);
@@ -278,6 +282,12 @@ Result indexNameOnly(const QUrl &url, qint64 sourceId, qint64 size, qint64 mtime
     return result;
 }
 
+namespace
+{
+/** How many pages of a PDF are read for text at most. */
+constexpr int MaxOcrPages = 200;
+}
+
 bool runOcr(qint64 documentId, const IndexOptions &options, const QString &pathOverride)
 {
     const Document doc = Store::document(documentId);
@@ -291,10 +301,11 @@ bool runOcr(qint64 documentId, const IndexOptions &options, const QString &pathO
 
     bool ok = false;
     QString text;
+    QList<Ocr::Page> layout;
     if (doc.kind == Kind::Pdf) {
-        text = Ocr::recognizePdfFile(path, options.ocrLanguages, 200, options.ocrJobs, &ok);
+        text = Ocr::recognizePdfFile(path, options.ocrLanguages, MaxOcrPages, options.ocrJobs, &ok, &layout);
     } else {
-        text = Ocr::recognizeImageFile(path, options.ocrLanguages, &ok);
+        text = Ocr::recognizeImageFile(path, options.ocrLanguages, &ok, &layout);
     }
 
     if (Task::aborted()) {
@@ -306,6 +317,9 @@ bool runOcr(qint64 documentId, const IndexOptions &options, const QString &pathO
     }
     Transaction transaction;
     Store::appendFullText(documentId, text);
+    if (ok) {
+        Store::setRecognizedLayout(documentId, layout);
+    }
     Database::exec(u"UPDATE documents SET ocr = ? WHERE id = ?"_s, {int(ok ? OcrState::Done : OcrState::Failed), documentId});
     transaction.commit();
     return true;
@@ -351,10 +365,44 @@ QList<qint64> runOcrBatch(const QList<qint64> &documentIds, const IndexOptions &
             continue;
         }
         Store::appendFullText(id, recognized.at(i).text);
+        if (recognized.at(i).ok) {
+            Store::setRecognizedLayout(id, {recognized.at(i).words});
+        }
         Database::exec(u"UPDATE documents SET ocr = ? WHERE id = ?"_s, {int(recognized.at(i).ok ? OcrState::Done : OcrState::Failed), id});
     }
     transaction.commit();
     return unreachable;
+}
+
+bool recognizeLayout(qint64 documentId, const IndexOptions &options)
+{
+    const Document doc = Store::document(documentId);
+    if (!doc.isValid() || doc.ocr != OcrState::Done || (doc.kind != Kind::Pdf && doc.kind != Kind::Image) || Store::hasRecognizedLayout(documentId)) {
+        return false;
+    }
+    const QString path = Store::contentPath(doc);
+    if (path.isEmpty()) {
+        return false;
+    }
+    bool ok = false;
+    QList<Ocr::Page> layout;
+    if (doc.kind == Kind::Pdf) {
+        Ocr::recognizePdfFile(path, options.ocrLanguages, MaxOcrPages, options.ocrJobs, &ok, &layout);
+    } else {
+        Ocr::recognizeImageFile(path, options.ocrLanguages, &ok, &layout);
+    }
+    // The text is in the index already, and stays as it is; only where it stands is new. A
+    // scan that cannot be read gets a page without words, so that it is not tried on and on.
+    if (Task::aborted() || !Store::document(documentId).isValid()) {
+        return false;
+    }
+    if (!ok || layout.isEmpty()) {
+        layout = {Ocr::Page()};
+    }
+    Transaction transaction;
+    Store::setRecognizedLayout(documentId, layout);
+    transaction.commit();
+    return true;
 }
 
 }
