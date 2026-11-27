@@ -3029,7 +3029,22 @@ qint64 Library::importAttachment(qint64 documentId, int message, int index)
         Q_EMIT this->message(i18nc("@info", "Cannot store the attachment in Indeks."));
         return 0;
     }
-    return adoptOwnedFile(target);
+    const qint64 id = adoptOwnedFile(target);
+    if (id > 0 && id != documentId) {
+        // It stays with the mail it came in: as a document of its own, nothing else says
+        // where it is from. Not through linkDocuments(), which takes what it links out of
+        // the inbox: this link nobody made by hand, and the new document is not filed yet.
+        const bool linked = Database::exec(u"INSERT OR IGNORE INTO document_links (a_id, b_id, created) VALUES (?, ?, ?)"_s,
+                                           {qMin(id, documentId), qMax(id, documentId), QDateTime::currentSecsSinceEpoch()})
+                                .numRowsAffected()
+            > 0;
+        if (linked) {
+            Q_EMIT documentChanged(documentId);
+            Q_EMIT documentChanged(id);
+            touch();
+        }
+    }
+    return id;
 }
 
 // ---------------------------------------------------------------------------------------------

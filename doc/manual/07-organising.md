@@ -87,6 +87,9 @@ number of others, wherever their files are.
 - *Link Selected Documents*, in the context menu and in the *Information* tab while several
   documents are selected, links every one of them with every other. This takes up to 20
   documents at a time.
+- An attachment that you add to Indeks from an e-mail is linked to that message without
+  your doing. Neither of the two leaves the *Inbox* for it, as documents do that you link
+  yourself.
 
 **Following a link.** The *Information* tab lists the documents the selected one is linked
 to. Click a name to go to that document. In the dialog, the arrow beside a linked document

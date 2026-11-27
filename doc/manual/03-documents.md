@@ -140,7 +140,11 @@ followed by its text and its attachments.
   *Show All 70* opens a line that holds more.
 - **Formatted messages:** *Show Formatted* switches between the plain and the formatted
   version of a message. Pictures and other content from the network are never loaded.
-- **Attachments:** An attachment can be opened, or added to Indeks as a document.
+- **Attachments:** Click an attachment to open it, or to add it to Indeks as a document
+  with *Add to Indeks*. The new document is a copy in the folders of Indeks. It arrives in
+  the *Inbox* and is linked to the message it came in: the *Information* tab of either lists
+  the other under its linked documents, and a click there goes to it. See *Organising →
+  Linked documents*.
 
 ## Mailboxes
 

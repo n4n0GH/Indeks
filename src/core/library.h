@@ -451,7 +451,10 @@ public:
     Q_INVOKABLE QVariantMap email(qint64 documentId, int message = 0) const;
     /** Writes an attachment into the cache and returns where, for opening it. */
     Q_INVOKABLE QUrl extractAttachment(qint64 documentId, int message, int index);
-    /** Stores an attachment as a new document in the inbox. */
+    /**
+     * Stores an attachment as a new document in the inbox, linked with the mail it came in
+     * (linkedDocuments()), which is what says where it is from.
+     */
     Q_INVOKABLE qint64 importAttachment(qint64 documentId, int message, int index);
 
     // Obsidian canvas

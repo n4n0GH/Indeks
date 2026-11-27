@@ -32,6 +32,7 @@ You have exported e-mails and want them searchable next to your other documents.
 - A mailbox file (mbox), as mail programs and Google Takeout export them, opens like a folder
   in the list. Each message in it is a document that you can tag, group and annotate.
 - Attachments can be opened from the preview or added to Indeks as documents of their own.
+  An attachment that was added is linked to its message, so that each leads to the other.
 
 Search for `kind:email` to list messages, and add words to narrow the list down.
 

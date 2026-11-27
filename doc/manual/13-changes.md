@@ -8,6 +8,13 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
+## Since version 0.7.1
+
+- **An added attachment stays with its message:** An attachment that is added to Indeks
+  from an e-mail became a document that no longer said where it came from. It is now
+  linked to the message, also to one inside a mailbox, and each of the two lists the other
+  in the *Information* tab. Attachments that were added before are not linked afterwards.
+
 ## Version 0.7.1
 
 - **A to-do shows its document wherever it is:** A click on a to-do went to *All
