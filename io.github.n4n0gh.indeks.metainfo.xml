@@ -36,6 +36,14 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.2" date="2026-11-27">
+      <description>
+        <p>An added attachment stays with its message.</p>
+        <ul>
+          <li>An attachment that is added to Indeks from an e-mail is linked to the message it came in, also to one inside a mailbox, so that each of the two leads to the other</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.1" date="2026-11-26">
       <description>
         <p>A to-do shows its document wherever it is.</p>

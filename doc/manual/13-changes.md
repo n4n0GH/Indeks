@@ -8,7 +8,7 @@
 What is new in Indeks, the latest first. This manual is changed together with Indeks, so the
 chapters before this one always describe the version named on the cover.
 
-## Since version 0.7.1
+## Version 0.7.2
 
 - **An added attachment stays with its message:** An attachment that is added to Indeks
   from an e-mail became a document that no longer said where it came from. It is now
